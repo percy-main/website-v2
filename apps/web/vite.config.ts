@@ -53,8 +53,14 @@ export default defineConfig(({ mode, isSsrBuild }) => ({
     imagetools({
       defaultDirectives: (url) => {
         if (url.searchParams.has("optimise")) {
+          // "jpeg", not the "jpg" alias: imagetools names the output file
+          // from the directive on a cache miss but from sharp's reported
+          // format ("jpeg") on a disk-cache hit. With "jpg", a cold client
+          // build emits .jpg while the warm SSR build right after
+          // references .jpeg - prerendered pages then point at files that
+          // don't exist (caught by check-ssr-asset-parity in deploy).
           return new URLSearchParams(
-            "w=320;640;960;1280;1920&format=avif;webp;jpg&as=picture",
+            "w=320;640;960;1280;1920&format=avif;webp;jpeg&as=picture",
           );
         }
         return new URLSearchParams();
