@@ -9,6 +9,7 @@ import {
 import type { FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { createPrerenderTrigger } from "../../lib/prerender-trigger.ts";
 import { getAuthSession, requireAuth } from "../auth/middleware.ts";
 import {
   contentDetailResponseSchema,
@@ -26,6 +27,7 @@ import {
   pageByPathQuerySchema,
   pageTreeResponseSchema,
   playCricketIdParamSchema,
+  prerenderManifestResponseSchema,
   publicContentParamsSchema,
   publicContentResponseSchema,
   publishContentSchema,
@@ -45,6 +47,7 @@ import {
   getRevision,
   listContent,
   listPageTree,
+  listPrerenderManifest,
   listPublishedEvents,
   listPublishedNews,
   listPublishedPeople,
@@ -97,6 +100,11 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
   const publicEvents = listPublishedEvents(app.db);
   const publicPeople = listPublishedPeople(app.db);
   const publicNav = getPublishedNav(app.db);
+  const prerenderManifest = listPrerenderManifest(app.db);
+  // Fire-and-forget on every mutation that changes the public site; the
+  // Lambda's manifest diff works out what to re-render (no-op when a
+  // publish is scheduled for the future - the item isn't live yet).
+  const prerenderTrigger = createPrerenderTrigger(app.config, app.log);
   const publicPageByPath = getPublishedPageByPath(app.db);
 
   // ── Admin ──
@@ -186,11 +194,14 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
         assertContentPermission(request, kind, "publish");
       }
       const { user } = getAuthSession(request);
-      return await update({
+      const result = await update({
         ...request.body,
         contentId: request.params.contentId,
         userId: user.id,
       });
+      // Draft edits don't change the public site.
+      if (status === "published") prerenderTrigger.reconcile();
+      return result;
     },
   );
 
@@ -208,11 +219,13 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       const { kind } = await metaOf(request.params.contentId);
       assertContentPermission(request, kind, "publish");
       const { user } = getAuthSession(request);
-      return await publish({
+      const result = await publish({
         contentId: request.params.contentId,
         publishedAt: request.body?.publishedAt,
         userId: user.id,
       });
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 
@@ -229,10 +242,12 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       const { kind } = await metaOf(request.params.contentId);
       assertContentPermission(request, kind, "publish");
       const { user } = getAuthSession(request);
-      return await unpublish({
+      const result = await unpublish({
         contentId: request.params.contentId,
         userId: user.id,
       });
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 
@@ -249,10 +264,12 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
       const { kind } = await metaOf(request.params.contentId);
       assertContentPermission(request, kind, "manage");
       const { user } = getAuthSession(request);
-      return await archive({
+      const result = await archive({
         contentId: request.params.contentId,
         userId: user.id,
       });
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 
@@ -427,6 +444,21 @@ export const contentRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async () => {
       return await publicNav();
+    },
+  );
+
+  // Consumed by the prerenderer Lambda (apps/web/server/prerender) on
+  // every sync. Public like the other list routes: it reveals nothing the
+  // nav/news/people lists don't already.
+  app.get(
+    "/content/prerender-manifest",
+    {
+      schema: {
+        response: { 200: prerenderManifestResponseSchema },
+      },
+    },
+    async () => {
+      return await prerenderManifest();
     },
   );
 };

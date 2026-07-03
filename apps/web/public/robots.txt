@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /admin
+Disallow: /members
+Disallow: /membership
+Disallow: /auth
+Disallow: /scout
+Disallow: /junior-manager
+Disallow: /_prerender/
+
+Sitemap: https://www.percymain.org/sitemap.xml

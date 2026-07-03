@@ -2,9 +2,21 @@
 // Logic is duplicated from spa-rewrite.handler.js — keep in sync.
 // This file is a Terraform template; ${api_base_url} is interpolated at deploy time.
 
+import cf from "cloudfront";
+
 var API_BASE_URL = "${api_base_url}";
 
-function handler(event) {
+// The prerender KeyValueStore holds one key per prerendered public URL
+// (kept in step by the prerenderer Lambda). No store associated, or an
+// empty store, means pure-SPA behaviour.
+var kvsHandle = null;
+try {
+  kvsHandle = cf.kvs();
+} catch (err) {
+  kvsHandle = null;
+}
+
+async function handler(event) {
   var request = event.request;
   var host = request.headers.host && request.headers.host.value;
 
@@ -34,6 +46,12 @@ function handler(event) {
 
   var uri = request.uri;
   var qs = request.querystring;
+
+  // Snapshot objects are reachable only via the extensionless rewrite
+  // below; direct hits would serve duplicate content at the wrong URL.
+  if (uri.startsWith("/_prerender/")) {
+    return { statusCode: 404, statusDescription: "Not Found" };
+  }
 
   // Redirect game pages to API for OG meta tags (unless returning via bypass param)
   if (API_BASE_URL) {
@@ -74,8 +92,25 @@ function handler(event) {
     }
   }
 
-  // If URI has no file extension, rewrite to /index.html for SPA routing
+  // Extensionless URIs are app routes: prerendered documents when the
+  // KVS says a snapshot exists (trailing slash normalised so /club/ and
+  // /club share one cache entry), the SPA shell otherwise.
   if (!uri.includes(".")) {
+    var lookupUri = uri;
+    if (lookupUri.length > 1 && lookupUri.endsWith("/")) {
+      lookupUri = lookupUri.slice(0, -1);
+    }
+    // The home page is never a snapshot (the prerenderer only writes
+    // content URLs, which always have at least one slug segment).
+    if (kvsHandle && lookupUri !== "/") {
+      try {
+        await kvsHandle.get(lookupUri);
+        request.uri = "/_prerender" + lookupUri + ".html";
+        return request;
+      } catch (err) {
+        // Key missing (or KVS error): fall through to the SPA shell.
+      }
+    }
     request.uri = "/index.html";
   }
   return request;

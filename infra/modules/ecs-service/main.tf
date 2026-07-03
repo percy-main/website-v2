@@ -409,6 +409,26 @@ resource "aws_iam_role_policy" "task_run_sync" {
   })
 }
 
+resource "aws_iam_role_policy" "task_invoke_prerenderer" {
+  name = "${local.name_prefix}-task-invoke-prerenderer"
+  role = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # Publish-path trigger for the prerenderer Lambda (fire-and-forget
+        # async invoke on content mutations). Name-pattern ARN rather than
+        # the prerender module's output: referencing the output here would
+        # couple this module to one that is wired up after it.
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:function:${local.name_prefix}-prerenderer"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "task_s3_document_uploads" {
   name = "${local.name_prefix}-task-s3-document-uploads"
   role = aws_iam_role.task.id

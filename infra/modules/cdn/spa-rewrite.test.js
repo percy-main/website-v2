@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { createHandler } from "./spa-rewrite.handler.js";
 
-const handler = createHandler("https://api.v2.percymain.org");
+/**
+ * Test double for the cloudfront runtime's KVS handle: get() resolves
+ * for known keys and throws for missing ones, exactly like cf.kvs().
+ */
+function fakeKvs(keys) {
+  return {
+    get(key) {
+      if (keys.includes(key)) return Promise.resolve("1");
+      return Promise.reject(new Error(`KeyNotFound: ${key}`));
+    },
+  };
+}
+
+const handler = createHandler("https://api.v2.percymain.org", null);
 
 function makeEvent(uri, host, querystring = {}) {
   return {
@@ -15,16 +28,16 @@ function makeEvent(uri, host, querystring = {}) {
 
 describe("spa-rewrite CloudFront function", () => {
   describe("domain redirects", () => {
-    it("redirects apex to www", () => {
-      const result = handler(makeEvent("/about", "percymain.org"));
+    it("redirects apex to www", async () => {
+      const result = await handler(makeEvent("/about", "percymain.org"));
       expect(result.statusCode).toBe(301);
       expect(result.headers.location.value).toBe(
         "https://www.percymain.org/about",
       );
     });
 
-    it("redirects kit subdomain to vx-3", () => {
-      const result = handler(makeEvent("/", "kit.percymain.org"));
+    it("redirects kit subdomain to vx-3", async () => {
+      const result = await handler(makeEvent("/", "kit.percymain.org"));
       expect(result.statusCode).toBe(301);
       expect(result.headers.location.value).toBe(
         "https://vx-3.com/collections/percy-main-cricket-club",
@@ -33,8 +46,8 @@ describe("spa-rewrite CloudFront function", () => {
   });
 
   describe("OG game page redirect", () => {
-    it("redirects /games/:matchId to API OG page", () => {
-      const result = handler(
+    it("redirects /games/:matchId to API OG page", async () => {
+      const result = await handler(
         makeEvent("/calendar/game/12345", "www.percymain.org"),
       );
       expect(result.statusCode).toBe(302);
@@ -43,8 +56,8 @@ describe("spa-rewrite CloudFront function", () => {
       );
     });
 
-    it("bypasses redirect when og=1 query param is set", () => {
-      const result = handler(
+    it("bypasses redirect when og=1 query param is set", async () => {
+      const result = await handler(
         makeEvent("/calendar/game/12345", "www.percymain.org", {
           og: { value: "1" },
         }),
@@ -53,8 +66,8 @@ describe("spa-rewrite CloudFront function", () => {
       expect(result.statusCode).toBeUndefined();
     });
 
-    it("forwards non-og query params to the OG page", () => {
-      const result = handler(
+    it("forwards non-og query params to the OG page", async () => {
+      const result = await handler(
         makeEvent("/calendar/game/12345", "www.percymain.org", {
           bbb: { value: "1" },
         }),
@@ -65,8 +78,8 @@ describe("spa-rewrite CloudFront function", () => {
       );
     });
 
-    it("strips the og param from forwarded query (only og=1 should round-trip via bypass)", () => {
-      const result = handler(
+    it("strips the og param from forwarded query (only og=1 should round-trip via bypass)", async () => {
+      const result = await handler(
         makeEvent("/calendar/game/12345", "www.percymain.org", {
           og: { value: "0" },
           foo: { value: "bar" },
@@ -81,8 +94,8 @@ describe("spa-rewrite CloudFront function", () => {
       );
     });
 
-    it("URL-encodes forwarded query values", () => {
-      const result = handler(
+    it("URL-encodes forwarded query values", async () => {
+      const result = await handler(
         makeEvent("/calendar/game/12345", "www.percymain.org", {
           q: { value: "hello world & friends" },
         }),
@@ -92,31 +105,46 @@ describe("spa-rewrite CloudFront function", () => {
       );
     });
 
-    it("does not redirect non-game pages", () => {
-      const result = handler(makeEvent("/about", "www.percymain.org"));
+    it("does not redirect non-game pages", async () => {
+      const result = await handler(makeEvent("/about", "www.percymain.org"));
       expect(result.uri).toBe("/index.html");
       expect(result.statusCode).toBeUndefined();
     });
 
-    it("does not redirect game paths with non-numeric IDs", () => {
-      const result = handler(
+    it("does not redirect game paths with non-numeric IDs", async () => {
+      const result = await handler(
         makeEvent("/calendar/game/abc", "www.percymain.org"),
       );
       expect(result.uri).toBe("/index.html");
       expect(result.statusCode).toBeUndefined();
     });
 
-    it("does not redirect /calendar/game/ without an ID", () => {
-      const result = handler(makeEvent("/calendar/game/", "www.percymain.org"));
+    it("does not redirect /calendar/game/ without an ID", async () => {
+      const result = await handler(
+        makeEvent("/calendar/game/", "www.percymain.org"),
+      );
       expect(result.uri).toBe("/index.html");
       expect(result.statusCode).toBeUndefined();
+    });
+
+    it("keeps the OG redirect even when a snapshot store exists", async () => {
+      // Game reports are never prerendered; their KVS keys never exist,
+      // and the OG branch runs before the KVS lookup anyway.
+      const kvsHandler = createHandler(
+        "https://api.v2.percymain.org",
+        fakeKvs(["/club"]),
+      );
+      const result = await kvsHandler(
+        makeEvent("/calendar/game/12345", "www.percymain.org"),
+      );
+      expect(result.statusCode).toBe(302);
     });
   });
 
   describe("OG redirect disabled when no API URL", () => {
-    it("skips redirect when apiBaseUrl is empty", () => {
-      const noApiHandler = createHandler("");
-      const result = noApiHandler(
+    it("skips redirect when apiBaseUrl is empty", async () => {
+      const noApiHandler = createHandler("", null);
+      const result = await noApiHandler(
         makeEvent("/calendar/game/12345", "www.percymain.org"),
       );
       expect(result.uri).toBe("/index.html");
@@ -124,16 +152,86 @@ describe("spa-rewrite CloudFront function", () => {
     });
   });
 
+  describe("prerender routing", () => {
+    // KVS keys are exact public URL paths; the S3 object is derived by
+    // convention ("/_prerender" + uri + ".html"). These fixtures are
+    // pinned on the Lambda side too (apps/web/src/prerender/paths.test.ts).
+    const kvsHandler = createHandler(
+      "https://api.v2.percymain.org",
+      fakeKvs(["/club", "/club/history", "/news/article/season-opener"]),
+    );
+
+    it("rewrites a snapshot URL to its prerendered object", async () => {
+      const result = await kvsHandler(makeEvent("/club", "www.percymain.org"));
+      expect(result.uri).toBe("/_prerender/club.html");
+    });
+
+    it("rewrites nested snapshot URLs", async () => {
+      const result = await kvsHandler(
+        makeEvent("/club/history", "www.percymain.org"),
+      );
+      expect(result.uri).toBe("/_prerender/club/history.html");
+    });
+
+    it("normalises a trailing slash before the lookup", async () => {
+      const result = await kvsHandler(makeEvent("/club/", "www.percymain.org"));
+      expect(result.uri).toBe("/_prerender/club.html");
+    });
+
+    it("falls back to the SPA shell on a KVS miss", async () => {
+      const result = await kvsHandler(
+        makeEvent("/fantasy", "www.percymain.org"),
+      );
+      expect(result.uri).toBe("/index.html");
+    });
+
+    it("falls back to the SPA shell when the KVS handle throws", async () => {
+      const broken = createHandler("https://api.v2.percymain.org", {
+        get() {
+          return Promise.reject(new Error("kvs unavailable"));
+        },
+      });
+      const result = await broken(makeEvent("/club", "www.percymain.org"));
+      expect(result.uri).toBe("/index.html");
+    });
+
+    it("never routes the root URL to a snapshot, even with a lying store", async () => {
+      // The Lambda can never write a "/" key (isSnapshotUrl rejects it),
+      // and the function skips the lookup at the root outright.
+      const withRoot = createHandler("https://api.v2.percymain.org", {
+        get() {
+          return Promise.resolve("1");
+        },
+      });
+      const result = await withRoot(makeEvent("/", "www.percymain.org"));
+      expect(result.uri).toBe("/index.html");
+    });
+
+    it("returns 404 for direct hits on the snapshot prefix", async () => {
+      const result = await kvsHandler(
+        makeEvent("/_prerender/club.html", "www.percymain.org"),
+      );
+      expect(result.statusCode).toBe(404);
+    });
+
+    it("still serves static assets untouched", async () => {
+      const result = await kvsHandler(
+        makeEvent("/assets/logo.png", "www.percymain.org"),
+      );
+      expect(result.uri).toBe("/assets/logo.png");
+    });
+  });
+
   describe("SPA rewrite", () => {
-    it("rewrites paths without file extensions to /index.html", () => {
-      const result = handler(
+    it("rewrites paths without file extensions to /index.html", async () => {
+      const result = await handler(
         makeEvent("/members/profile", "www.percymain.org"),
       );
       expect(result.uri).toBe("/index.html");
     });
 
-    it("does not rewrite paths with file extensions", () => {
-      const result = handler(
+    it("does not rewrite paths with file extensions", async () => {
+      const result = await handler(
         makeEvent("/assets/logo.png", "www.percymain.org"),
       );
       expect(result.uri).toBe("/assets/logo.png");

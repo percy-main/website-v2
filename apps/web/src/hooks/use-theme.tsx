@@ -15,6 +15,9 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const STORAGE_KEY = "percy-theme";
 
 function getSystemTheme(): ResolvedTheme {
+  // Under the prerenderer (Node) there is no media query to consult;
+  // "light" matches the fc-theme documents the prerenderer emits.
+  if (typeof window === "undefined") return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
@@ -30,6 +33,7 @@ function applyTheme(resolved: ResolvedTheme) {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "system";
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "light" || stored === "dark" || stored === "system") {
       return stored;

@@ -7,7 +7,13 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 export function ConsentBanner() {
-  const [open, setOpen] = useState<boolean>(() => needsConsent());
+  // Closed under the prerenderer: readCookie returns null in Node, so
+  // needsConsent() would report true and bake the banner into every
+  // cached document. The client render re-evaluates the real cookie on
+  // take-over.
+  const [open, setOpen] = useState<boolean>(
+    () => typeof window !== "undefined" && needsConsent(),
+  );
   const reopenedRef = useRef(false);
 
   useEffect(() => {

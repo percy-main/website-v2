@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { createPrerenderTrigger } from "../../lib/prerender-trigger.ts";
 import {
   getAuthSession,
   requireAuth,
@@ -46,6 +47,7 @@ export const contentProposalRoutes: FastifyPluginAsyncZod = async (app) => {
   const approve = approveProfileProposal(app.db, notifyDeps);
   const reject = rejectProfileProposal(app.db, notifyDeps);
   const canEdit = assertCanEditProfile(app.db);
+  const prerenderTrigger = createPrerenderTrigger(app.config, app.log);
   // Profile owners hold no content role, so they can't use the admin
   // content-images endpoints. These self-service routes reuse the same
   // upload/process service, gated instead on owning an editable profile.
@@ -177,10 +179,14 @@ export const contentProposalRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      return await approve({
+      const result = await approve({
         proposalId: request.params.proposalId,
         reviewerUserId: user.id,
       });
+      // Approval rewrites the live person profile (fire-and-forget; the
+      // prerenderer re-renders the changed page).
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 
