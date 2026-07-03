@@ -34,11 +34,20 @@ let referenced = 0;
 
 for (const file of ssrFiles) {
   const code = readFileSync(join(ssrDir, file), "utf8");
-  for (const match of code.matchAll(/["'](\/assets\/[^"'\s?#]+)["']/g)) {
-    const assetPath = match[1];
-    referenced += 1;
-    if (!existsSync(join(distDir, assetPath))) {
-      missing.add(assetPath);
+  // Two shapes: plain URL strings ("/assets/x.jpeg") and srcset strings
+  // ("/assets/a.webp 320w, /assets/b.webp 640w") - the latter is how the
+  // imagetools picture ladders land in the bundle, so skipping them
+  // would leave most image renditions unchecked.
+  for (const match of code.matchAll(/["']((?:\/assets\/)[^"']+)["']/g)) {
+    for (const candidate of match[1].split(",")) {
+      const assetPath = candidate.trim().split(/\s+/)[0];
+      if (!assetPath.startsWith("/assets/") || assetPath.includes("?")) {
+        continue;
+      }
+      referenced += 1;
+      if (!existsSync(join(distDir, assetPath))) {
+        missing.add(assetPath);
+      }
     }
   }
 }
