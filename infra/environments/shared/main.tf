@@ -469,12 +469,14 @@ data "aws_iam_policy_document" "deploy_s3_cloudfront" {
 
   # deploy-web pushes the prerenderer Lambda's code (built from the same
   # web bundle it deploys to S3) and kicks a render-all after upload.
+  # GetFunctionConfiguration backs `aws lambda wait function-updated`.
   statement {
     sid    = "PrerendererCodeDeploy"
     effect = "Allow"
     actions = [
       "lambda:UpdateFunctionCode",
       "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
       "lambda:InvokeFunction",
     ]
     resources = [
