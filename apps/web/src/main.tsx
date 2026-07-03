@@ -12,14 +12,12 @@ import "./app.css";
 import { maybeCaptureAttribution } from "./lib/marketing/attribution.js";
 import { applyStoredConsentToGtag } from "./lib/marketing/consent.js";
 import "./lib/newrelic.js";
+import { createAppQueryClient } from "./lib/query-client.js";
 import {
   preloadMatchedRoutes,
   readPrerenderPayload,
 } from "./prerender/take-over.js";
-import {
-  AppProviders,
-  createAppQueryClient,
-} from "./providers/app-providers.js";
+import { AppProviders } from "./providers/app-providers.js";
 import { routes } from "./routes.js";
 
 // Mirror any stored consent record to gtag inside the 500ms wait_for_update
