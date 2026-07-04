@@ -7,10 +7,17 @@
 
 export interface ManifestItem {
   url: string;
-  kind: "page" | "news" | "event" | "person";
+  kind: "page" | "news" | "event" | "person" | "game" | "calendar-month";
   slug: string;
   updatedAt: string;
   publishedAt: string;
+  /**
+   * Opaque content fingerprint for kinds whose sources carry no usable
+   * update timestamps (games compose Play Cricket data with DB overlays;
+   * match_result has no updated_at). When present it joins the diff key;
+   * content kinds omit it and keep pure-timestamp diffing.
+   */
+  hash?: string;
 }
 
 export interface NavItem {
@@ -23,6 +30,7 @@ export interface NavItem {
 interface StateEntry {
   updatedAt: string;
   publishedAt: string;
+  hash?: string;
 }
 
 /**
@@ -92,9 +100,13 @@ export function planReconcile(options: {
 
   const toRender = manifest.filter((item) => {
     const previous = state.items[item.url];
+    // hash: undefined === undefined for content kinds, so they diff on
+    // timestamps alone; a hashed item against a pre-hash state entry
+    // re-renders once and then converges.
     return (
       previous?.updatedAt !== item.updatedAt ||
-      previous.publishedAt !== item.publishedAt
+      previous.publishedAt !== item.publishedAt ||
+      previous.hash !== item.hash
     );
   });
   return { mode: "diff", toRender, toUnrender };
@@ -113,6 +125,7 @@ export function nextState(
     items[item.url] = {
       updatedAt: item.updatedAt,
       publishedAt: item.publishedAt,
+      ...(item.hash !== undefined ? { hash: item.hash } : {}),
     };
   }
   return { v: 1, navHash: currentNavHash, items };

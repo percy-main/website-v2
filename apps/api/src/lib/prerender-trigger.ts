@@ -18,6 +18,25 @@ export interface PrerenderTrigger {
   reconcile(): void;
 }
 
+/**
+ * The awaitable core: one async `reconcile` invoke. Route code wants the
+ * fire-and-forget wrapper below; short-lived workers (the Play Cricket
+ * sync runner) must await delivery before process.exit or the invoke is
+ * lost with the event loop.
+ */
+export async function invokePrerenderReconcile(
+  lambda: LambdaClient,
+  functionArn: string,
+): Promise<void> {
+  await lambda.send(
+    new InvokeCommand({
+      FunctionName: functionArn,
+      InvocationType: "Event",
+      Payload: Buffer.from(JSON.stringify({ action: "reconcile" })),
+    }),
+  );
+}
+
 export function createPrerenderTrigger(
   // Optional because minimal integration-test apps register the content
   // routes without decorating app.config; no config = unconfigured.
@@ -36,14 +55,7 @@ export function createPrerenderTrigger(
   const lambda = new LambdaClient({ region: config.AWS_REGION });
   return {
     reconcile() {
-      lambda
-        .send(
-          new InvokeCommand({
-            FunctionName: functionArn,
-            InvocationType: "Event",
-            Payload: Buffer.from(JSON.stringify({ action: "reconcile" })),
-          }),
-        )
+      invokePrerenderReconcile(lambda, functionArn)
         .then(() => {
           log.info("prerender reconcile triggered");
         })

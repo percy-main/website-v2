@@ -1,6 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { FastifyBaseLogger } from "fastify";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 
 // --- In-memory cache for match summaries ---
@@ -28,6 +28,10 @@ export interface MatchSummary {
   league: { id: string; name: string };
   competition: { id: string; name: string; type: string };
   groundName: string | null;
+  // Play Cricket's own change marker (DD/MM/YYYY, date precision only).
+  // Feeds the prerender manifest hash; response schemas strip it, so it
+  // never reaches API clients.
+  lastUpdated: string;
 }
 
 export type Outcome = "W" | "L" | "D" | "T" | "A" | "C" | "N";
@@ -452,6 +456,7 @@ export function getGame(
         type: detail.competition_type ?? "",
       },
       groundName: matchSummary?.groundName ?? null,
+      lastUpdated: matchSummary?.lastUpdated ?? "",
       when: parseMatchDateTime(matchDate, matchTime),
       outcome,
       scoreDescription: result ? buildScoreDescription(result.innings) : null,
@@ -681,10 +686,294 @@ async function fetchMatchSummaries(
         type: match.competition_type ?? "",
       },
       groundName: match.ground_name ?? null,
+      lastUpdated: match.last_updated,
     };
   });
 
   summaryCache.set(season, { data: matches, fetchedAt: Date.now() });
 
   return matches;
+}
+
+// --- Prerender manifest ---
+
+// Must match MONTH_NAMES in apps/web/src/pages/calendar/calendar-month.lib.ts:
+// the web router parses /calendar/:year/:month against that list, so a URL
+// built from any other spelling would prerender a not-found page.
+const CALENDAR_MONTH_NAMES = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+] as const;
+
+export interface GamesManifestItem {
+  url: string;
+  kind: "game" | "calendar-month";
+  slug: string;
+  updatedAt: string;
+  publishedAt: string;
+  hash: string;
+}
+
+/**
+ * djb2 content fingerprint (mirrors navHash in
+ * apps/web/src/prerender/reconcile.ts). Game pages compose Play Cricket
+ * data with DB overlays that carry no usable update timestamps
+ * (match_result has none), so the prerender diff compares this hash of
+ * everything render-relevant instead. A false collision self-heals on
+ * the next forced render-all.
+ */
+function contentHash(value: unknown): string {
+  const canonical = JSON.stringify(value);
+  let hash = 5381;
+  for (let i = 0; i < canonical.length; i++) {
+    hash = ((hash << 5) + hash + canonical.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(16);
+}
+
+/** Play Cricket's DD/MM/YYYY last_updated -> ISO; null when malformed. */
+function pcDateToIso(value: string): string | null {
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return null;
+  const [dd, mm, yyyy] = value.split("/");
+  return `${yyyy}-${mm}-${dd}T00:00:00.000Z`;
+}
+
+function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const k = key(row);
+    const group = map.get(k);
+    if (group) group.push(row);
+    else map.set(k, [row]);
+  }
+  return map;
+}
+
+/** The game fields a calendar month page actually renders (mirrors the
+ * CalendarItem mapping in calendar-month.tsx) - a month page only
+ * re-renders when one of these, or an event, changes. */
+function monthRenderFields(game: GameListItem) {
+  return {
+    id: game.id,
+    when: game.when,
+    home: game.home,
+    teamName: game.team.name,
+    oppositionClub: game.opposition.club.name,
+    oppositionTeam: game.opposition.team.name,
+    leagueName: game.league.name,
+    competitionName: game.competition.name,
+    sponsorName: game.sponsorName,
+    outcome: game.outcome,
+    scoreDescription: game.scoreDescription,
+  };
+}
+
+async function buildGameItems(
+  db: Kysely<DB>,
+  games: GameListItem[],
+): Promise<GamesManifestItem[]> {
+  // Games without a parseable date can't get stable manifest timestamps;
+  // they stay un-snapshotted and keep the OG-redirect fallback.
+  const renderable = games.filter(
+    (game): game is GameListItem & { when: string } => game.when !== null,
+  );
+  if (renderable.length === 0) return [];
+  const ids = renderable.map((game) => game.id);
+
+  const [sponsorships, matchdays, reports] = await Promise.all([
+    // ALL rows, not just approved+paid: an approval or payment must flip
+    // the hash so the sponsor badge appears on the next render.
+    db
+      .selectFrom("game_sponsorship")
+      .where("game_id", "in", ids)
+      .select([
+        "id",
+        "game_id",
+        "approved",
+        "paid_at",
+        "display_name",
+        "sponsor_name",
+        "sponsor_logo_url",
+        "sponsor_message",
+        "sponsor_website",
+        "sponsor_phone",
+      ])
+      .orderBy("id", "asc")
+      .execute(),
+    db
+      .selectFrom("matchday")
+      .where("play_cricket_match_id", "in", ids)
+      .select([
+        "id",
+        "play_cricket_match_id",
+        "result_type",
+        "result_source",
+        "confirmed_at",
+        "cancelled_at",
+        "finished_at",
+      ])
+      .orderBy("id", "asc")
+      .execute(),
+    // Published game reports render on the game page, so their publish
+    // state must flip its hash. Same liveness predicate as the content
+    // feature's publishedOnly(); deliberate cross-feature table read
+    // rather than a feature-to-feature service import.
+    db
+      .selectFrom("content_item")
+      .where("kind", "=", "game_report")
+      .where("status", "=", "published")
+      .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`)
+      .where(sql<string>`metadata->>'playCricketId'`, "in", ids)
+      .select([
+        sql<string>`metadata->>'playCricketId'`.as("play_cricket_id"),
+        "updated_at",
+        "published_at",
+      ])
+      .execute(),
+  ]);
+
+  const matchdayIds = matchdays.map((matchday) => matchday.id);
+  const players =
+    matchdayIds.length > 0
+      ? await db
+          .selectFrom("matchday_player")
+          .where("matchday_id", "in", matchdayIds)
+          .where("status", "in", ["selected", "playing"])
+          .select(["matchday_id", "player_name", "status"])
+          .orderBy("created_at", "asc")
+          .execute()
+      : [];
+
+  const sponsorshipsByGame = groupBy(sponsorships, (row) => row.game_id);
+  const matchdaysByGame = groupBy(
+    matchdays,
+    (row) => row.play_cricket_match_id ?? "",
+  );
+  const playersByMatchday = groupBy(players, (row) => row.matchday_id);
+  const reportsByGame = new Map(
+    reports.map((row) => [row.play_cricket_id, row]),
+  );
+
+  return renderable.map((game) => {
+    const report = reportsByGame.get(game.id);
+    const hash = contentHash({
+      game,
+      sponsorships: sponsorshipsByGame.get(game.id) ?? [],
+      matchdays: (matchdaysByGame.get(game.id) ?? []).map((matchday) => ({
+        resultType: matchday.result_type,
+        resultSource: matchday.result_source,
+        confirmedAt: matchday.confirmed_at,
+        cancelledAt: matchday.cancelled_at,
+        finishedAt: matchday.finished_at,
+        players: playersByMatchday.get(matchday.id) ?? [],
+      })),
+      report: report
+        ? { updatedAt: report.updated_at, publishedAt: report.published_at }
+        : null,
+    });
+    return {
+      url: `/calendar/game/${game.id}`,
+      kind: "game" as const,
+      slug: game.id,
+      updatedAt: pcDateToIso(game.lastUpdated) ?? game.when,
+      publishedAt: game.when,
+      hash,
+    };
+  });
+}
+
+async function buildMonthItems(
+  db: Kysely<DB>,
+  seasons: Array<[year: number, games: GameListItem[]]>,
+): Promise<GamesManifestItem[]> {
+  // Every month snapshot embeds the full dehydrated events list (the
+  // month page merges games with expanded event occurrences), so any
+  // event change legitimately flips every month hash. 24 re-renders per
+  // event edit is cheap.
+  const events = await db
+    .selectFrom("content_item")
+    .where("kind", "=", "event")
+    .where("status", "=", "published")
+    .where("published_at", "<=", sql<Date>`CURRENT_TIMESTAMP`)
+    .select(["slug", "updated_at"])
+    .orderBy("slug", "asc")
+    .execute();
+  const eventStamps = events.map((event) => ({
+    slug: event.slug,
+    updatedAt: event.updated_at.toISOString(),
+  }));
+
+  const items: GamesManifestItem[] = [];
+  for (const [year, games] of seasons) {
+    for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+      const monthName = CALENDAR_MONTH_NAMES[monthIndex];
+      // Bucket by the local ISO date prefix, exactly how the month page
+      // groups items - no timezone parsing.
+      const prefix = `${year.toString()}-${(monthIndex + 1).toString().padStart(2, "0")}`;
+      const subset = games.filter(
+        (game): game is GameListItem & { when: string } =>
+          game.when?.startsWith(prefix) ?? false,
+      );
+      const monthStart = `${prefix}-01T00:00:00.000Z`;
+      const updatedAt = [
+        ...subset.map((game) => pcDateToIso(game.lastUpdated) ?? game.when),
+        ...eventStamps.map((event) => event.updatedAt),
+        monthStart,
+      ].reduce((a, b) => (a > b ? a : b));
+      items.push({
+        url: `/calendar/${year.toString()}/${monthName}`,
+        kind: "calendar-month",
+        slug: `${year.toString()}/${monthName}`,
+        updatedAt,
+        publishedAt: monthStart,
+        hash: contentHash({
+          games: subset.map(monthRenderFields),
+          events: eventStamps,
+        }),
+      });
+    }
+  }
+  return items;
+}
+
+/**
+ * Manifest of prerenderable game + calendar month URLs, merged by the
+ * prerenderer Lambda with the content manifest
+ * (GET /api/content/prerender-manifest). Game pages: current season
+ * only - older games keep the CloudFront OG-redirect fallback. Month
+ * pages: previous + current year, so last season's results stay
+ * browsable with content on first paint.
+ */
+export function listGamesPrerenderManifest(
+  db: Kysely<DB>,
+  api: PlayCricketApiClient,
+  siteId: string,
+) {
+  return async (now = new Date()): Promise<{ items: GamesManifestItem[] }> => {
+    const currentSeason = now.getFullYear();
+    const list = listGames(db, api, siteId);
+    const [previousGames, currentGames] = await Promise.all([
+      list(currentSeason - 1),
+      list(currentSeason),
+    ]);
+
+    const [gameItems, monthItems] = await Promise.all([
+      buildGameItems(db, currentGames),
+      buildMonthItems(db, [
+        [currentSeason - 1, previousGames],
+        [currentSeason, currentGames],
+      ]),
+    ]);
+    return { items: [...gameItems, ...monthItems] };
+  };
 }

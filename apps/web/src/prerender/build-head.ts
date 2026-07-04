@@ -3,6 +3,7 @@ import {
   pageMetadataSchema,
   personMetadataSchema,
 } from "@percy-main/shared/content";
+import { gameHeadMetadataSchema } from "./game-meta.js";
 
 // Per-page <head> block for prerendered documents: title, description,
 // canonical, OG/Twitter cards and JSON-LD. Pure string assembly - no DOM,
@@ -15,8 +16,10 @@ const DEFAULT_DESCRIPTION =
   "Percy Main Community Sports Club — football, cricket, and community sports in North Shields. Find fixtures, results, news, and membership info.";
 const DEFAULT_OG_IMAGE_PATH = "/images/og-default.png";
 
-/** Public content kinds the prerenderer snapshots (game reports excluded). */
-export type PrerenderKind = "page" | "news" | "event" | "person";
+/** Public content kinds the prerenderer snapshots (game reports render
+ * on their game page, not standalone). */
+export type PrerenderKind =
+  "page" | "news" | "event" | "person" | "game" | "calendar-month";
 
 export interface HeadInput {
   kind: PrerenderKind;
@@ -29,6 +32,12 @@ export interface HeadInput {
   body?: unknown;
   publishedAt?: string;
   updatedAt?: string;
+  /**
+   * Explicit og:image override (absolute URL) - game pages point at the
+   * API's scorecard PNG endpoint. Keeps this module pure: the caller
+   * resolves the API origin.
+   */
+  ogImageUrl?: string;
 }
 
 function escapeHtml(value: string): string {
@@ -88,6 +97,7 @@ function findLeadImage(body: unknown): string | undefined {
 }
 
 function resolveOgImage(input: HeadInput, origin: string): string {
+  if (input.ogImageUrl) return input.ogImageUrl;
   if (input.kind === "person") {
     const parsed = personMetadataSchema.safeParse(input.metadata);
     if (parsed.success && parsed.data.photo) {
@@ -164,6 +174,28 @@ function buildLdJson(input: HeadInput, origin: string): unknown {
         url: pageUrl,
       };
     }
+    case "game": {
+      const parsed = gameHeadMetadataSchema.safeParse(input.metadata);
+      if (!parsed.success) return undefined;
+      const { when, homeTeam, awayTeam, locationName } = parsed.data;
+      return {
+        "@context": "https://schema.org",
+        "@type": "SportsEvent",
+        name: input.title,
+        ...(input.description ? { description: input.description } : {}),
+        ...(when ? { startDate: when } : {}),
+        sport: "Cricket",
+        homeTeam: { "@type": "SportsTeam", name: homeTeam },
+        awayTeam: { "@type": "SportsTeam", name: awayTeam },
+        ...(locationName
+          ? { location: { "@type": "Place", name: locationName } }
+          : {}),
+        organizer: { "@type": "SportsOrganization", name: SITE_NAME },
+        url: pageUrl,
+      };
+    }
+    case "calendar-month":
+      return undefined;
   }
 }
 

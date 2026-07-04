@@ -122,6 +122,24 @@ export const gameDetailResponseSchema = gameListItemSchema.extend({
   availabilityRequest: availabilityRequestSummarySchema,
 });
 
+// --- Prerender manifest ---
+
+// Consumed by the prerenderer Lambda (apps/web/server/prerender), merged
+// with the content manifest. `hash` is an opaque content fingerprint -
+// the diff key for pages whose sources carry no update timestamps.
+export const gamesPrerenderManifestResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      url: z.string(),
+      kind: z.enum(["game", "calendar-month"]),
+      slug: z.string(),
+      updatedAt: z.string(),
+      publishedAt: z.string(),
+      hash: z.string(),
+    }),
+  ),
+});
+
 // --- Wagon wheel ---
 
 const wagonWheelBallSchema = z.object({

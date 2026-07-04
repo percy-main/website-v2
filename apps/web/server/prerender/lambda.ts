@@ -1,7 +1,8 @@
 import { render } from "@/entry-server.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { API_BASE, api, callApi } from "@/lib/api-client.js";
 import {
   eventQueryOptions,
+  eventsListQueryOptions,
   isPageGone,
   navQueryOptions,
   newsArticleQueryOptions,
@@ -9,8 +10,14 @@ import {
   peopleListQueryOptions,
   personQueryOptions,
 } from "@/lib/content-queries.js";
+import {
+  gameQueryOptions,
+  gameReportQueryOptions,
+  gamesListQueryOptions,
+} from "@/lib/games-queries.js";
 import { assembleDocument } from "@/prerender/assemble-document.js";
 import { buildHead } from "@/prerender/build-head.js";
+import { gameHeadData, monthHeadData } from "@/prerender/game-meta.js";
 import {
   snapshotInvalidationPath,
   snapshotKvsKey,
@@ -146,8 +153,29 @@ async function fetchShared() {
 type SharedData = Awaited<ReturnType<typeof fetchShared>>;
 
 async function fetchManifest(): Promise<ManifestItem[]> {
-  const manifest = await callApi(api.GET("/api/content/prerender-manifest"));
-  return manifest.items;
+  const [content, games] = await Promise.all([
+    callApi(api.GET("/api/content/prerender-manifest")),
+    fetchGamesManifest(),
+  ]);
+  return [...content.items, ...games];
+}
+
+/**
+ * 404 means the games feature is off (no Play Cricket creds): zero
+ * game/month items, content-only sync. Anything else - a Play Cricket
+ * outage surfaces as a 500 here - aborts the whole sync, so a transient
+ * failure can never read as "all games vanished" and tear down every
+ * game snapshot. State and snapshots stay put; the 15-minute sweep
+ * retries.
+ */
+async function fetchGamesManifest(): Promise<ManifestItem[]> {
+  try {
+    const manifest = await callApi(api.GET("/api/games/prerender-manifest"));
+    return manifest.items;
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) return [];
+    throw error;
+  }
 }
 
 interface DetailData {
@@ -157,6 +185,8 @@ interface DetailData {
   metadata: Record<string, unknown>;
   publishedAt: string;
   updatedAt: string;
+  /** Absolute og:image override (game pages use the API scorecard PNG). */
+  ogImageUrl?: string;
 }
 
 /**
@@ -191,6 +221,47 @@ async function fetchDetail(
       const data = await queryClient.fetchQuery(personQueryOptions(item.slug));
       return data === null || isPageGone(data) ? null : data;
     }
+    case "game": {
+      let game;
+      try {
+        game = await queryClient.fetchQuery(gameQueryOptions(item.slug));
+      } catch (error) {
+        // Vanished from Play Cricket between manifest and fetch.
+        if ((error as { status?: number }).status === 404) return null;
+        throw error;
+      }
+      // Seed the report the page reads (its queryFn maps 404 to null, so
+      // report-less games dehydrate a null entry rather than pending).
+      await queryClient.fetchQuery(gameReportQueryOptions(item.slug));
+      const head = gameHeadData(game);
+      return {
+        title: head.title,
+        description: head.description,
+        body: undefined,
+        metadata: head.metadata,
+        publishedAt: item.publishedAt,
+        updatedAt: item.updatedAt,
+        ogImageUrl: `${API_BASE}/og/game/${item.slug}`,
+      };
+    }
+    case "calendar-month": {
+      const [yearRaw, monthName] = item.slug.split("/");
+      const year = Number(yearRaw);
+      if (!monthName || !Number.isFinite(year)) return null;
+      await Promise.all([
+        queryClient.fetchQuery(gamesListQueryOptions(year)),
+        queryClient.fetchQuery(eventsListQueryOptions()),
+      ]);
+      const head = monthHeadData(year, monthName);
+      return {
+        title: head.title,
+        description: head.description,
+        body: undefined,
+        metadata: {},
+        publishedAt: item.publishedAt,
+        updatedAt: item.updatedAt,
+      };
+    }
   }
 }
 
@@ -223,6 +294,7 @@ async function renderSnapshot(
       body: detail.body,
       publishedAt: detail.publishedAt,
       updatedAt: detail.updatedAt,
+      ogImageUrl: detail.ogImageUrl,
     },
     siteOrigin(),
   );
@@ -367,9 +439,43 @@ async function sync(force: boolean): Promise<SyncSummary> {
 
   const rendered: string[] = [];
   const failed = new Set<string>();
+  // Not-yet-processed render targets; treated as "failed" in mid-sync
+  // state flushes so a resumed sync retries exactly the remainder.
+  const pendingUrls = new Set(plan.toRender.map((item) => item.url));
+  // With games in the manifest a render-all is ~350 documents; flushing
+  // KVS routing, state and invalidations every batch turns a Lambda
+  // timeout from "start over, never converge" into "resume from where
+  // the last flush left off on the next sweep".
+  const FLUSH_EVERY = 25;
+  let unflushed: string[] = [];
+
+  const flushProgress = async () => {
+    await kvsUpdate(unflushed.map(snapshotKvsKey), []);
+    await putObject(
+      STATE_KEY,
+      JSON.stringify(
+        nextState(
+          manifest,
+          currentNavHash,
+          new Set([...failed, ...pendingUrls]),
+        ),
+      ),
+      "application/json",
+    );
+    // Full-render modes invalidate the whole prefix (one wildcard path
+    // per flush) rather than hundreds of per-document paths.
+    await invalidate(
+      plan.mode === "diff"
+        ? unflushed.map(snapshotInvalidationPath)
+        : ["/_prerender/*"],
+    );
+    unflushed = [];
+  };
+
   for (const item of plan.toRender) {
     try {
       const html = await renderSnapshot(item, shared, template);
+      pendingUrls.delete(item.url);
       if (html === null) {
         // Vanished between manifest and fetch; the next sync unrenders it.
         failed.add(item.url);
@@ -381,17 +487,22 @@ async function sync(force: boolean): Promise<SyncSummary> {
         "text/html; charset=utf-8",
       );
       rendered.push(item.url);
+      unflushed.push(item.url);
+      if (unflushed.length >= FLUSH_EVERY) await flushProgress();
     } catch (error) {
+      pendingUrls.delete(item.url);
       console.error(`prerender render failed: ${item.url}`, error);
       failed.add(item.url);
     }
   }
 
-  // Route new/changed snapshots and stop routing vanished ones. Failures
-  // keep their previous state: a stale snapshot stays up (the SPA
-  // refetches over it) rather than flapping to CSR.
+  // Route the remaining snapshots and stop routing vanished ones.
+  // Failures keep their previous state: a stale snapshot stays up (the
+  // SPA refetches over it) rather than flapping to CSR.
+  const finalBatch = unflushed;
+  unflushed = [];
   await kvsUpdate(
-    rendered.map(snapshotKvsKey),
+    finalBatch.map(snapshotKvsKey),
     plan.toUnrender.map(snapshotKvsKey),
   );
 
@@ -406,10 +517,12 @@ async function sync(force: boolean): Promise<SyncSummary> {
     "application/json",
   );
 
+  // Earlier flushes already invalidated their batches; only the final
+  // batch, unrendered urls and the sitemap remain.
   const invalidationPaths =
     plan.mode === "diff"
       ? [
-          ...rendered.map(snapshotInvalidationPath),
+          ...finalBatch.map(snapshotInvalidationPath),
           ...plan.toUnrender.map(snapshotInvalidationPath),
           "/sitemap.xml",
         ]

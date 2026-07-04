@@ -13,9 +13,13 @@ vi.mock("@aws-sdk/client-lambda", () => {
   return { InvokeCommand, LambdaClient };
 });
 
+import { LambdaClient } from "@aws-sdk/client-lambda";
 import type { FastifyBaseLogger } from "fastify";
 import type { Config } from "../config.ts";
-import { createPrerenderTrigger } from "./prerender-trigger.ts";
+import {
+  createPrerenderTrigger,
+  invokePrerenderReconcile,
+} from "./prerender-trigger.ts";
 
 function makeLog() {
   return {
@@ -95,5 +99,34 @@ describe("createPrerenderTrigger", () => {
     }).not.toThrow();
     await flush();
     expect(log.error).toHaveBeenCalled();
+  });
+});
+
+describe("invokePrerenderReconcile", () => {
+  it("awaits delivery of the reconcile invoke (the sync-runner exit path)", async () => {
+    sendLambda.mockResolvedValue({});
+    await invokePrerenderReconcile(
+      new LambdaClient({}),
+      "arn:aws:lambda:eu-west-2:123:function:prerenderer",
+    );
+
+    expect(sendLambda).toHaveBeenCalledTimes(1);
+    const command = sendLambda.mock.calls[0][0] as {
+      input: { FunctionName: string; InvocationType: string; Payload: Buffer };
+    };
+    expect(command.input.InvocationType).toBe("Event");
+    expect(JSON.parse(command.input.Payload.toString())).toEqual({
+      action: "reconcile",
+    });
+  });
+
+  it("rejects on invoke failure so callers can log without masking", async () => {
+    sendLambda.mockRejectedValue(new Error("lambda down"));
+    await expect(
+      invokePrerenderReconcile(
+        new LambdaClient({}),
+        "arn:aws:lambda:eu-west-2:123:function:prerenderer",
+      ),
+    ).rejects.toThrow("lambda down");
   });
 });

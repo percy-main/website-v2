@@ -50,48 +50,12 @@ export function createHandler(apiBaseUrl, kvsHandle) {
       return { statusCode: 404, statusDescription: "Not Found" };
     }
 
-    // Redirect game pages to API for OG meta tags (unless returning via bypass param)
-    if (apiBaseUrl) {
-      var gameMatch = uri.match(/^\/calendar\/game\/(\d+)$/);
-      var bypass = qs && qs.og && qs.og.value === "1";
-      if (gameMatch && !bypass) {
-        // Forward any non-`og` query params so the OG page can reflect them
-        // back in the bypass redirect. Without this, deep links like
-        // ?bbb=1 (open ball-by-ball modal) get dropped on the round-trip.
-        var forwarded = "";
-        if (qs) {
-          var parts = [];
-          for (var k in qs) {
-            if (k === "og") continue;
-            var entry = qs[k];
-            if (entry && typeof entry.value === "string") {
-              parts.push(
-                encodeURIComponent(k) + "=" + encodeURIComponent(entry.value),
-              );
-            }
-          }
-          if (parts.length) forwarded = "?" + parts.join("&");
-        }
-        return {
-          statusCode: 302,
-          statusDescription: "Found",
-          headers: {
-            location: {
-              value:
-                apiBaseUrl +
-                "/api/og/game/" +
-                gameMatch[1] +
-                "/page" +
-                forwarded,
-            },
-          },
-        };
-      }
-    }
-
     // Extensionless URIs are app routes: prerendered documents when the
     // KVS says a snapshot exists (trailing slash normalised so /club/ and
-    // /club share one cache entry), the SPA shell otherwise.
+    // /club share one cache entry). A snapshot carries its own OG meta,
+    // so it wins over the game OG redirect below; games WITHOUT a
+    // snapshot (past seasons, pre-first-render) keep the redirect so
+    // link previews never regress. Everything else gets the SPA shell.
     if (!uri.includes(".")) {
       var lookupUri = uri;
       if (lookupUri.length > 1 && lookupUri.endsWith("/")) {
@@ -105,9 +69,51 @@ export function createHandler(apiBaseUrl, kvsHandle) {
           request.uri = "/_prerender" + lookupUri + ".html";
           return request;
         } catch (err) {
-          // Key missing (or KVS error): fall through to the SPA shell.
+          // Key missing (or KVS error): fall through.
         }
       }
+
+      // Redirect un-snapshotted game pages to the API for OG meta tags
+      // (unless returning via bypass param)
+      if (apiBaseUrl) {
+        var gameMatch = uri.match(/^\/calendar\/game\/(\d+)$/);
+        var bypass = qs && qs.og && qs.og.value === "1";
+        if (gameMatch && !bypass) {
+          // Forward any non-`og` query params so the OG page can reflect
+          // them back in the bypass redirect. Without this, deep links
+          // like ?bbb=1 (open ball-by-ball modal) get dropped on the
+          // round-trip.
+          var forwarded = "";
+          if (qs) {
+            var parts = [];
+            for (var k in qs) {
+              if (k === "og") continue;
+              var entry = qs[k];
+              if (entry && typeof entry.value === "string") {
+                parts.push(
+                  encodeURIComponent(k) + "=" + encodeURIComponent(entry.value),
+                );
+              }
+            }
+            if (parts.length) forwarded = "?" + parts.join("&");
+          }
+          return {
+            statusCode: 302,
+            statusDescription: "Found",
+            headers: {
+              location: {
+                value:
+                  apiBaseUrl +
+                  "/api/og/game/" +
+                  gameMatch[1] +
+                  "/page" +
+                  forwarded,
+              },
+            },
+          };
+        }
+      }
+
       request.uri = "/index.html";
     }
     return request;

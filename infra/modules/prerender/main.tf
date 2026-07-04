@@ -159,13 +159,18 @@ data "archive_file" "placeholder" {
 }
 
 resource "aws_lambda_function" "prerenderer" {
-  function_name    = local.function_name
-  role             = aws_iam_role.prerenderer.arn
-  runtime          = "nodejs22.x"
-  handler          = "lambda.handler"
-  architectures    = ["arm64"]
-  memory_size      = 1024
-  timeout          = 300
+  function_name = local.function_name
+  role          = aws_iam_role.prerenderer.arn
+  runtime       = "nodejs22.x"
+  handler       = "lambda.handler"
+  architectures = ["arm64"]
+  # 2048 MB buys proportionally faster CPU (renders are renderToString
+  # bound); 900s covers a render-all of the full corpus - content plus
+  # current-season game pages and calendar months, each game costing a
+  # live Play Cricket detail call. The sync also flushes progress in
+  # batches, so even a timeout resumes rather than starting over.
+  memory_size      = 2048
+  timeout          = 900
   filename         = data.archive_file.placeholder.output_path
   source_code_hash = data.archive_file.placeholder.output_base64sha256
 

@@ -148,7 +148,7 @@ jobs:
           aws lambda invoke \
             --function-name percy-main-production-prerenderer \
             --cli-binary-format raw-in-base64-out \
-            --cli-read-timeout 360 \
+            --cli-read-timeout 960 \
             --payload '{"action":"render-all"}' \
             /tmp/render-all.json
           cat /tmp/render-all.json

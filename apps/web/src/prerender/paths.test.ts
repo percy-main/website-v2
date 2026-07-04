@@ -25,6 +25,18 @@ describe("prerender path mapping", () => {
     expect(snapshotKvsKey("/person/jane-smith")).toBe("/person/jane-smith");
   });
 
+  it("maps game and calendar month URLs (numeric segments)", () => {
+    expect(snapshotS3Key("/calendar/game/123456")).toBe(
+      "_prerender/calendar/game/123456.html",
+    );
+    expect(snapshotS3Key("/calendar/2026/july")).toBe(
+      "_prerender/calendar/2026/july.html",
+    );
+    expect(snapshotKvsKey("/calendar/game/123456")).toBe(
+      "/calendar/game/123456",
+    );
+  });
+
   it("derives the invalidation path from the S3 key", () => {
     expect(snapshotInvalidationPath("/club")).toBe("/_prerender/club.html");
   });
