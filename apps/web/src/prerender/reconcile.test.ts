@@ -26,7 +26,10 @@ const NAV = [
 ];
 
 function state(
-  items: Record<string, { updatedAt: string; publishedAt: string }>,
+  items: Record<
+    string,
+    { updatedAt: string; publishedAt: string; hash?: string }
+  >,
   hash = navHash(NAV),
 ): PrerenderState {
   return { v: 1, navHash: hash, items };
@@ -168,5 +171,79 @@ describe("nextState", () => {
     expect(Object.keys(result.items)).toEqual(["/club"]);
     expect(result.navHash).toBe("abc");
     expect(result.v).toBe(1);
+  });
+
+  it("persists the content hash when an item carries one", () => {
+    const game = item("/calendar/game/123", { kind: "game", hash: "abc123" });
+    const page = item("/club");
+    const result = nextState([game, page], "nav");
+    expect(result.items["/calendar/game/123"].hash).toBe("abc123");
+    expect("hash" in result.items["/club"]).toBe(false);
+  });
+});
+
+// Games and calendar months diff on an opaque content hash on top of the
+// timestamps - their sources (match_result, sponsorships, matchday) carry
+// no usable updated_at.
+describe("hash-diffed items", () => {
+  const TS = {
+    updatedAt: "2026-06-01T10:00:00.000Z",
+    publishedAt: "2026-06-01T10:00:00.000Z",
+  };
+
+  it("re-renders when only the hash changes", () => {
+    const manifest = [
+      item("/calendar/game/123", { kind: "game", hash: "after" }),
+    ];
+    const plan = planReconcile({
+      manifest,
+      state: state({ "/calendar/game/123": { ...TS, hash: "before" } }),
+      currentNavHash: navHash(NAV),
+    });
+    expect(plan.mode).toBe("diff");
+    expect(plan.toRender.map((entry) => entry.url)).toEqual([
+      "/calendar/game/123",
+    ]);
+  });
+
+  it("skips when timestamps and hash are unchanged", () => {
+    const manifest = [
+      item("/calendar/game/123", { kind: "game", hash: "same" }),
+      item("/calendar/2026/july", { kind: "calendar-month", hash: "m1" }),
+    ];
+    const plan = planReconcile({
+      manifest,
+      state: state({
+        "/calendar/game/123": { ...TS, hash: "same" },
+        "/calendar/2026/july": { ...TS, hash: "m1" },
+      }),
+      currentNavHash: navHash(NAV),
+    });
+    expect(plan.toRender).toEqual([]);
+  });
+
+  it("re-renders a hashed item once against a pre-hash state entry", () => {
+    const manifest = [
+      item("/calendar/game/123", { kind: "game", hash: "new" }),
+    ];
+    const plan = planReconcile({
+      manifest,
+      // State written before hashes existed: no hash key.
+      state: state({ "/calendar/game/123": { ...TS } }),
+      currentNavHash: navHash(NAV),
+    });
+    expect(plan.toRender.map((entry) => entry.url)).toEqual([
+      "/calendar/game/123",
+    ]);
+  });
+
+  it("keeps pure-timestamp diffing for content items without hashes", () => {
+    const manifest = [item("/club")];
+    const plan = planReconcile({
+      manifest,
+      state: state({ "/club": { ...TS } }),
+      currentNavHash: navHash(NAV),
+    });
+    expect(plan.toRender).toEqual([]);
   });
 });

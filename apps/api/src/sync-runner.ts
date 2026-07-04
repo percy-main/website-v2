@@ -6,10 +6,12 @@
  * (injected by the ECS task definition).
  */
 
+import { LambdaClient } from "@aws-sdk/client-lambda";
 import { createClient } from "@percy-main/db";
 import { createApiClient } from "./features/play-cricket/api-client.ts";
 import { createRvClient } from "./features/play-cricket/rv-client.ts";
 import { runSync } from "./features/play-cricket/sync.ts";
+import { invokePrerenderReconcile } from "./lib/prerender-trigger.ts";
 import { withSpan } from "./lib/tracing.ts";
 import { createWorkerLogger } from "./lib/worker-logger.ts";
 
@@ -29,6 +31,30 @@ if (!PLAY_CRICKET_API_TOKEN)
   throw new Error("Missing required env var: PLAY_CRICKET_API_TOKEN");
 if (!PLAY_CRICKET_SITE_ID)
   throw new Error("Missing required env var: PLAY_CRICKET_SITE_ID");
+
+// Optional: when set (the ECS task inherits the API service's env), the
+// runner pings the prerenderer after writing results so game snapshots
+// refresh without waiting for the 15-minute sweep.
+const PRERENDER_LAMBDA_ARN = process.env.PRERENDER_LAMBDA_ARN;
+
+/**
+ * Awaited (a fire-and-forget invoke would die with process.exit), but
+ * never allowed to change the exit code - the sweep is the backstop.
+ * Runs after completed-with-errors syncs too: partial runs still write
+ * match_result rows that prerendered game pages render.
+ */
+async function triggerPrerenderReconcile(): Promise<void> {
+  if (!PRERENDER_LAMBDA_ARN) return;
+  try {
+    await invokePrerenderReconcile(
+      new LambdaClient({ region: process.env.AWS_REGION }),
+      PRERENDER_LAMBDA_ARN,
+    );
+    logger.info("prerender_reconcile_triggered");
+  } catch (error) {
+    logger.error({ err: error }, "prerender_reconcile_invoke_failed");
+  }
+}
 
 const { client } = createClient(DATABASE_URL);
 const api = createApiClient({
@@ -76,6 +102,7 @@ try {
         { errorCount: syncResult.errors.length, errors: syncResult.errors },
         "play_cricket_sync_completed_with_errors",
       );
+      await triggerPrerenderReconcile();
       await client.destroy();
       process.exit(1);
     }
@@ -89,6 +116,7 @@ try {
     "play_cricket_sync_complete",
   );
 
+  await triggerPrerenderReconcile();
   await client.destroy();
   process.exit(0);
 } catch (error) {

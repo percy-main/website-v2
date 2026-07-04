@@ -220,4 +220,78 @@ describe("buildHead", () => {
       );
     });
   });
+
+  describe("game", () => {
+    const OG_PNG = "https://api.v2.percymain.org/api/og/game/123456";
+
+    function gameInput(overrides: Partial<HeadInput> = {}): HeadInput {
+      return input({
+        kind: "game",
+        url: "/calendar/game/123456",
+        title: "1st XI vs Tynemouth CC 2nd XI (H) - 12 July 2026",
+        description: "Won (142/6 - 138) - full scorecard.",
+        metadata: {
+          when: "2026-07-12T13:00:00",
+          homeTeam: "Percy Main 1st XI",
+          awayTeam: "Tynemouth CC 2nd XI",
+          locationName: "Percy Main Cricket and Sports Club",
+        },
+        ogImageUrl: OG_PNG,
+        ...overrides,
+      });
+    }
+
+    it("uses the explicit scorecard PNG as OG image with a large card", () => {
+      const head = buildHead(gameInput());
+      expect(head).toContain(
+        `<meta property="og:image" content="${OG_PNG}" />`,
+      );
+      expect(head).toContain(
+        '<meta name="twitter:card" content="summary_large_image" />',
+      );
+      expect(head).toContain('<meta property="og:type" content="website" />');
+      expect(head).toContain(
+        `<link rel="canonical" href="${ORIGIN}/calendar/game/123456" />`,
+      );
+    });
+
+    it("emits SportsEvent JSON-LD with both teams and the venue", () => {
+      const head = buildHead(gameInput());
+      expect(head).toContain('"@type":"SportsEvent"');
+      expect(head).toContain('"startDate":"2026-07-12T13:00:00"');
+      expect(head).toContain(
+        '"homeTeam":{"@type":"SportsTeam","name":"Percy Main 1st XI"}',
+      );
+      expect(head).toContain(
+        '"awayTeam":{"@type":"SportsTeam","name":"Tynemouth CC 2nd XI"}',
+      );
+      expect(head).toContain(
+        '"location":{"@type":"Place","name":"Percy Main Cricket and Sports Club"}',
+      );
+    });
+
+    it("emits no JSON-LD when game metadata does not parse", () => {
+      const head = buildHead(gameInput({ metadata: {} }));
+      expect(head).not.toContain("ld+json");
+    });
+  });
+
+  describe("calendar-month", () => {
+    it("uses the default OG image and emits no JSON-LD", () => {
+      const head = buildHead(
+        input({
+          kind: "calendar-month",
+          url: "/calendar/2026/july",
+          title: "Fixtures & Events - July 2026",
+          description: "Fixtures, results and events for July 2026.",
+        }),
+      );
+      expect(head).toContain(
+        `<meta property="og:image" content="${ORIGIN}/images/og-default.png" />`,
+      );
+      expect(head).toContain('<meta name="twitter:card" content="summary" />');
+      expect(head).toContain('<meta property="og:type" content="website" />');
+      expect(head).not.toContain("ld+json");
+    });
+  });
 });

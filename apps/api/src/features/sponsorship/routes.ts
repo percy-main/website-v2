@@ -1,5 +1,6 @@
 import { stripeConfig } from "@percy-main/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { createPrerenderTrigger } from "../../lib/prerender-trigger.ts";
 import { requirePermission } from "../auth/middleware.ts";
 import { createStripe } from "../payments/stripe.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
@@ -69,6 +70,10 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
   const stripe = createStripe({
     stripeSecretKey: app.config.STRIPE_SECRET_KEY,
   });
+  // Approved+paid game sponsorships render on prerendered game pages;
+  // any mutation that can change that fires a reconcile (fire-and-forget,
+  // the 15-minute sweep is the backstop).
+  const prerenderTrigger = createPrerenderTrigger(app.config, app.log);
   const prices =
     app.config.NODE_ENV === "production"
       ? stripeConfig.live.prices
@@ -319,7 +324,9 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await approveGame(request.body.sponsorshipId);
+      const result = await approveGame(request.body.sponsorshipId);
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 
@@ -333,7 +340,9 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await rejectGame(request.body.sponsorshipId);
+      const result = await rejectGame(request.body.sponsorshipId);
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 
@@ -375,7 +384,9 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await manualGame(request.body);
+      const result = await manualGame(request.body);
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 
@@ -404,7 +415,12 @@ export const sponsorshipRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await updateGame(request.params.sponsorshipId, request.body);
+      const result = await updateGame(
+        request.params.sponsorshipId,
+        request.body,
+      );
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 

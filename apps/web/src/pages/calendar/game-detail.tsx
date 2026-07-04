@@ -8,6 +8,10 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { hasWagonWheel, useWagonWheelQuery } from "@/hooks/use-wagon-wheel.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
+import {
+  gameQueryOptions,
+  gameReportQueryOptions,
+} from "@/lib/games-queries.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
 import { AddToCalendarButton } from "add-to-calendar-button-react";
@@ -237,32 +241,9 @@ function BallByBallTrigger({ game }: { game: GameData }) {
 }
 
 function GameDetailContent({ game }: { game: GameData }) {
-  // DB-backed report (live content editing, #479).
-  const { data: apiReport } = useQuery({
-    queryKey: ["content", "game-report", game.id],
-    queryFn: async () => {
-      try {
-        return await callApi(
-          api.GET(
-            "/api/content/game-report/by-play-cricket-id/{playCricketId}",
-            {
-              params: { path: { playCricketId: game.id } },
-            },
-          ),
-        );
-      } catch (err) {
-        // No published report for this game.
-        if ((err as { status?: number }).status === 404) return null;
-        throw err;
-      }
-    },
-    // Scheduled publishing boundary: a null result can flip to published
-    // the instant its published_at passes, so misses go stale fast while
-    // a real report keeps the full 5 minutes.
-    staleTime: (query) =>
-      query.state.data === null ? 30 * 1000 : 5 * 60 * 1000,
-    retry: false,
-  });
+  // DB-backed report (live content editing, #479). Shared options so the
+  // prerenderer seeds the exact key this reads.
+  const { data: apiReport } = useQuery(gameReportQueryOptions(game.id));
 
   const title = `${game.team.name} vs. ${game.opposition.club.name} ${game.opposition.team.name} ${game.home ? "(H)" : "(A)"}`;
 
@@ -484,15 +465,8 @@ export function Component() {
   useStripOgParam();
 
   const { data: game, isLoading } = useQuery({
-    queryKey: ["game", id],
-    queryFn: () =>
-      callApi(
-        api.GET("/api/games/{matchId}", {
-          params: { path: { matchId: id ?? "" } },
-        }),
-      ),
+    ...gameQueryOptions(id ?? ""),
     enabled: !!id,
-    staleTime: 5 * 60 * 1000,
   });
 
   useDocumentMeta(

@@ -20,6 +20,7 @@ import type { Kysely } from "kysely";
 import { createElement } from "react";
 import { render } from "react-email";
 import type Stripe from "stripe";
+import type { PrerenderTrigger } from "../../lib/prerender-trigger.ts";
 import { emitMarketingEventForMembership } from "../marketing/membership-hook.ts";
 import { invoiceLinesToDuration, stripeDate } from "./stripe-utils.ts";
 
@@ -43,6 +44,10 @@ interface WebhookDeps {
   log: FastifyBaseLogger;
   baseUrl: string;
   send: (email: Email) => Promise<void>;
+  // A paid game sponsorship changes the prerendered game page; the
+  // webhook fires a reconcile so the sponsor badge appears without
+  // waiting for the 15-minute sweep.
+  prerenderTrigger: PrerenderTrigger;
 }
 
 // ---------------------------------------------------------------------------
@@ -418,6 +423,7 @@ export function handlePaymentIntentSucceeded({
   log,
   baseUrl,
   send,
+  prerenderTrigger,
 }: WebhookDeps) {
   const imageBaseUrl = `${baseUrl}/images`;
   const charge = createPaymentCharge(db);
@@ -622,6 +628,8 @@ export function handlePaymentIntentSucceeded({
         })
         .where("id", "=", meta.sponsorshipId)
         .execute();
+
+      prerenderTrigger.reconcile();
 
       const sponsorship = await db
         .selectFrom("game_sponsorship")

@@ -4,12 +4,12 @@ import {
   type FixtureStripItem,
 } from "@/components/theme/fixture-strip.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import {
   eventsListQueryOptions,
   parseEventMetadata,
 } from "@/lib/content-queries.js";
+import { gamesListQueryOptions } from "@/lib/games-queries.js";
 import { cn } from "@/lib/utils.js";
 import { expandEventOccurrences } from "@percy-main/shared/content";
 import { useQuery } from "@tanstack/react-query";
@@ -475,12 +475,8 @@ export function Component() {
     : new Date();
   const season = parsed?.year ?? new Date().getFullYear();
 
-  const { data: games } = useQuery({
-    queryKey: ["games", season],
-    queryFn: () =>
-      callApi(api.GET("/api/games", { params: { query: { season } } })),
-    staleTime: 5 * 60 * 1000,
-  });
+  // Shared options so the prerenderer seeds the exact key this reads.
+  const { data: games } = useQuery(gamesListQueryOptions(season));
 
   // DB-backed events (live content editing, #489).
   const { data: eventsData } = useQuery(eventsListQueryOptions());

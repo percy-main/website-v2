@@ -127,17 +127,48 @@ describe("spa-rewrite CloudFront function", () => {
       expect(result.statusCode).toBeUndefined();
     });
 
-    it("keeps the OG redirect even when a snapshot store exists", async () => {
-      // Game reports are never prerendered; their KVS keys never exist,
-      // and the OG branch runs before the KVS lookup anyway.
+    it("serves the snapshot instead of the OG redirect when one exists", async () => {
+      // Prerendered game pages carry their own OG meta, so the KVS
+      // lookup runs first and a snapshot hit wins outright.
       const kvsHandler = createHandler(
         "https://api.v2.percymain.org",
-        fakeKvs(["/club"]),
+        fakeKvs(["/calendar/game/12345"]),
+      );
+      const result = await kvsHandler(
+        makeEvent("/calendar/game/12345", "www.percymain.org"),
+      );
+      expect(result.uri).toBe("/_prerender/calendar/game/12345.html");
+      expect(result.statusCode).toBeUndefined();
+    });
+
+    it("serves the snapshot even with og=1 (stale bypass links)", async () => {
+      const kvsHandler = createHandler(
+        "https://api.v2.percymain.org",
+        fakeKvs(["/calendar/game/12345"]),
+      );
+      const result = await kvsHandler(
+        makeEvent("/calendar/game/12345", "www.percymain.org", {
+          og: { value: "1" },
+        }),
+      );
+      expect(result.uri).toBe("/_prerender/calendar/game/12345.html");
+    });
+
+    it("keeps the OG redirect for games without a snapshot", async () => {
+      // Past seasons and not-yet-rendered games: the store exists but
+      // has no key for this game, so link previews still work via the
+      // API OG page.
+      const kvsHandler = createHandler(
+        "https://api.v2.percymain.org",
+        fakeKvs(["/club", "/calendar/game/99999"]),
       );
       const result = await kvsHandler(
         makeEvent("/calendar/game/12345", "www.percymain.org"),
       );
       expect(result.statusCode).toBe(302);
+      expect(result.headers.location.value).toBe(
+        "https://api.v2.percymain.org/api/og/game/12345/page",
+      );
     });
   });
 
@@ -171,6 +202,17 @@ describe("spa-rewrite CloudFront function", () => {
         makeEvent("/club/history", "www.percymain.org"),
       );
       expect(result.uri).toBe("/_prerender/club/history.html");
+    });
+
+    it("rewrites calendar month snapshot URLs", async () => {
+      const monthHandler = createHandler(
+        "https://api.v2.percymain.org",
+        fakeKvs(["/calendar/2026/july"]),
+      );
+      const result = await monthHandler(
+        makeEvent("/calendar/2026/july", "www.percymain.org"),
+      );
+      expect(result.uri).toBe("/_prerender/calendar/2026/july.html");
     });
 
     it("normalises a trailing slash before the lookup", async () => {

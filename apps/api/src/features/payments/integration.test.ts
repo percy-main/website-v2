@@ -44,6 +44,8 @@ const mockLog = {
   level: "info",
 } as any;
 
+const mockPrerenderTrigger = { reconcile: vi.fn() };
+
 // Stripe timestamp for 2026-03-14T12:00:00Z
 const EVENT_CREATED = Math.floor(
   new Date("2026-03-14T12:00:00Z").getTime() / 1000,
@@ -200,6 +202,7 @@ describe("handleCheckoutCompleted", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -257,6 +260,7 @@ describe("handleCheckoutCompleted", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -304,6 +308,7 @@ describe("handleCheckoutCompleted", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -384,6 +389,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -464,6 +470,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -539,6 +546,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -619,6 +627,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -658,6 +667,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -679,6 +689,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -750,6 +761,7 @@ describe("handleInvoicePayment", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -829,6 +841,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: {} as any,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -889,6 +902,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: {} as any,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -954,6 +968,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: {} as any,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -1005,6 +1020,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -1048,6 +1064,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: {} as any,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });
@@ -1095,6 +1112,7 @@ describe("handlePaymentIntentSucceeded", () => {
       db: ctx.db,
       stripe: mockStripe,
       log: mockLog,
+      prerenderTrigger: mockPrerenderTrigger,
       baseUrl: "http://localhost:5173",
       send: vi.fn(),
     });

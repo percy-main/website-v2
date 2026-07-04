@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { createPrerenderTrigger } from "../../lib/prerender-trigger.ts";
 import {
   getAuthSession,
   requireAuth,
@@ -82,6 +83,10 @@ import { generateTeamNewsImage } from "./team-news-image.ts";
 export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const officialRole = requirePermission("matchday", "view");
   const adminRole = requirePermission("matchday", "manage");
+  // Manual results and cancellations surface on prerendered game pages
+  // (outcome badge); fire a reconcile so they don't wait for the
+  // 15-minute sweep.
+  const prerenderTrigger = createPrerenderTrigger(app.config, app.log);
 
   // ── Existing routes ──
 
@@ -640,7 +645,14 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      return await finish(user.id, role, request.params.matchId, request.body);
+      const result = await finish(
+        user.id,
+        role,
+        request.params.matchId,
+        request.body,
+      );
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 
@@ -673,7 +685,14 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const { user } = getAuthSession(request);
       const role = (user as { role?: string | null }).role ?? "user";
-      return await cancel(user.id, role, request.params.matchId, request.body);
+      const result = await cancel(
+        user.id,
+        role,
+        request.params.matchId,
+        request.body,
+      );
+      prerenderTrigger.reconcile();
+      return result;
     },
   );
 };

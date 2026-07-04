@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import type Stripe from "stripe";
+import { createPrerenderTrigger } from "../../lib/prerender-trigger.ts";
 import { withSpan } from "../../lib/tracing.ts";
 import { createStripe } from "./stripe.ts";
 import {
@@ -38,6 +39,7 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
     log: app.log,
     baseUrl: app.config.BASE_URL,
     send: app.send,
+    prerenderTrigger: createPrerenderTrigger(app.config, app.log),
   };
 
   const onCheckoutCompleted = handleCheckoutCompleted(deps);
