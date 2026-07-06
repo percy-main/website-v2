@@ -1,14 +1,13 @@
 import {
   GalleryStage,
   GalleryThumbButton,
-  galleryThumbLabel,
 } from "@/components/photo-gallery.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Label } from "@/components/ui/label.js";
 import { uploadContentImage } from "@/lib/content-images.js";
-import type { GalleryImage } from "@/lib/photo-gallery.js";
-import { createContext, use, useId, useRef, useState } from "react";
+import { galleryThumbLabel, type GalleryImage } from "@/lib/photo-gallery.js";
+import { use, useId, useRef, useState } from "react";
 import {
   BlockSettings,
   EMPTY_CARD_CLASSES,
@@ -16,20 +15,13 @@ import {
   INLINE_TEXT_INPUT_CLASSES,
 } from "./block-controls.js";
 import { EditorBlockPreview } from "./editor-block-preview.js";
+import { UploadConsentContext } from "./upload-consent-context.js";
 
 // WYSIWYG editor for the photoGallery block: the rendered gallery is the
 // editor (the person grid precedent). The stage shows the selected photo
 // with its caption edited in place; thumbnails select; a toolbar under
 // the caption reorders and removes; the trailing dashed tile uploads
 // more photos through the standard consent + EXIF-strip pipeline.
-
-/**
- * Whether the author has ticked the photo consent box. Provided by the
- * editor page around the BlockNote canvas; block components can't take
- * props from the page, so consent reaches the gallery's upload tile via
- * context (the same way blocks reach react-query).
- */
-export const UploadConsentContext = createContext(false);
 
 /** Thumb-sized dashed tile that adds photos to the gallery. */
 function AddPhotosTile({
@@ -108,8 +100,8 @@ export function PhotoGalleryEditor({
     for (const result of results) {
       if (result.status === "fulfilled") {
         added.push({ picture: result.value.picture });
-      } else {
-        failure ??= result.reason;
+      } else if (failure === null) {
+        failure = result.reason;
       }
     }
     if (failure !== null) {

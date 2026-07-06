@@ -12,6 +12,13 @@ export interface GalleryImage {
   caption?: string;
 }
 
+/** Accessible name for a gallery strip thumbnail. Shared by the public
+ * gallery and the editor block; lives here rather than in the component
+ * files so they only export components (Fast Refresh). */
+export function galleryThumbLabel(image: GalleryImage, i: number): string {
+  return `Show photo ${String(i + 1)}${image.alt ? `: ${image.alt}` : ""}`;
+}
+
 /**
  * Mirrors the public renderer's isSafeImageSrc (and the shared package's
  * SAFE_IMAGE_SRC): images render only from https or site-relative paths

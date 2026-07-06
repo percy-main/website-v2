@@ -2,10 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { GalleryImage } from "@/lib/photo-gallery.js";
-import {
-  PhotoGalleryEditor,
-  UploadConsentContext,
-} from "./photo-gallery-editor.js";
+import { PhotoGalleryEditor } from "./photo-gallery-editor.js";
+import { UploadConsentContext } from "./upload-consent-context.js";
 
 const image = (
   id: string,

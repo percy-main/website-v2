@@ -110,16 +110,14 @@ import {
   visibleNodes,
 } from "./pages-tab.lib.js";
 import { PersonEditor, PersonGridEditor } from "./person-editors.js";
-import {
-  PhotoGalleryEditor,
-  UploadConsentContext,
-} from "./photo-gallery-editor.js";
+import { PhotoGalleryEditor } from "./photo-gallery-editor.js";
 import {
   blocksToLines,
   detailLines,
   diffLines,
   type DiffLine,
 } from "./revision-diff.js";
+import { UploadConsentContext } from "./upload-consent-context.js";
 
 // ── Custom blocks ───────────────────────────────────────────────────────
 //

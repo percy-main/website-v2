@@ -1,4 +1,4 @@
-import type { GalleryImage } from "@/lib/photo-gallery.js";
+import { galleryThumbLabel, type GalleryImage } from "@/lib/photo-gallery.js";
 import { cn } from "@/lib/utils.js";
 import { useEffect, useRef, useState } from "react";
 import { IoChevronBack, IoChevronForward } from "react-icons/io5";
@@ -97,11 +97,6 @@ export function GalleryArrowButton({
       <Icon aria-hidden />
     </button>
   );
-}
-
-/** Accessible name for a strip thumbnail (shared with the editor). */
-export function galleryThumbLabel(image: GalleryImage, i: number): string {
-  return `Show photo ${String(i + 1)}${image.alt ? `: ${image.alt}` : ""}`;
 }
 
 /**
