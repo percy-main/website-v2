@@ -4,6 +4,7 @@ import {
   type PictureSource,
 } from "@/components/optimised-image.js";
 import { OutcomeBadge } from "@/components/outcome-badge.js";
+import { PhotoGallery } from "@/components/photo-gallery.js";
 import { RecordsWall as RecordsWallComponent } from "@/components/records-wall.js";
 import { PosterLink, StampButton } from "@/components/theme/bits.js";
 import { Input } from "@/components/ui/input.js";
@@ -624,6 +625,7 @@ function ConsentVersion() {
 export const mdxComponents = {
   Person,
   PersonGrid,
+  PhotoGallery,
   LeagueTable,
   Leaderboard,
   RecordsWall,

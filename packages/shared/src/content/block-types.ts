@@ -30,6 +30,11 @@ export const CUSTOM_BLOCK_TYPES = {
   // descriptor from the upload API so public pages render the responsive
   // ladder without any lookup.
   contentImage: "contentImage",
+  // A set of uploaded photos rendered as one main photo above a clickable
+  // thumbnail strip. props.images carries a JSON-stringified array of
+  // { picture, alt?, caption? } where picture is the upload API's
+  // PictureSource descriptor (the contentImage precedent, pluralised).
+  photoGallery: "photoGallery",
   leagueTable: "leagueTable",
   leaderboard: "leaderboard",
   recordsWall: "recordsWall",

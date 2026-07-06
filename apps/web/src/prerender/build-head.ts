@@ -63,8 +63,9 @@ function absolutize(src: string, origin: string): string {
 
 /**
  * Lead image for a news article: the first contentImage block's picture
- * fallback (or plain src). Walks top-level blocks only - a lead image
- * nested inside another block isn't a lead image.
+ * fallback (or plain src), or the first photo of the first photoGallery
+ * block - whichever block comes first. Walks top-level blocks only - a
+ * lead image nested inside another block isn't a lead image.
  */
 function findLeadImage(body: unknown): string | undefined {
   if (typeof body !== "object" || body === null) return undefined;
@@ -73,25 +74,37 @@ function findLeadImage(body: unknown): string | undefined {
     : (body as { blocks?: unknown }).blocks;
   if (!Array.isArray(blocks)) return undefined;
   for (const block of blocks) {
-    if (
-      typeof block !== "object" ||
-      block === null ||
-      (block as { type?: unknown }).type !== "contentImage"
-    ) {
-      continue;
-    }
+    if (typeof block !== "object" || block === null) continue;
+    const type = (block as { type?: unknown }).type;
     const props = (block as { props?: Record<string, unknown> }).props ?? {};
-    if (typeof props.picture === "string" && props.picture) {
-      try {
-        const picture = JSON.parse(props.picture) as {
-          img?: { src?: unknown };
-        };
-        if (typeof picture.img?.src === "string") return picture.img.src;
-      } catch {
-        // fall through to plain src
+    if (type === "contentImage") {
+      if (typeof props.picture === "string" && props.picture) {
+        try {
+          const picture = JSON.parse(props.picture) as {
+            img?: { src?: unknown };
+          };
+          if (typeof picture.img?.src === "string") return picture.img.src;
+        } catch {
+          // fall through to plain src
+        }
+      }
+      if (typeof props.src === "string" && props.src) return props.src;
+    }
+    if (type === "photoGallery") {
+      if (typeof props.images === "string" && props.images) {
+        try {
+          const images = JSON.parse(props.images) as Array<{
+            picture?: { img?: { src?: unknown } };
+          }>;
+          const first = Array.isArray(images) ? images[0] : undefined;
+          if (typeof first?.picture?.img?.src === "string") {
+            return first.picture.img.src;
+          }
+        } catch {
+          // a malformed gallery is never a lead image
+        }
       }
     }
-    if (typeof props.src === "string" && props.src) return props.src;
   }
   return undefined;
 }

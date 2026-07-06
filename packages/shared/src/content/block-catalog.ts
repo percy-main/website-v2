@@ -174,6 +174,14 @@ export const BLOCK_CATALOG: readonly BlockCatalogEntry[] = [
     }),
   },
   {
+    type: CUSTOM_BLOCK_TYPES.photoGallery,
+    description:
+      "A photo gallery: one main photo with a thumbnail strip. NOT author-writable - photos must go through the editor's upload pipeline.",
+    contentKind: "none",
+    agentWritable: false,
+    propsSchema: z.object({ images: z.string().optional() }),
+  },
+  {
     type: CUSTOM_BLOCK_TYPES.leagueTable,
     description:
       "A live league standings table. `divisionId` is the Play-Cricket division id (find it via the pc_* tools); `name` is an optional heading.",

@@ -127,6 +127,47 @@ describe("buildHead", () => {
       );
     });
 
+    it("uses the first photoGallery photo as the lead OG image", () => {
+      const head = buildHead({
+        ...news,
+        body: [
+          { id: "1", type: "paragraph", props: {}, children: [] },
+          {
+            id: "2",
+            type: "photoGallery",
+            props: {
+              images: JSON.stringify([
+                {
+                  picture: {
+                    sources: {},
+                    img: {
+                      src: "/uploads/content/g1/1280.webp",
+                      w: 1280,
+                      h: 853,
+                    },
+                  },
+                },
+                {
+                  picture: {
+                    sources: {},
+                    img: {
+                      src: "/uploads/content/g2/1280.webp",
+                      w: 1280,
+                      h: 853,
+                    },
+                  },
+                },
+              ]),
+            },
+            children: [],
+          },
+        ],
+      });
+      expect(head).toContain(
+        `<meta property="og:image" content="${ORIGIN}/uploads/content/g1/1280.webp" />`,
+      );
+    });
+
     it("falls back to plain src when the picture descriptor is malformed", () => {
       const head = buildHead({
         ...news,

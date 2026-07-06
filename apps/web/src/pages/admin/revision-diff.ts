@@ -130,6 +130,12 @@ function blockLines(block: unknown, depth: number): string[] {
       );
       break;
     }
+    case CUSTOM_BLOCK_TYPES.photoGallery: {
+      // The raw images JSON covers every render-relevant prop in one
+      // string: photo identity, order, alts and captions all diff.
+      lines.push(`${indent}[Photo gallery: ${stringProp(props, "images")}]`);
+      break;
+    }
     case CUSTOM_BLOCK_TYPES.gamePreview:
       lines.push(
         `${indent}[Game preview: ${stringProp(props, "playCricketId")}]`,

@@ -684,6 +684,15 @@
   @apply h-auto max-w-full rounded-lg;
 }
 
+/* Photo gallery thumbnails fill their fixed tiles (object-cover):
+   out-ranks the generic content img rule above, whose h-auto would
+   otherwise size the img by its own aspect ratio and crop inside the
+   tile. (The gallery stage needs no such rule - its photo sizes
+   naturally, so h-auto is exactly what it wants.) */
+:is(.mdx-content, .bn-editor) .photo-gallery-thumb img {
+  @apply h-full w-full rounded-none object-cover;
+}
+
 :is(.mdx-content, .bn-editor) table {
   @apply w-full border-collapse text-sm;
 }
@@ -1385,6 +1394,12 @@
   :is(.mdx-content, .bn-editor)
   :is(.shadow, .shadow-sm, .shadow-md, .shadow-lg) {
   box-shadow: none;
+}
+/* Exception to the flattening above: the photo gallery's main photo
+   keeps rounded corners and a small shadow, so it reads as a print
+   laid on the page. */
+.fc-theme :is(.mdx-content, .bn-editor) .photo-gallery-stage img {
+  @apply rounded-lg shadow-md;
 }
 .fc-theme :is(.mdx-content, .bn-editor) .bg-white {
   background-color: #fbf3df;
