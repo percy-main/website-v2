@@ -71,6 +71,7 @@ import {
   parsePersonGridEntries,
   type PersonGridEntry,
 } from "@/lib/person-grid.js";
+import { parseGalleryImages, type GalleryImage } from "@/lib/photo-gallery.js";
 import { usePeopleList } from "@/lib/use-people.js";
 import { cn } from "@/lib/utils.js";
 import {
@@ -109,6 +110,10 @@ import {
   visibleNodes,
 } from "./pages-tab.lib.js";
 import { PersonEditor, PersonGridEditor } from "./person-editors.js";
+import {
+  PhotoGalleryEditor,
+  UploadConsentContext,
+} from "./photo-gallery-editor.js";
 import {
   blocksToLines,
   detailLines,
@@ -376,6 +381,39 @@ const contentImageBlock = createReactBlockSpec(
             </div>
           </BlockSettings>
         </figure>
+      );
+    },
+  },
+);
+
+const photoGalleryBlock = createReactBlockSpec(
+  {
+    type: CUSTOM_BLOCK_TYPES.photoGallery,
+    propSchema: {
+      // JSON-stringified [{picture, alt?, caption?}] built from the
+      // upload pipeline (the contentImage picture prop, pluralised).
+      images: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block, editor }) => {
+      const images = parseGalleryImages(block.props.images) ?? [];
+      const write = (next: GalleryImage[]) => {
+        editor.updateBlock(block, {
+          props: {
+            ...block.props,
+            // Empty gallery stores "" (NULL-for-unset), which parses to
+            // null - the editor shows the dashed add-photos card and the
+            // public renderer hides the block.
+            images: next.length > 0 ? JSON.stringify(next) : "",
+          },
+        });
+      };
+      return (
+        <div className="my-2 w-full">
+          <PhotoGalleryEditor images={images} onWrite={write} />
+        </div>
       );
     },
   },
@@ -777,6 +815,7 @@ export const schema = BlockNoteSchema.create({
     [CUSTOM_BLOCK_TYPES.gamePreview]: gamePreviewBlock(),
     [CUSTOM_BLOCK_TYPES.eventPreview]: eventPreviewBlock(),
     [CUSTOM_BLOCK_TYPES.contentImage]: contentImageBlock(),
+    [CUSTOM_BLOCK_TYPES.photoGallery]: photoGalleryBlock(),
     [CUSTOM_BLOCK_TYPES.leagueTable]: leagueTableBlock(),
     [CUSTOM_BLOCK_TYPES.leaderboard]: leaderboardBlock(),
     [CUSTOM_BLOCK_TYPES.recordsWall]: recordsWallBlock(),
@@ -1336,6 +1375,18 @@ function buildSlashItems(editor: Editor, startImageUpload: () => void) {
       aliases: ["image", "photo", "picture"],
       icon: <span aria-hidden>📷</span>,
       onItemClick: startImageUpload,
+    },
+    {
+      title: "Photo gallery",
+      subtext: "A set of photos with a main view and thumbnail strip",
+      group: "Club content",
+      aliases: ["gallery", "photos", "album", "carousel", "slideshow"],
+      icon: <span aria-hidden>🖼️</span>,
+      onItemClick: () => {
+        insertOrUpdateBlockForSlashMenu(editor, {
+          type: CUSTOM_BLOCK_TYPES.photoGallery,
+        });
+      },
     },
     {
       title: "League table",
@@ -3566,6 +3617,55 @@ function ContentAiLauncher({
   );
 }
 
+/**
+ * The slash-menu "Upload photo" flow: consent gate -> hidden file input
+ * -> upload pipeline -> insert a contentImage block at the cursor. The
+ * caller renders the returned handlers onto its own <input type="file">.
+ */
+function useSlashImageUpload(editor: Editor, consentConfirmed: boolean) {
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const startImageUpload = () => {
+    setUploadError(null);
+    if (!consentConfirmed) {
+      setUploadError(
+        "Tick the photo consent box above before uploading images.",
+      );
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const onFileChosen = async (file: File) => {
+    try {
+      const uploaded = await uploadContentImage(file, {});
+      const cursor = editor.getTextCursorPosition();
+      editor.insertBlocks(
+        [
+          {
+            type: CUSTOM_BLOCK_TYPES.contentImage,
+            props: {
+              src: uploaded.picture.img.src,
+              alt: "",
+              caption: "",
+              picture: JSON.stringify(uploaded.picture),
+            },
+          },
+        ],
+        cursor.block,
+        "after",
+      );
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Upload failed - try again",
+      );
+    }
+  };
+
+  return { uploadError, fileInputRef, startImageUpload, onFileChosen };
+}
+
 function LoadedEditor({
   kind,
   item,
@@ -3593,11 +3693,9 @@ function LoadedEditor({
     initialForm(item, newParentId),
   );
   const [consentConfirmed, setConsentConfirmed] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(
     item?.updatedAt ?? null,
   );
-  const fileInputRef = useRef<HTMLInputElement>(null);
   // Whether the author has manually edited the slug (handler-only flag:
   // it never affects what's on screen, only how title edits behave).
   const slugTouchedRef = useRef(item !== null);
@@ -3709,42 +3807,8 @@ function LoadedEditor({
     [kind, queryClient],
   );
 
-  const startImageUpload = () => {
-    setUploadError(null);
-    if (!consentConfirmed) {
-      setUploadError(
-        "Tick the photo consent box above before uploading images.",
-      );
-      return;
-    }
-    fileInputRef.current?.click();
-  };
-
-  const onFileChosen = async (file: File) => {
-    try {
-      const uploaded = await uploadContentImage(file, {});
-      const cursor = editor.getTextCursorPosition();
-      editor.insertBlocks(
-        [
-          {
-            type: CUSTOM_BLOCK_TYPES.contentImage,
-            props: {
-              src: uploaded.picture.img.src,
-              alt: "",
-              caption: "",
-              picture: JSON.stringify(uploaded.picture),
-            },
-          },
-        ],
-        cursor.block,
-        "after",
-      );
-    } catch (err) {
-      setUploadError(
-        err instanceof Error ? err.message : "Upload failed - try again",
-      );
-    }
-  };
+  const { uploadError, fileInputRef, startImageUpload, onFileChosen } =
+    useSlashImageUpload(editor, consentConfirmed);
 
   const slashItems = () => buildSlashItems(editor, startImageUpload);
 
@@ -3853,13 +3917,18 @@ function LoadedEditor({
         </div>
 
         <div className="lg:col-span-2">
-          <EditorPane
-            editor={editor}
-            slashItems={slashItems}
-            onDirty={() => {
-              dirtyRef.current = true;
-            }}
-          />
+          {/* Blocks with their own upload affordance (photo gallery)
+              read the consent tick through context - they render inside
+              the BlockNote canvas and can't take page props. */}
+          <UploadConsentContext.Provider value={consentConfirmed}>
+            <EditorPane
+              editor={editor}
+              slashItems={slashItems}
+              onDirty={() => {
+                dirtyRef.current = true;
+              }}
+            />
+          </UploadConsentContext.Provider>
         </div>
       </div>
     </div>

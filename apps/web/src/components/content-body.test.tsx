@@ -296,6 +296,93 @@ describe("ContentBody", () => {
     expect(html).toContain('src="/uploads/content/img-1/640.jpg"');
   });
 
+  it("renders a photoGallery with a main stage and clickable thumbnails", () => {
+    const picture = (id: string) => ({
+      sources: {
+        webp: `/uploads/content/${id}/320.webp 320w, /uploads/content/${id}/640.webp 640w`,
+      },
+      img: { src: `/uploads/content/${id}/640.jpg`, w: 640, h: 480 },
+    });
+    const html = renderBody([
+      block("photoGallery", {
+        props: {
+          images: JSON.stringify([
+            {
+              picture: picture("a"),
+              alt: "The winning six",
+              caption: "Scenes",
+            },
+            { picture: picture("b") },
+            { picture: picture("c") },
+          ]),
+        },
+      }),
+    ]);
+    // Main stage shows the first photo with its caption.
+    expect(html).toContain('src="/uploads/content/a/640.jpg"');
+    expect(html).toContain("Scenes");
+    // Arrows and one thumbnail per photo.
+    expect(html).toContain('aria-label="Previous photo"');
+    expect(html).toContain('aria-label="Next photo"');
+    expect(html).toContain('aria-label="Show photo 1: The winning six"');
+    expect(html).toContain('aria-label="Show photo 2"');
+    expect(html).toContain('aria-label="Show photo 3"');
+    // The stage <picture> plus one per thumbnail.
+    expect(html.match(/<picture>/g)).toHaveLength(4);
+  });
+
+  it("renders a single-photo gallery without the strip or arrows", () => {
+    const html = renderBody([
+      block("photoGallery", {
+        props: {
+          images: JSON.stringify([
+            {
+              picture: {
+                sources: { webp: "/uploads/content/a/320.webp 320w" },
+                img: { src: "/uploads/content/a/640.jpg", w: 640, h: 480 },
+              },
+            },
+          ]),
+        },
+      }),
+    ]);
+    expect(html).toContain('src="/uploads/content/a/640.jpg"');
+    expect(html).not.toContain("Previous photo");
+    expect(html).not.toContain("Show photo");
+  });
+
+  it("hides the photoGallery when images is missing or malformed", () => {
+    for (const images of ["", "not json", "[]", '[{"alt":"no picture"}]']) {
+      const html = renderBody([block("photoGallery", { props: { images } })]);
+      expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
+    }
+  });
+
+  it("hides the whole photoGallery when any image url is unsafe", () => {
+    const html = renderBody([
+      block("photoGallery", {
+        props: {
+          images: JSON.stringify([
+            {
+              picture: {
+                sources: { webp: "/uploads/content/a/320.webp 320w" },
+                img: { src: "/uploads/content/a/640.jpg", w: 640, h: 480 },
+              },
+            },
+            {
+              picture: {
+                sources: { webp: "javascript:alert(1) 320w" },
+                img: { src: "/uploads/content/b/640.jpg", w: 640, h: 480 },
+              },
+            },
+          ]),
+        },
+      }),
+    ]);
+    expect(html).not.toContain("javascript:");
+    expect(html).toBe('<div class="mdx-content flex flex-col *:mb-4"></div>');
+  });
+
   // ── New custom blocks ──────────────────────────────────────────────────
 
   it("renders all custom block types in a fixture document without crashing", () => {
@@ -321,6 +408,14 @@ describe("ContentBody", () => {
           picture: JSON.stringify(picture),
         },
       }),
+      block("photoGallery", {
+        props: {
+          images: JSON.stringify([
+            { picture, alt: "Gallery photo", caption: "Gallery caption" },
+            { picture },
+          ]),
+        },
+      }),
       block("leagueTable", {
         props: { divisionId: "div-1", name: "Division 1" },
       }),
@@ -341,6 +436,7 @@ describe("ContentBody", () => {
     // Spot-check a handful of expected fragments.
     expect(html).toContain("Head Coach");
     expect(html).toContain("Quiz night");
+    expect(html).toContain("Gallery caption");
     expect(html).toContain("Get in touch");
     expect(html).toContain("Manage cookies");
     expect(html).toContain("v3");

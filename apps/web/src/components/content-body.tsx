@@ -4,6 +4,7 @@ import {
   type PictureSource,
 } from "@/components/optimised-image.js";
 import { parsePersonGridEntries } from "@/lib/person-grid.js";
+import { parseGalleryImages } from "@/lib/photo-gallery.js";
 import { cn } from "@/lib/utils.js";
 import {
   contentBodySchema,
@@ -446,6 +447,15 @@ function BlockView({ block }: { block: ContentBlock }) {
       }
       if (!src || !isSafeImageSrc(src)) return null;
       return <mdxComponents.Image src={src} alt={alt} caption={caption} />;
+    }
+
+    case CUSTOM_BLOCK_TYPES.photoGallery: {
+      // props.images is the JSON-stringified [{picture, alt?, caption?}]
+      // array built by the editor from the upload pipeline. All-or-
+      // nothing parse: any malformed or unsafe entry hides the gallery.
+      const images = parseGalleryImages(stringProp(block, "images"));
+      if (images === null) return null;
+      return <mdxComponents.PhotoGallery images={images} />;
     }
 
     case CUSTOM_BLOCK_TYPES.leagueTable: {

@@ -126,6 +126,20 @@ describe("blocksToLines", () => {
         block("contentImage", { alt: "x", caption: "", src: "/uploads/b.jpg" }),
       ),
     );
+    // A caption change inside a photo gallery (images is canonical)
+    expect(
+      blocksToLines(
+        block("photoGallery", {
+          images: '[{"picture":{},"caption":"Before"}]',
+        }),
+      ),
+    ).not.toEqual(
+      blocksToLines(
+        block("photoGallery", {
+          images: '[{"picture":{},"caption":"After"}]',
+        }),
+      ),
+    );
     // An event preview repointed at a different event, same display name
     expect(
       blocksToLines(
