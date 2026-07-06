@@ -115,6 +115,19 @@ resource "aws_iam_role_policy" "prerenderer" {
         ]
       },
       {
+        # Without ListBucket, a GetObject on a missing key returns
+        # AccessDenied instead of NoSuchKey (S3 hides existence), so the
+        # Lambda's state-file probe cannot distinguish "first sync" from
+        # a real permission failure. Scoped to the snapshot prefix.
+        Sid      = "StateProbe"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = [var.frontend_bucket_arn]
+        Condition = {
+          StringLike = { "s3:prefix" = ["_prerender/*"] }
+        }
+      },
+      {
         Sid      = "Invalidate"
         Effect   = "Allow"
         Action   = ["cloudfront:CreateInvalidation"]
