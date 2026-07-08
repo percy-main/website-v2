@@ -16,7 +16,7 @@
     "openapi": "tsx src/generate-openapi.ts > ../web/src/lib/api.gen.json && pnpm exec openapi-typescript ../web/src/lib/api.gen.json -o ../web/src/lib/api.gen.d.ts && cp ../web/src/lib/api.gen.json ../matchday/src/lib/api.gen.json && pnpm exec openapi-typescript ../matchday/src/lib/api.gen.json -o ../matchday/src/lib/api.gen.d.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "3.0.84",
+    "@ai-sdk/anthropic": "4.0.10",
     "@ai-sdk/deepseek": "^2.0.38",
     "@arizeai/openinference-semantic-conventions": "^2.5.0",
     "@arizeai/openinference-vercel": "^2.7.8",
