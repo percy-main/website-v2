@@ -122,6 +122,46 @@ export const gameDetailResponseSchema = gameListItemSchema.extend({
   availabilityRequest: availabilityRequestSummarySchema,
 });
 
+// --- Recent games (homepage scoreboard) ---
+
+const recentGameInningsSchema = z.object({
+  teamBattingId: z.string(),
+  teamName: z.string(),
+  runs: z.number(),
+  wickets: z.number(),
+  overs: z.string(),
+  declared: z.boolean(),
+  allOut: z.boolean(),
+});
+
+export const recentGameItemSchema = z.object({
+  id: z.string(),
+  status: z.enum(["live", "result"]),
+  when: z.string().nullable(),
+  home: z.boolean(),
+  team: teamIdNameSchema,
+  opposition: z.object({
+    club: teamIdNameSchema,
+    team: teamIdNameSchema,
+  }),
+  league: teamIdNameSchema,
+  competition: z.object({
+    id: z.string(),
+    name: z.string(),
+    type: z.string(),
+  }),
+  outcome: outcomeSchema,
+  // "Won by 5 wickets" / "Mitford CC need 74 more to win" / "In play" ...
+  note: z.string().nullable(),
+  // Batting order preserved; empty while a live game has no scores yet.
+  innings: z.array(recentGameInningsSchema),
+});
+
+export const recentGamesResponseSchema = z.object({
+  items: z.array(recentGameItemSchema),
+  hasLive: z.boolean(),
+});
+
 // --- Prerender manifest ---
 
 // Consumed by the prerenderer Lambda (apps/web/server/prerender), merged

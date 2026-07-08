@@ -96,10 +96,12 @@ function createMockApi(
     getTeams: vi.fn().mockResolvedValue({ teams: [] }),
     getMatchesSummary,
     getMatchDetail: vi.fn().mockResolvedValue({ match_details: [] }),
+    getLiveMatchDetail: vi.fn().mockResolvedValue({ match_details: [] }),
     getPlayers: vi.fn().mockResolvedValue({ players: [] }),
     getLeagueTable: vi.fn().mockResolvedValue({}),
     getMatchesForSite: vi.fn().mockResolvedValue({ matches: [] }),
     getResultSummaryForSite: vi.fn().mockResolvedValue({ result_summary: [] }),
+    getResultSummary: vi.fn().mockResolvedValue({ result_summary: [] }),
   };
 }
 

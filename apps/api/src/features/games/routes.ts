@@ -1,11 +1,13 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { createApiClient } from "../play-cricket/api-client.ts";
+import { listRecentGames } from "./recent.ts";
 import {
   gameDetailParamsSchema,
   gameDetailResponseSchema,
   gamesListResponseSchema,
   gamesListSchema,
   gamesPrerenderManifestResponseSchema,
+  recentGamesResponseSchema,
   wagonWheelResponseSchema,
 } from "./schemas.ts";
 import {
@@ -29,11 +31,13 @@ export const gamesRoutes: FastifyPluginAsyncZod = async (app) => {
   const api = createApiClient({
     apiToken: config.PLAY_CRICKET_API_TOKEN,
     siteId: config.PLAY_CRICKET_SITE_ID,
+    baseUrl: config.PLAY_CRICKET_API_BASE,
   });
 
   const siteId = config.PLAY_CRICKET_SITE_ID;
 
   const list = listGames(app.db, api, siteId);
+  const recent = listRecentGames(api, siteId);
   const detail = getGame(app.db, api, siteId);
   const wagonWheel = getWagonWheel(app.db);
   const prerenderManifest = listGamesPrerenderManifest(app.db, api, siteId);
@@ -50,6 +54,20 @@ export const gamesRoutes: FastifyPluginAsyncZod = async (app) => {
       const { season } = request.query;
       const effectiveSeason = season ?? new Date().getFullYear();
       return await list(effectiveSeason);
+    },
+  );
+
+  // Homepage scoreboard: latest results + any game in play right now.
+  // Registered before /games/:matchId so the static segment wins.
+  app.get(
+    "/games/recent",
+    {
+      schema: {
+        response: { 200: recentGamesResponseSchema },
+      },
+    },
+    async (request) => {
+      return await recent(request.log);
     },
   );
 

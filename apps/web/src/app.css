@@ -1304,6 +1304,210 @@
   color: var(--fc-paper);
 }
 
+/* --- Scoreboard (homepage recent results / live scores) --- */
+.fc-sb-grid {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: stretch;
+}
+/* Never let a lone card span the full plate on desktop. */
+@media (min-width: 981px) {
+  .fc-sb-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .fc-sb-grid:has(> :last-child:nth-child(1)) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 980px) {
+  .fc-sb-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.fc-sbcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--fc-paper);
+  color: var(--fc-navy);
+  border: 2.5px solid var(--fc-over);
+  padding: 16px 18px 14px;
+  text-decoration: none;
+  transition: transform 0.2s;
+}
+.fc-sbcard:hover {
+  transform: translateY(-3px);
+}
+.fc-sbcard--live {
+  border: 3px solid var(--fc-orange);
+  box-shadow: 4px 4px 0 rgb(239 74 30 / 45%);
+}
+.fc-sb-eyebrow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--font-primary);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  font-size: 10.5px;
+  color: rgb(27 42 85 / 70%);
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 2px solid rgb(27 42 85 / 18%);
+  white-space: nowrap;
+}
+.fc-sb-eyebrow span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fc-sb-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--fc-orange);
+  letter-spacing: 0.22em;
+}
+.fc-sb-lamp i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--fc-orange);
+  animation: fc-sb-lamp-pulse 1.6s ease-in-out infinite;
+}
+@keyframes fc-sb-lamp-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fc-sb-lamp i {
+    animation: none;
+  }
+}
+.fc-sb-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 5px 0;
+}
+.fc-sb-teamwrap {
+  min-width: 0;
+}
+.fc-sb-team {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-family: var(--fc-display);
+  text-transform: uppercase;
+  font-size: 21px;
+  line-height: 0.95;
+  letter-spacing: 0.01em;
+}
+.fc-sb-bat {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fc-orange);
+  align-self: center;
+  flex-shrink: 0;
+}
+.fc-sb-teammeta {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(27 42 85 / 58%);
+  margin-top: 4px;
+}
+.fc-sb-scorewrap {
+  text-align: right;
+  flex-shrink: 0;
+}
+.fc-sb-score {
+  font-family: var(--fc-display);
+  font-size: 38px;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fc-sb-overs {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(27 42 85 / 58%);
+  margin-top: 3px;
+}
+.fc-sb-noscore {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(27 42 85 / 50%);
+}
+.fc-sb-foot {
+  margin-top: auto;
+  padding-top: 10px;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 2px solid rgb(27 42 85 / 18%);
+  font-family: var(--font-primary);
+  font-weight: 700;
+  font-size: 12.5px;
+  line-height: 1.25;
+  color: rgb(27 42 85 / 80%);
+}
+.fc-sb-livenote {
+  color: var(--fc-orange);
+}
+.fc-sb-follow {
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  white-space: nowrap;
+}
+/* The scorer's rubber stamp: rotated, grunge-masked ink over the foot rule. */
+.fc-sb-stamp {
+  font-family: var(--fc-display);
+  text-transform: uppercase;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  border: 3px solid currentColor;
+  border-radius: 2px;
+  padding: 5px 11px 4px;
+  transform: rotate(-7deg) translateY(-6px);
+  flex-shrink: 0;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.94'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.94'/%3E%3C/svg%3E");
+}
+.fc-sb-stamp--won {
+  color: var(--fc-orange);
+}
+.fc-sb-stamp--lost {
+  color: var(--fc-navy);
+  opacity: 0.8;
+}
+.fc-sb-stamp--neutral {
+  color: rgb(27 42 85 / 55%);
+}
+
 /* --- Bold tiles (sports grid) --- */
 .fc-tile {
   display: block;

@@ -4186,6 +4186,221 @@
         }
       }
     },
+    "/api/games/recent": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "live",
+                              "result"
+                            ]
+                          },
+                          "when": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "home": {
+                            "type": "boolean"
+                          },
+                          "team": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "opposition": {
+                            "type": "object",
+                            "properties": {
+                              "club": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "team": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "club",
+                              "team"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "league": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "competition": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "type"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "outcome": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "W",
+                              "L",
+                              "D",
+                              "T",
+                              "A",
+                              "C",
+                              "N"
+                            ]
+                          },
+                          "note": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "innings": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "teamBattingId": {
+                                  "type": "string"
+                                },
+                                "teamName": {
+                                  "type": "string"
+                                },
+                                "runs": {
+                                  "type": "number"
+                                },
+                                "wickets": {
+                                  "type": "number"
+                                },
+                                "overs": {
+                                  "type": "string"
+                                },
+                                "declared": {
+                                  "type": "boolean"
+                                },
+                                "allOut": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "teamBattingId",
+                                "teamName",
+                                "runs",
+                                "wickets",
+                                "overs",
+                                "declared",
+                                "allOut"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "status",
+                          "when",
+                          "home",
+                          "team",
+                          "opposition",
+                          "league",
+                          "competition",
+                          "outcome",
+                          "note",
+                          "innings"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "hasLive": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "hasLive"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/games/prerender-manifest": {
       "get": {
         "responses": {
