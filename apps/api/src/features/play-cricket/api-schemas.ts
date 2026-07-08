@@ -183,6 +183,107 @@ export const GetMatchDetailResponse = z.object({
   match_details: z.array(MatchDetail),
 });
 
+// --- Result summary (played matches with innings totals) ---
+//
+// /result_summary.json?site_id=...&season=... — one row per played match,
+// updated by Play Cricket within minutes of a scorer posting a result.
+// Only the fields the recent-games feature consumes are encoded; unknown
+// keys are stripped by z.object.
+
+export const ResultSummaryInnings = z.object({
+  team_batting_id: z.string(),
+  innings_number: z.number().optional(),
+  runs: z.string().optional().default(""),
+  wickets: z.string().optional().default(""),
+  overs: z.string().optional().default(""),
+  declared: z.boolean().nullable().default(false),
+  forfeited_innings: z.boolean().nullable().default(false),
+});
+
+export const ResultSummaryMatch = z.object({
+  id: z.number(),
+  status: z.string().optional().default(""),
+  published: z.string().optional().default(""),
+  last_updated: z.string().optional().default(""),
+  league_name: z.string().optional().default(""),
+  league_id: z.string().optional().default(""),
+  competition_name: z.string().optional().default(""),
+  competition_id: z.string().optional().default(""),
+  competition_type: z.string().optional().default(""),
+  match_type: z.string().optional().default(""),
+  // "Standard" hardball or "Pairs" Women's Softball — Pairs margins don't
+  // follow runs/wickets semantics, so the recent-games note skips them.
+  game_type: z.string().optional().default(""),
+  match_date: z.string(),
+  match_time: z.string().optional().default(""),
+  home_team_name: z.string(),
+  home_team_id: z.string(),
+  home_club_name: z.string(),
+  home_club_id: z.string(),
+  away_team_name: z.string(),
+  away_team_id: z.string(),
+  away_club_name: z.string(),
+  away_club_id: z.string(),
+  batted_first: z.string().optional().default(""),
+  result: z.string().optional().default(""),
+  result_description: z.string().optional().default(""),
+  result_applied_to: z.string().optional().default(""),
+  innings: z.array(ResultSummaryInnings).optional().default([]),
+});
+
+export type ResultSummaryMatch = z.output<typeof ResultSummaryMatch>;
+
+export const GetResultSummaryResponse = z.object({
+  result_summary: z.array(ResultSummaryMatch),
+});
+
+// --- Lenient match detail for live (in-play) reads ---
+//
+// The full MatchDetail schema requires scorecard fields (extras, bat, bowl,
+// fow) that Play Cricket may serve incompletely mid-innings. The live
+// scoreboard only needs running totals and the (empty-until-final) result
+// fields, so it parses this forgiving subset instead — a malformed innings
+// entry must degrade to "in play, no score" rather than fail the request.
+
+// Play Cricket emits null for not-yet-populated live fields; collapse
+// null/undefined to "" so consumers see one empty shape.
+const liveString = z
+  .string()
+  .nullish()
+  .transform((value) => value ?? "");
+
+const LiveMatchDetailInnings = z.object({
+  team_batting_id: liveString,
+  runs: liveString,
+  wickets: liveString,
+  overs: liveString,
+  declared: z.boolean().nullable().default(false),
+});
+
+export const LiveMatchDetail = z.object({
+  id: z.number(),
+  home_team_name: z.string(),
+  home_team_id: z.string(),
+  home_club_name: z.string(),
+  home_club_id: liveString,
+  away_team_name: z.string(),
+  away_team_id: z.string(),
+  away_club_name: z.string(),
+  away_club_id: liveString,
+  result: liveString,
+  result_description: liveString,
+  result_applied_to: liveString,
+  game_type: liveString,
+  match_type: liveString,
+  innings: z.array(LiveMatchDetailInnings).optional().default([]),
+});
+
+export type LiveMatchDetail = z.output<typeof LiveMatchDetail>;
+
+export const GetLiveMatchDetailResponse = z.object({
+  match_details: z.array(LiveMatchDetail),
+});
+
 // --- Teams ---
 
 export const GetPlayersResponse = z.object({

@@ -2454,6 +2454,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/games/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                /** @enum {string} */
+                                status: "live" | "result";
+                                when: string | null;
+                                home: boolean;
+                                team: {
+                                    id: string;
+                                    name: string;
+                                };
+                                opposition: {
+                                    club: {
+                                        id: string;
+                                        name: string;
+                                    };
+                                    team: {
+                                        id: string;
+                                        name: string;
+                                    };
+                                };
+                                league: {
+                                    id: string;
+                                    name: string;
+                                };
+                                competition: {
+                                    id: string;
+                                    name: string;
+                                    type: string;
+                                };
+                                /** @enum {string|null} */
+                                outcome: "W" | "L" | "D" | "T" | "A" | "C" | "N" | null;
+                                note: string | null;
+                                innings: {
+                                    teamBattingId: string;
+                                    teamName: string;
+                                    runs: number;
+                                    wickets: number;
+                                    overs: string;
+                                    declared: boolean;
+                                    allOut: boolean;
+                                }[];
+                            }[];
+                            hasLive: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/games/prerender-manifest": {
         parameters: {
             query?: never;

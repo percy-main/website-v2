@@ -1,7 +1,9 @@
 import {
+  GetLiveMatchDetailResponse,
   GetMatchDetailResponse,
   GetMatchSummaryResponse,
   GetPlayersResponse,
+  GetResultSummaryResponse,
   GetTeamsResponse,
 } from "./api-schemas.ts";
 
@@ -10,6 +12,8 @@ const API_BASE = "https://www.play-cricket.com/api/v2";
 export interface PlayCricketApiConfig {
   apiToken: string;
   siteId: string;
+  /** Override the API origin — used to point at a mock server locally. */
+  baseUrl?: string;
 }
 
 /**
@@ -35,7 +39,7 @@ async function fetchPlayCricket(
   path: string,
   params?: Record<string, string>,
 ): Promise<unknown> {
-  const url = new URL(`${API_BASE}${path}`);
+  const url = new URL(`${config.baseUrl ?? API_BASE}${path}`);
   url.searchParams.set("api_token", config.apiToken);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
@@ -64,6 +68,18 @@ export function createApiClient(config: PlayCricketApiConfig) {
         match_id: matchId,
       });
       return GetMatchDetailResponse.parse(json);
+    },
+
+    /**
+     * Same endpoint as getMatchDetail, parsed leniently — for reading a
+     * possibly in-play match where the full scorecard fields may be
+     * incomplete. See GetLiveMatchDetailResponse.
+     */
+    async getLiveMatchDetail(matchId: string) {
+      const json = await fetchPlayCricket(config, "/match_detail.json", {
+        match_id: matchId,
+      });
+      return GetLiveMatchDetailResponse.parse(json);
     },
 
     async getMatchesSummary(season: number) {
@@ -130,6 +146,20 @@ export function createApiClient(config: PlayCricketApiConfig) {
         site_id: siteId,
         season: String(season),
       });
+    },
+
+    /**
+     * Typed result summary for our own site. Play Cricket updates this
+     * within minutes of a scorer posting a result, so it's the freshest
+     * "recent results" source — unlike match_result rows, which wait for
+     * the weekly sync.
+     */
+    async getResultSummary(season: number) {
+      const json = await fetchPlayCricket(config, "/result_summary.json", {
+        site_id: config.siteId,
+        season: String(season),
+      });
+      return GetResultSummaryResponse.parse(json);
     },
   };
 }

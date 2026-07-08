@@ -10,6 +10,7 @@ import {
 import { FixtureStrip } from "@/components/theme/fixture-strip.js";
 import { Plate } from "@/components/theme/plate.js";
 import { RisoHeading } from "@/components/theme/riso-heading.js";
+import { ScoreboardStrip } from "@/components/theme/scoreboard.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client.js";
 import { getCategoryColor } from "@/lib/category-colors.js";
@@ -267,6 +268,48 @@ function UpcomingStrip() {
   );
 }
 
+// Poll while a game is in play so the homepage score tracks the scorer;
+// otherwise rely on the usual refetch-on-focus. The API caches Play
+// Cricket reads for ~60s, so 30s polling costs little upstream.
+const SCOREBOARD_LIVE_POLL_MS = 30_000;
+
+function ScoreboardSection() {
+  const { data } = useQuery({
+    queryKey: ["games", "recent"],
+    queryFn: () => callApi(api.GET("/api/games/recent")),
+    staleTime: 15_000,
+    refetchInterval: (query) =>
+      query.state.data?.hasLive ? SCOREBOARD_LIVE_POLL_MS : false,
+  });
+
+  if (!data || data.items.length === 0) return null;
+
+  return (
+    <Plate variant="navy" flush>
+      <SectionMast
+        title="The Scoreboard"
+        note={
+          data.hasLive
+            ? "Live now - scores update over by over."
+            : "Straight from the scorers."
+        }
+        front="var(--fc-paper)"
+        back="var(--fc-orange)"
+        blend="normal"
+      />
+      <ScoreboardStrip items={data.items} />
+      <div className="mt-7">
+        <Link
+          to="/calendar"
+          className="font-secondary tracking-wide text-[#f1e5c9] uppercase hover:underline"
+        >
+          All results &rarr;
+        </Link>
+      </div>
+    </Plate>
+  );
+}
+
 function LatestNewsSection() {
   const { data, isError } = useQuery(newsListQueryOptions({ page: 1 }));
   const people = usePeople();
@@ -373,7 +416,10 @@ export function Component() {
         </div>
       </Plate>
 
-      {/* PLATE 02 — WHAT'S ON */}
+      {/* PLATE 02 — THE SCOREBOARD */}
+      <ScoreboardSection />
+
+      {/* PLATE 03 — WHAT'S ON */}
       <UpcomingStrip />
 
       {/* PLATE 04 — THE NUMBERS */}

@@ -99,7 +99,7 @@ export interface GameDetail extends GameListItem {
 
 // --- Helpers ---
 
-function resolveOutcome(
+export function resolveOutcome(
   result: string,
   resultAppliedTo: string,
   resultDescription: string,
@@ -122,7 +122,7 @@ function resolveOutcome(
   return null;
 }
 
-function parseMatchDateTime(
+export function parseMatchDateTime(
   matchDate: string,
   matchTime: string | null,
 ): string | null {
@@ -640,9 +640,9 @@ export function getWagonWheel(db: Kysely<DB>) {
   };
 }
 
-// --- Internal: cached fetch ---
+// --- Internal: cached fetch (shared with recent.ts) ---
 
-async function fetchMatchSummaries(
+export async function fetchMatchSummaries(
   api: PlayCricketApiClient,
   siteId: string,
   season: number,

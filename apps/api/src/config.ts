@@ -226,6 +226,9 @@ const configSchema = z.object({
   SLACK_WEBHOOK_URL: z.url().optional(),
   PLAY_CRICKET_API_TOKEN: z.string().optional(),
   PLAY_CRICKET_SITE_ID: z.string().optional(),
+  // Defaulted so it never needs setting in real environments; overridable
+  // locally to point the games feature at a mock Play Cricket server.
+  PLAY_CRICKET_API_BASE: z.url().default("https://www.play-cricket.com/api/v2"),
 
   // Google Ads (offline conversion uploads)
   GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
