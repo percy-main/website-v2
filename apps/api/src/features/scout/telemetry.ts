@@ -12,12 +12,7 @@
  * attribute names Phoenix maps to session/user/custom metadata.
  */
 import { LegacyOpenTelemetry } from "@ai-sdk/otel";
-import type {
-  Context,
-  Span,
-  SpanOptions,
-  Tracer,
-} from "@opentelemetry/api";
+import type { Context, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import type { TelemetryOptions } from "ai";
 
 function withMetadataAttributes(
@@ -39,7 +34,7 @@ function withMetadataAttributes(
       ctx === undefined
         ? tracer.startSpan(name, merge(options))
         : tracer.startSpan(name, merge(options), ctx),
-    startActiveSpan: ((
+    startActiveSpan: (
       name: string,
       ...rest:
         | [fn: (span: Span) => unknown]
@@ -53,7 +48,7 @@ function withMetadataAttributes(
         return tracer.startActiveSpan(name, merge(rest[0]), rest[1]);
       }
       return tracer.startActiveSpan(name, merge(rest[0]), rest[1], rest[2]);
-    }),
+    },
   };
 }
 

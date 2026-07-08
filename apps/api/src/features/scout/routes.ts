@@ -938,19 +938,21 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
                 // finalStep preserves the pre-ai@7 semantics: usage and
                 // provider metadata of the last step only. ai@7's
                 // result.usage aggregates all steps of the turn instead.
-                usagePromise = Promise.resolve(result.finalStep).then((finalStep) => {
-                  const cache = extractCacheUsage(
-                    app.config.SCOUT_PROVIDER_CHAT,
-                    finalStep.usage,
-                    finalStep.providerMetadata,
-                  );
-                  return {
-                    inputTokens: finalStep.usage.inputTokens ?? undefined,
-                    outputTokens: finalStep.usage.outputTokens ?? undefined,
-                    cacheRead: cache.cacheRead,
-                    cacheCreation: cache.cacheCreation,
-                  };
-                });
+                usagePromise = Promise.resolve(result.finalStep).then(
+                  (finalStep) => {
+                    const cache = extractCacheUsage(
+                      app.config.SCOUT_PROVIDER_CHAT,
+                      finalStep.usage,
+                      finalStep.providerMetadata,
+                    );
+                    return {
+                      inputTokens: finalStep.usage.inputTokens ?? undefined,
+                      outputTokens: finalStep.usage.outputTokens ?? undefined,
+                      cacheRead: cache.cacheRead,
+                      cacheCreation: cache.cacheCreation,
+                    };
+                  },
+                );
 
                 // sendStart: false because createUIMessageStream emits its own start
                 // chunk; merging streamText's would duplicate.

@@ -1,10 +1,10 @@
-import { generateText } from "ai";
-import { MockLanguageModelV4 } from "ai/test";
 import {
   InMemorySpanExporter,
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
+import { generateText } from "ai";
+import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it } from "vitest";
 import { buildPhoenixTelemetry } from "./telemetry.ts";
 
@@ -50,9 +50,7 @@ describe("buildPhoenixTelemetry", () => {
     const root = spans.find((s) => s.name === "ai.generateText");
     expect(root).toBeDefined();
     expect(root?.attributes["ai.telemetry.functionId"]).toBe("test.fn");
-    expect(root?.attributes["operation.name"]).toBe(
-      "ai.generateText test.fn",
-    );
+    expect(root?.attributes["operation.name"]).toBe("ai.generateText test.fn");
   });
 
   it("stamps ai.telemetry.metadata.* attributes onto every span", async () => {
