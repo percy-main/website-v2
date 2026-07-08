@@ -54,10 +54,7 @@ export async function captionImage(
     result = await generateText({
       model,
       maxOutputTokens,
-      experimental_telemetry: buildPhoenixTelemetry(
-        phoenixTracer,
-        "scout.kb_caption_image",
-      ),
+      telemetry: buildPhoenixTelemetry(phoenixTracer, "scout.kb_caption_image"),
       messages: [
         {
           role: "user",

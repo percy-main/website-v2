@@ -57,10 +57,7 @@ export async function extractPdfText(
   try {
     result = await generateText({
       model,
-      experimental_telemetry: buildPhoenixTelemetry(
-        phoenixTracer,
-        "scout.kb_extract_pdf",
-      ),
+      telemetry: buildPhoenixTelemetry(phoenixTracer, "scout.kb_extract_pdf"),
       messages: [
         {
           role: "user",

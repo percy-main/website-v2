@@ -39,10 +39,7 @@ export function maybeGenerateTitle(deps: TitleDeps) {
       const result = await generateText({
         model,
         prompt: `${TITLE_PROMPT}\n\nQuery: ${firstUserText.slice(0, 500)}`,
-        experimental_telemetry: buildPhoenixTelemetry(
-          deps.phoenixTracer,
-          "scout.title",
-        ),
+        telemetry: buildPhoenixTelemetry(deps.phoenixTracer, "scout.title"),
       });
       const title = result.text
         .trim()

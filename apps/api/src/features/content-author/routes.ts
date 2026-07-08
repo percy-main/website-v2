@@ -4,6 +4,7 @@ import {
   pipeUIMessageStreamToResponse,
   stepCountIs,
   streamText,
+  toUIMessageStream,
   type UIMessage,
 } from "ai";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
@@ -133,7 +134,7 @@ export const contentAuthorRoutes: FastifyPluginAsyncZod = async (app) => {
             maxOutputTokens: agent.maxOutputTokens,
             prepareStep: agent.prepareStep,
             providerOptions: agent.providerOptions,
-            experimental_telemetry: buildPhoenixTelemetry(
+            telemetry: buildPhoenixTelemetry(
               app.phoenixTracer,
               "content-author.chat",
               { userId: user.id, kind: editorContext.kind },
@@ -152,7 +153,13 @@ export const contentAuthorRoutes: FastifyPluginAsyncZod = async (app) => {
           });
 
           // sendStart: false - createUIMessageStream emits its own start chunk.
-          writer.merge(result.toUIMessageStream({ sendStart: false }));
+          writer.merge(
+            toUIMessageStream({
+              stream: result.stream,
+              tools: agent.tools,
+              sendStart: false,
+            }),
+          );
         },
         onError: (error) => {
           // Provider errors can carry account state (billing, rate limits) in
