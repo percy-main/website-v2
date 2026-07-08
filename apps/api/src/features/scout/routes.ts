@@ -10,6 +10,7 @@ import {
   pipeUIMessageStreamToResponse,
   stepCountIs,
   streamText,
+  toUIMessageStream,
   type UIMessage,
 } from "ai";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
@@ -900,7 +901,7 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
                   stopWhen: stepCountIs(agent.maxSteps),
                   prepareStep: agent.prepareStep,
                   providerOptions: agent.providerOptions,
-                  experimental_telemetry: buildPhoenixTelemetry(
+                  telemetry: buildPhoenixTelemetry(
                     app.phoenixTracer,
                     `scout.${threadMode}`,
                     {
@@ -934,18 +935,18 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
                     // Outer createUIMessageStream onFinish ends the span.
                   },
                 });
-                usagePromise = Promise.all([
-                  result.usage,
-                  result.providerMetadata,
-                ]).then(([u, providerMeta]) => {
+                // finalStep preserves the pre-ai@7 semantics: usage and
+                // provider metadata of the last step only. ai@7's
+                // result.usage aggregates all steps of the turn instead.
+                usagePromise = Promise.resolve(result.finalStep).then((finalStep) => {
                   const cache = extractCacheUsage(
                     app.config.SCOUT_PROVIDER_CHAT,
-                    u,
-                    providerMeta,
+                    finalStep.usage,
+                    finalStep.providerMetadata,
                   );
                   return {
-                    inputTokens: u.inputTokens ?? undefined,
-                    outputTokens: u.outputTokens ?? undefined,
+                    inputTokens: finalStep.usage.inputTokens ?? undefined,
+                    outputTokens: finalStep.usage.outputTokens ?? undefined,
                     cacheRead: cache.cacheRead,
                     cacheCreation: cache.cacheCreation,
                   };
@@ -953,7 +954,13 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
 
                 // sendStart: false because createUIMessageStream emits its own start
                 // chunk; merging streamText's would duplicate.
-                writer.merge(result.toUIMessageStream({ sendStart: false }));
+                writer.merge(
+                  toUIMessageStream({
+                    stream: result.stream,
+                    tools: agent.tools,
+                    sendStart: false,
+                  }),
+                );
               },
             );
           } catch (err) {

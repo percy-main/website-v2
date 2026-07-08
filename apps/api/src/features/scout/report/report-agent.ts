@@ -255,7 +255,7 @@ Build the report now via the tool surface above. Stop calling tools when you've 
         // Wall-clock is the real budget; this is just a runaway-loop backstop.
         stopWhen: stepCountIs(SAFETY_STEP_CAP),
         providerOptions: deepseekFastProviderOptions(resolved.provider),
-        experimental_telemetry: buildPhoenixTelemetry(
+        telemetry: buildPhoenixTelemetry(
           deps.phoenixTracer,
           "scout.report_agent",
           { match_id: params.matchId },

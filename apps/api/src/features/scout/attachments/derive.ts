@@ -71,7 +71,7 @@ export function deriveAttachment(deps: DeriveDeps) {
       result = await generateText({
         model,
         maxOutputTokens: deps.maxOutputTokens,
-        experimental_telemetry: buildPhoenixTelemetry(
+        telemetry: buildPhoenixTelemetry(
           deps.phoenixTracer,
           `scout.attachment_derive.${input.kind}`,
         ),

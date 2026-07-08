@@ -17,7 +17,13 @@ allowBuilds:
   ssh2: false
 
 # Security overrides — force transitive deps off known-vulnerable versions.
+# The @ai-sdk entries are version-unification overrides instead:
+# @ai-sdk/otel hard-pins its own `ai` dependency, which would otherwise
+# split the graph into two `ai` copies with incompatible types.
 overrides:
+  ai@<7.0.18: ">=7.0.18"
+  "@ai-sdk/provider-utils@<5.0.6": ">=5.0.6"
+  "@ai-sdk/gateway@<4.0.14": ">=4.0.14"
   axios@<1.16.0: ">=1.16.0"
   esbuild@<0.28.1: ">=0.28.1"
   fast-xml-parser@<5.7.0: ">=5.7.0"
