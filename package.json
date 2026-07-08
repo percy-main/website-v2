@@ -33,17 +33,17 @@
   },
   "devDependencies": {
     "@eslint/js": "^10",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "eslint": "^10",
     "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-doctor": "^0.5.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.1",
     "prettier-plugin-organize-imports": "^4.3.0",
     "prettier-plugin-tailwindcss": "^0.8.0",
-    "eslint-plugin-react-doctor": "^0.5.8",
-    "turbo": "^2.10.0",
-    "@typescript/native": "npm:typescript@^7.0.2",
+    "turbo": "^2.10.4",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.62.0"
+    "typescript-eslint": "^8.63.0"
   }
 }
