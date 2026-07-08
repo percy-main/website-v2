@@ -64,7 +64,7 @@ jobs:
       # 2026-05-16 that the `react-doctor@latest` npm tag doesn't
       # recognise yet, breaking CI. Bump deliberately once that gap
       # closes.
-      - uses: millionco/react-doctor@e2393c4a6b842efc72d5c225273c0de918a13450
+      - uses: millionco/react-doctor@1880b152e4d6aedd5c06cf2ca51783e53cfb4004
         with:
           diff: main
           directory: apps/web
