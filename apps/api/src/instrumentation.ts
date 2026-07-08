@@ -56,12 +56,12 @@ if (licenseKey) {
       }),
       exportIntervalMillis: 30_000,
     }),
-    logRecordProcessor: new BatchLogRecordProcessor(
-      new OTLPLogExporter({
+    logRecordProcessor: new BatchLogRecordProcessor({
+      exporter: new OTLPLogExporter({
         url: `${endpoint}/v1/logs`,
         headers,
       }),
-    ),
+    }),
     instrumentations: [
       getNodeAutoInstrumentations({
         // Only instrument fs when it's part of another trace to reduce noise
