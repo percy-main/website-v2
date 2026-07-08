@@ -1,4 +1,5 @@
 import type { paths } from "@/lib/api.gen.js";
+import { cn } from "@/lib/utils.js";
 import { formatInTimeZone } from "date-fns-tz";
 import { Link } from "react-router";
 
@@ -107,7 +108,7 @@ function ScoreboardCard({ item }: { item: RecentGameItem }) {
   return (
     <Link
       to={`/calendar/game/${item.id}`}
-      className={`fc-sbcard${live ? "fc-sbcard--live" : ""}`}
+      className={cn("fc-sbcard", live && "fc-sbcard--live")}
     >
       <div className="fc-sb-eyebrow">
         {live ? (

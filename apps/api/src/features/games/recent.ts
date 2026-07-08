@@ -461,6 +461,10 @@ export function listRecentGames(api: PlayCricketApiClient, siteId: string) {
       liveItems.push(item);
     }
 
+    // Just-finished games merge into the completed results and share their
+    // newest-first ordering (by start datetime) rather than being pinned to
+    // the front - a morning game confirmed via match_detail must not
+    // outrank an evening result that already reached result_summary.
     const finishedIds = new Set(justFinished.map((item) => item.id));
     const resultItems = results
       .filter((row) => row.result !== "" && !finishedIds.has(String(row.id)))
@@ -472,13 +476,13 @@ export function listRecentGames(api: PlayCricketApiClient, siteId: string) {
         (entry): entry is { row: ResultSummaryMatch; sortKey: string } =>
           entry.sortKey !== null,
       )
-      .sort((a, b) => b.sortKey.localeCompare(a.sortKey))
       .map((entry) => buildResultItem(entry.row, siteId));
 
-    const items = [...liveItems, ...justFinished, ...resultItems].slice(
-      0,
-      MAX_ITEMS,
+    const allResults = [...justFinished, ...resultItems].sort((a, b) =>
+      (b.when ?? "").localeCompare(a.when ?? ""),
     );
+
+    const items = [...liveItems, ...allResults].slice(0, MAX_ITEMS);
     return { items, hasLive: liveItems.length > 0 };
   };
 }

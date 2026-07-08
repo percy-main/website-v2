@@ -573,6 +573,62 @@ describe("listRecentGames", () => {
     expect(result.items[1]).toMatchObject({ id: "2" });
   });
 
+  it("orders a just-finished morning game below a later same-day result", async () => {
+    // 21:30 London. The 10:00 junior game's result is only on match_detail;
+    // the 18:00 midweek game already reached result_summary. Newest first.
+    const now = new Date("2040-07-04T20:30:00Z");
+    const api = createMockApi({
+      getMatchesSummary: vi.fn().mockResolvedValue({
+        matches: [
+          summaryMatch({
+            id: 81,
+            season: "2040",
+            match_date: "04/07/2040",
+            match_time: "10:00",
+          }),
+        ],
+      }),
+      getResultSummary: vi.fn().mockResolvedValue({
+        result_summary: [
+          resultRow({
+            id: 3,
+            match_date: "04/07/2040",
+            match_time: "18:00",
+          }),
+        ],
+      }),
+      getLiveMatchDetail: vi.fn().mockResolvedValue({
+        match_details: [
+          liveDetail({
+            id: 81,
+            result: "W",
+            result_description: "Percy Main CC - 1st XI - Won",
+            result_applied_to: "68498",
+            innings: [
+              {
+                team_batting_id: "80273",
+                runs: "143",
+                wickets: "10",
+                overs: "38.1",
+                declared: false,
+              },
+              {
+                team_batting_id: "68498",
+                runs: "144",
+                wickets: "5",
+                overs: "31.2",
+                declared: false,
+              },
+            ],
+          }),
+        ],
+      }),
+    });
+
+    const result = await listRecentGames(api, SITE_ID)(log, now);
+    expect(result.items.map((item) => item.id)).toEqual(["3", "81"]);
+  });
+
   it("degrades to live-without-score when the detail call fails", async () => {
     const now = new Date("2037-07-04T14:00:00Z");
     const api = createMockApi({
