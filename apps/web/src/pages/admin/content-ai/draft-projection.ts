@@ -1,4 +1,4 @@
-import { inlineToText } from "@/components/content-body.js";
+import { inlineToText } from "@/lib/inline-content.js";
 import {
   CUSTOM_BLOCK_TYPES,
   type DraftBlock,
@@ -123,8 +123,7 @@ function projectProps(
 ): Record<string, string | number | boolean> | undefined {
   if (!props) return undefined;
   const allowlist = IMAGE_BLOCK_PROP_ALLOWLIST[type] as
-    | ReadonlySet<string>
-    | undefined;
+    ReadonlySet<string> | undefined;
   const projected: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(props)) {
     if (allowlist && !allowlist.has(key)) continue;

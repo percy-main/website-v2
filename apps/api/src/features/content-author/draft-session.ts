@@ -48,7 +48,10 @@ function toNodes(blocks: DraftBlocks): DraftNode[] {
 }
 
 function cloneNodes(nodes: DraftNode[]): DraftNode[] {
-  return nodes.map((node) => ({ ...node, children: cloneNodes(node.children) }));
+  return nodes.map((node) => ({
+    ...node,
+    children: cloneNodes(node.children),
+  }));
 }
 
 /** Locate a block anywhere in the tree: its sibling array and index there. */

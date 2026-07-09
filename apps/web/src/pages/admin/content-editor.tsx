@@ -96,14 +96,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import * as rruleNs from "rrule";
 import {
@@ -113,7 +106,7 @@ import {
   INLINE_TEXT_INPUT_CLASSES,
   PickerCard,
 } from "./block-controls.js";
-import { applyEditOps, appendBlocks } from "./content-ai/apply-edit-ops.js";
+import { appendBlocks, applyEditOps } from "./content-ai/apply-edit-ops.js";
 import {
   ContentAiPanel,
   type ContentAiEditorContext,
@@ -3575,21 +3568,17 @@ function AssistantPane({
   form: FormState;
   dirtyRef: React.RefObject<boolean>;
 }) {
-  const handleInsertBlocks = useCallback(
-    (blocks: ResolvedBlock[]) => {
-      appendBlocks(editor, blocks);
-      dirtyRef.current = true;
-    },
-    [editor, dirtyRef],
-  );
+  // No manual memoisation: React Compiler caches these (react-doctor flags
+  // useCallback here as dead weight).
+  const handleInsertBlocks = (blocks: ResolvedBlock[]) => {
+    appendBlocks(editor, blocks);
+    dirtyRef.current = true;
+  };
 
-  const handleApplyOps = useCallback(
-    (ops: ResolvedEditOp[]) => {
-      applyEditOps(editor, ops);
-      dirtyRef.current = true;
-    },
-    [editor, dirtyRef],
-  );
+  const handleApplyOps = (ops: ResolvedEditOp[]) => {
+    applyEditOps(editor, ops);
+    dirtyRef.current = true;
+  };
 
   // Built fresh on each send so the agent sees the current draft (block ids +
   // text via the projection) and metadata (e.g. a game report's

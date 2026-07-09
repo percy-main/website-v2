@@ -184,7 +184,7 @@ describe("content-author agent - system prompt", () => {
     expect(agent.system).toContain('"A fine win"');
     expect(agent.system).toContain('{"level":2}');
     expect(agent.system).toContain(
-      "[id=p1] paragraph: \"See the fixtures page.\" [has formatting - rewriting loses bold/links]",
+      '[id=p1] paragraph: "See the fixtures page." [has formatting - rewriting loses bold/links]',
     );
     expect(agent.system).toContain("[id=c1] bulletListItem");
     // Editing guidance ships whenever the tools do.

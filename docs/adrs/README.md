@@ -33,3 +33,4 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 | [052](052-publish-time-prerendering.md)                  | Publish-time prerendering via Lambda + CloudFront KeyValueStore    | 2026-07-03 | Accepted |
 | [053](053-prerendering-fixtures-and-calendar.md)         | Prerendering fixtures and calendar months via hash-diffed manifest | 2026-07-04 | Accepted |
 | [054](054-typescript-7-native-with-v6-api-alias.md)      | TypeScript 7 native compiler, v6 JS API aliased for tooling        | 2026-07-08 | Accepted |
+| [055](055-content-assistant-edit-ops-and-sidebar.md)     | Content assistant edit-op protocol + persistent sidebar            | 2026-07-09 | Accepted |

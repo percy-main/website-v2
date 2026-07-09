@@ -46,8 +46,9 @@ export function ContentAiPanel({
   // Apply each data part exactly once, in stream order. useChat re-renders
   // parts on every streamed token, so dedupe by the part's id. One shared set
   // covers both part types, so appends and edits stay ordered relative to
-  // each other.
-  const seenPartIds = useRef<Set<string>>(new Set());
+  // each other. Lazy useState initialiser (not useRef(new Set())) so the Set
+  // is built once, not rebuilt and discarded every render.
+  const [seenPartIds] = useState(() => new Set<string>());
   useEffect(() => {
     for (const message of messages) {
       if (message.role !== "assistant") continue;
@@ -64,8 +65,8 @@ export function ContentAiPanel({
           data: { blocks?: ResolvedBlock[]; ops?: ResolvedEditOp[] };
         };
         const key = dataPart.id ?? `${message.id}:${String(index)}`;
-        if (seenPartIds.current.has(key)) return;
-        seenPartIds.current.add(key);
+        if (seenPartIds.has(key)) return;
+        seenPartIds.add(key);
         if (part.type === "data-content-blocks") {
           const blocks = dataPart.data.blocks ?? [];
           if (blocks.length > 0) onInsertBlocks(blocks);
@@ -75,7 +76,7 @@ export function ContentAiPanel({
         }
       });
     }
-  }, [messages, onInsertBlocks, onApplyOps]);
+  }, [messages, onInsertBlocks, onApplyOps, seenPartIds]);
 
   // Keep the latest message in view as content streams in.
   useEffect(() => {

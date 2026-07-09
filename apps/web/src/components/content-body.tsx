@@ -3,6 +3,12 @@ import {
   OptimisedImage,
   type PictureSource,
 } from "@/components/optimised-image.js";
+import {
+  inlineToText,
+  isInlineLink,
+  isStyledText,
+  type StyledText,
+} from "@/lib/inline-content.js";
 import { parsePersonGridEntries } from "@/lib/person-grid.js";
 import { parseGalleryImages } from "@/lib/photo-gallery.js";
 import { cn } from "@/lib/utils.js";
@@ -22,36 +28,9 @@ import { createElement, Fragment, type ReactNode } from "react";
 // render nothing rather than crashing the page.
 
 // ── Inline content ──────────────────────────────────────────────────────
-
-interface StyledText {
-  type: "text";
-  text: string;
-  styles?: Record<string, unknown> | null;
-}
-
-interface InlineLink {
-  type: "link";
-  href: string;
-  content: unknown;
-}
-
-function isStyledText(node: unknown): node is StyledText {
-  return (
-    typeof node === "object" &&
-    node !== null &&
-    (node as { type?: unknown }).type === "text" &&
-    typeof (node as { text?: unknown }).text === "string"
-  );
-}
-
-function isInlineLink(node: unknown): node is InlineLink {
-  return (
-    typeof node === "object" &&
-    node !== null &&
-    (node as { type?: unknown }).type === "link" &&
-    typeof (node as { href?: unknown }).href === "string"
-  );
-}
+//
+// The StyledText/InlineLink guards and the plain-text projection live in
+// lib/inline-content.ts (shared with the AI assistant's draft projection).
 
 /**
  * Only protocols/paths we trust ever become anchors. Anything else (e.g.
@@ -116,19 +95,6 @@ function InlineContent({ content }: { content: unknown }) {
     }
     return null;
   });
-}
-
-/** Plain-text projection of inline content (for code blocks, alt text,
- *  and the AI assistant's draft projection). */
-export function inlineToText(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((node) => {
-      if (isStyledText(node)) return node.text;
-      if (isInlineLink(node)) return inlineToText(node.content);
-      return "";
-    })
-    .join("");
 }
 
 // ── Block helpers ───────────────────────────────────────────────────────
