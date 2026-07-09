@@ -52,6 +52,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import {
   playerOptions,
@@ -80,7 +86,8 @@ import {
   CUSTOM_BLOCK_TYPES,
   expandEventOccurrences,
   type ContentKind,
-  type WriteContentBlock,
+  type ResolvedBlock,
+  type ResolvedEditOp,
 } from "@percy-main/shared/content";
 import {
   useMutation,
@@ -89,7 +96,15 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useSearchParams } from "react-router";
 import * as rruleNs from "rrule";
 import {
   BlockSettings,
@@ -98,10 +113,12 @@ import {
   INLINE_TEXT_INPUT_CLASSES,
   PickerCard,
 } from "./block-controls.js";
+import { applyEditOps, appendBlocks } from "./content-ai/apply-edit-ops.js";
 import {
-  ContentAiModal,
+  ContentAiPanel,
   type ContentAiEditorContext,
-} from "./content-ai/content-ai-modal.js";
+} from "./content-ai/content-ai-panel.js";
+import { projectDraftBlocks } from "./content-ai/draft-projection.js";
 import { CONTENT_KIND_NOUNS } from "./content-kind-labels.js";
 import { EditorBlockPreview } from "./editor-block-preview.js";
 import {
@@ -3542,11 +3559,12 @@ function EditorPane({
 }
 
 /**
- * "Generate with AI" button + modal. Self-contained so the giant LoadedEditor
- * doesn't carry the AI state. Gated on the same permission the route enforces,
- * so the button never shows for a user who'd get a 403.
+ * "Assistant" sidebar tab body. Self-contained so the giant LoadedEditor
+ * doesn't carry the AI state. Wires the live editor into the chat panel:
+ * projects the draft into the agent's editor context and applies streamed
+ * blocks/ops back to the document.
  */
-function ContentAiLauncher({
+function AssistantPane({
   editor,
   kind,
   form,
@@ -3557,29 +3575,25 @@ function ContentAiLauncher({
   form: FormState;
   dirtyRef: React.RefObject<boolean>;
 }) {
-  const { allowed } = useHasPermission("ai_content", "use");
-  const [open, setOpen] = useState(false);
-
-  // Append agent-authored blocks to the end of the draft. Deep-clone via JSON
-  // (same pattern as editorBody) so the blocks become plain PartialBlocks.
   const handleInsertBlocks = useCallback(
-    (blocks: WriteContentBlock[]) => {
-      const doc = editor.document;
-      editor.insertBlocks(
-        // eslint-disable-next-line react-doctor/no-json-parse-stringify-clone -- deliberate JSON round-trip (same pattern as editorBody): strips non-JSON values so the blocks become plain PartialBlocks
-        JSON.parse(JSON.stringify(blocks)) as PartialBlock[],
-        doc[doc.length - 1],
-        "after",
-      );
+    (blocks: ResolvedBlock[]) => {
+      appendBlocks(editor, blocks);
       dirtyRef.current = true;
     },
     [editor, dirtyRef],
   );
 
-  if (!allowed) return null;
+  const handleApplyOps = useCallback(
+    (ops: ResolvedEditOp[]) => {
+      applyEditOps(editor, ops);
+      dirtyRef.current = true;
+    },
+    [editor, dirtyRef],
+  );
 
-  // Built fresh on each send so the agent sees the current draft metadata
-  // (e.g. a game report's playCricketId) and what blocks already exist.
+  // Built fresh on each send so the agent sees the current draft (block ids +
+  // text via the projection) and metadata (e.g. a game report's
+  // playCricketId).
   const getEditorContext = (): ContentAiEditorContext => {
     let metadata: Record<string, unknown>;
     try {
@@ -3594,24 +3608,73 @@ function ContentAiLauncher({
       title: form.title,
       slug: form.slug || undefined,
       metadata,
-      existingBlockTypes: Array.from(
-        new Set(editor.document.map((b) => b.type)),
-      ),
+      blocks: projectDraftBlocks(editor.document),
     };
   };
 
   return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        ✨ Generate with AI
-      </Button>
-      <ContentAiModal
-        open={open}
-        onOpenChange={setOpen}
-        getEditorContext={getEditorContext}
-        onInsertBlocks={handleInsertBlocks}
-      />
-    </>
+    <ContentAiPanel
+      getEditorContext={getEditorContext}
+      onInsertBlocks={handleInsertBlocks}
+      onApplyOps={handleApplyOps}
+    />
+  );
+}
+
+/**
+ * The editor's left column: "Details" (metadata, publishing, history,
+ * consent) and "Assistant" (AI chat) as tabs. The active tab lives in the
+ * URL (?panel=assistant; details is the default and stays out of the URL,
+ * matching the admin panel's section/sub convention). Both panels stay
+ * mounted (forceMount) so the assistant's conversation survives tab
+ * switches - that persistence is the whole point of the sidebar over the
+ * old modal.
+ */
+function EditorSidebar({
+  assistant,
+  children,
+}: {
+  /** The assistant pane, or null when the user lacks the ai_content permission. */
+  assistant: ReactNode | null;
+  children: ReactNode;
+}) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const panel =
+    searchParams.get("panel") === "assistant" && assistant !== null
+      ? "assistant"
+      : "details";
+
+  const onPanelChange = (value: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (value === "assistant") params.set("panel", "assistant");
+    else params.delete("panel");
+    // Push (not replace): tab switches are navigation, Back retraces them.
+    setSearchParams(params);
+  };
+
+  if (assistant === null) {
+    return <div className="flex flex-col gap-3">{children}</div>;
+  }
+
+  return (
+    <Tabs value={panel} onValueChange={onPanelChange}>
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="details">Details</TabsTrigger>
+        <TabsTrigger value="assistant">✨ Assistant</TabsTrigger>
+      </TabsList>
+      <TabsContent value="details" forceMount>
+        <div className="flex flex-col gap-3">{children}</div>
+      </TabsContent>
+      <TabsContent value="assistant" forceMount>
+        {/* Display/height classes live on this inner wrapper, never on the
+            hidden tabpanel element itself, so the hidden attribute always
+            wins. Sticky + viewport height on lg keeps the chat usable while
+            the canvas scrolls (scout.tsx height pattern). */}
+        <div className="flex h-[60vh] flex-col lg:sticky lg:top-4 lg:h-[calc(100vh-8rem)]">
+          {assistant}
+        </div>
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -3686,6 +3749,9 @@ function LoadedEditor({
     CONTENT_KIND_RESOURCES[kind],
     "publish",
   );
+  // Gated on the same permission the route enforces, so the Assistant tab
+  // never shows for a user who'd get a 403.
+  const { allowed: aiAllowed } = useHasPermission("ai_content", "use");
 
   const [form, setForm] = useState<FormState>(() =>
     initialForm(item, newParentId),
@@ -3838,12 +3904,6 @@ function LoadedEditor({
               })}
             </span>
           )}
-          <ContentAiLauncher
-            editor={editor}
-            kind={kind}
-            form={form}
-            dirtyRef={dirtyRef}
-          />
           {canSave && (
             <Button
               onClick={() => {
@@ -3882,36 +3942,51 @@ function LoadedEditor({
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-3 lg:col-span-1">
-          <MetadataFields
-            kind={kind}
-            form={form}
-            itemId={item?.id ?? null}
-            slugLocked={slugLocked}
-            tagSuggestions={tagSuggestions}
-            consentConfirmed={consentConfirmed}
-            onChange={onFormChange}
-          />
-          {item !== null && (
-            <PublishingCard
-              item={item}
-              canPublish={canPublish}
-              canManage={canManage}
-              beforePublish={() => saveMutation.mutateAsync()}
+        <div className="lg:col-span-1">
+          <EditorSidebar
+            assistant={
+              aiAllowed ? (
+                <AssistantPane
+                  editor={editor}
+                  kind={kind}
+                  form={form}
+                  dirtyRef={dirtyRef}
+                />
+              ) : null
+            }
+          >
+            <MetadataFields
+              kind={kind}
+              form={form}
+              itemId={item?.id ?? null}
+              slugLocked={slugLocked}
+              tagSuggestions={tagSuggestions}
+              consentConfirmed={consentConfirmed}
+              onChange={onFormChange}
             />
-          )}
-          {item !== null && (
-            <HistoryCard
-              item={item}
-              canRestore={canSave}
-              onRestore={restoreRevision}
+            {item !== null && (
+              <PublishingCard
+                item={item}
+                canPublish={canPublish}
+                canManage={canManage}
+                beforePublish={() => saveMutation.mutateAsync()}
+              />
+            )}
+            {item !== null && (
+              <HistoryCard
+                item={item}
+                canRestore={canSave}
+                onRestore={restoreRevision}
+              />
+            )}
+            <ConsentBox
+              checked={consentConfirmed}
+              onChange={setConsentConfirmed}
             />
-          )}
-          <ConsentBox
-            checked={consentConfirmed}
-            onChange={setConsentConfirmed}
-          />
-          {uploadError && <p className="text-sm text-red-600">{uploadError}</p>}
+            {uploadError && (
+              <p className="text-sm text-red-600">{uploadError}</p>
+            )}
+          </EditorSidebar>
         </div>
 
         <div className="lg:col-span-2">

@@ -4,11 +4,13 @@ import { DefaultChatTransport } from "ai";
 import { useMemo } from "react";
 
 /**
- * Chat hook for the AI content-author modal. Ephemeral: there is no thread id
- * and no persistence - useChat holds the conversation while the modal is
- * mounted and discards it on close. The per-turn editorContext is passed via
- * sendMessage's `body` option by the modal, so it stays fresh as the draft
- * changes. Same transport wiring as Scout's use-scout-chat.
+ * Chat hook for the AI content-author panel. Ephemeral: there is no thread id
+ * and no persistence - useChat holds the conversation while the panel is
+ * mounted (the whole time the editor is open; the sidebar tab hides rather
+ * than unmounts it) and discards it when the editor closes. The per-turn
+ * editorContext is passed via sendMessage's `body` option by the panel, so it
+ * stays fresh as the draft changes. Same transport wiring as Scout's
+ * use-scout-chat.
  */
 export function useContentAiChat() {
   const transport = useMemo(

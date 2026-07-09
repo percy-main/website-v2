@@ -43,7 +43,7 @@ describe("write_content tool", () => {
     const part = writer.write.mock.calls[0][0] as {
       type: string;
       id: string;
-      data: { blocks: { id: string; type: string; content?: unknown }[] };
+      data: { blocks: Array<{ id: string; type: string; content?: unknown }> };
     };
     expect(part.type).toBe("data-content-blocks");
     // The streamed part carries a stable id the panel dedupes inserts on.

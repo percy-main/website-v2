@@ -1,13 +1,10 @@
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { type UIMessage } from "@ai-sdk/react";
-import { type WriteContentBlock } from "@percy-main/shared/content";
+import {
+  type DraftBlocks,
+  type ResolvedBlock,
+  type ResolvedEditOp,
+} from "@percy-main/shared/content";
 import { useEffect, useRef, useState } from "react";
 import { useContentAiChat } from "./use-content-ai-chat.js";
 
@@ -16,80 +13,69 @@ export interface ContentAiEditorContext {
   title: string;
   slug?: string;
   metadata: Record<string, unknown>;
-  existingBlockTypes?: string[];
+  /** Plain-text projection of the live draft (ids included) so the agent can
+   *  see and edit existing content. */
+  blocks: DraftBlocks;
 }
 
-interface ContentAiModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface ContentAiPanelProps {
   /** Built fresh on each send so the agent sees the current draft + metadata. */
   getEditorContext: () => ContentAiEditorContext;
   /** Append agent-authored blocks to the live editor (parent owns the editor). */
-  onInsertBlocks: (blocks: WriteContentBlock[]) => void;
+  onInsertBlocks: (blocks: ResolvedBlock[]) => void;
+  /** Apply agent edit ops to the live editor (parent owns the editor). */
+  onApplyOps: (ops: ResolvedEditOp[]) => void;
 }
 
 /**
- * "Generate with AI" modal over the content editor. A lean chat: the agent
- * researches club data and appends finished blocks to the draft via the
- * write_content tool. DialogContent unmounts when closed, so the chat state
- * resets on each open (the feature is intentionally ephemeral).
+ * The "Assistant" sidebar panel over the content editor. A lean chat: the
+ * agent researches club data, appends finished blocks via write_content and
+ * edits the draft in place via edit_content. The panel stays mounted while
+ * the editor is open (the sidebar tab hides, never unmounts it), so the
+ * conversation survives tab switches; it resets when the editor closes.
  */
-export function ContentAiModal({
-  open,
-  onOpenChange,
+export function ContentAiPanel({
   getEditorContext,
   onInsertBlocks,
-}: ContentAiModalProps) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[80vh] max-w-2xl flex-col">
-        <DialogHeader>
-          <DialogTitle>Generate with AI</DialogTitle>
-          <DialogDescription>
-            Describe what you'd like and the assistant will research the club's
-            data and add content to your draft. It always writes in a positive,
-            club-friendly tone.
-          </DialogDescription>
-        </DialogHeader>
-        <ContentAiChat
-          getEditorContext={getEditorContext}
-          onInsertBlocks={onInsertBlocks}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ContentAiChat({
-  getEditorContext,
-  onInsertBlocks,
-}: Pick<ContentAiModalProps, "getEditorContext" | "onInsertBlocks">) {
+  onApplyOps,
+}: ContentAiPanelProps) {
   const { messages, sendMessage, status, error, stop } = useContentAiChat();
   const [value, setValue] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Append each data-content-blocks part exactly once. useChat re-renders
-  // parts on every streamed token, so dedupe by the part's id.
-  const seenBlockPartIds = useRef<Set<string>>(new Set());
+  // Apply each data part exactly once, in stream order. useChat re-renders
+  // parts on every streamed token, so dedupe by the part's id. One shared set
+  // covers both part types, so appends and edits stay ordered relative to
+  // each other.
+  const seenPartIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const message of messages) {
       if (message.role !== "assistant") continue;
       message.parts.forEach((part, index) => {
-        if (part.type !== "data-content-blocks") return;
-        const blocksPart = part as {
-          type: "data-content-blocks";
+        if (
+          part.type !== "data-content-blocks" &&
+          part.type !== "data-content-ops"
+        ) {
+          return;
+        }
+        const dataPart = part as {
+          type: string;
           id?: string;
-          data: { blocks: WriteContentBlock[] };
+          data: { blocks?: ResolvedBlock[]; ops?: ResolvedEditOp[] };
         };
-        const key = blocksPart.id ?? `${message.id}:${index}`;
-        if (seenBlockPartIds.current.has(key)) return;
-        seenBlockPartIds.current.add(key);
-        if (blocksPart.data.blocks.length > 0) {
-          onInsertBlocks(blocksPart.data.blocks);
+        const key = dataPart.id ?? `${message.id}:${String(index)}`;
+        if (seenPartIds.current.has(key)) return;
+        seenPartIds.current.add(key);
+        if (part.type === "data-content-blocks") {
+          const blocks = dataPart.data.blocks ?? [];
+          if (blocks.length > 0) onInsertBlocks(blocks);
+        } else {
+          const ops = dataPart.data.ops ?? [];
+          if (ops.length > 0) onApplyOps(ops);
         }
       });
     }
-  }, [messages, onInsertBlocks]);
+  }, [messages, onInsertBlocks, onApplyOps]);
 
   // Keep the latest message in view as content streams in.
   useEffect(() => {
@@ -146,7 +132,7 @@ function ContentAiChat({
           placeholder="e.g. Write a match report for this game (Cmd/Ctrl+Enter to send)"
           rows={2}
           disabled={isStreaming}
-          className="flex-1 resize-y rounded border border-stone-300 p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-stone-50"
+          className="min-w-0 flex-1 resize-y rounded border border-stone-300 p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-stone-50"
         />
         {isStreaming ? (
           <Button
@@ -169,10 +155,15 @@ function ContentAiChat({
 function EmptyState() {
   return (
     <div className="rounded-lg border border-dashed border-stone-200 p-4 text-sm text-stone-500">
-      <p className="font-medium text-stone-700">Try asking for:</p>
+      <p>
+        Describe what you'd like and the assistant will research the club's
+        data, then write straight into your draft - it can add new content and
+        edit what's already there.
+      </p>
+      <p className="mt-2 font-medium text-stone-700">Try asking for:</p>
       <ul className="mt-1 list-disc pl-5">
         <li>"Write a match report for this game"</li>
-        <li>"Draft a friendly news post welcoming new members"</li>
+        <li>"Rewrite the intro to mention the weather"</li>
         <li>"Add a league table and our current batting leaderboard"</li>
       </ul>
     </div>
@@ -201,6 +192,7 @@ function MessageBubble({ message }: { message: UIMessage }) {
 function toolLabel(toolType: string): string {
   const name = toolType.replace(/^tool-/, "");
   if (name === "write_content") return "Writing content";
+  if (name === "edit_content") return "Editing content";
   if (name.startsWith("pc_")) return "Looking up Play-Cricket";
   if (name.startsWith("db_")) return "Reading the club database";
   if (name.startsWith("weather_")) return "Checking the weather";
@@ -224,12 +216,25 @@ function PartView({ part }: { part: UIMessage["parts"][number] }) {
   if (part.type === "data-content-blocks") {
     const blocksPart = part as {
       type: "data-content-blocks";
-      data: { blocks: WriteContentBlock[] };
+      data: { blocks: ResolvedBlock[] };
     };
     const count = blocksPart.data.blocks.length;
     return (
       <p className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
         ✨ Added {count} block{count === 1 ? "" : "s"} to your draft
+      </p>
+    );
+  }
+
+  if (part.type === "data-content-ops") {
+    const opsPart = part as {
+      type: "data-content-ops";
+      data: { ops: ResolvedEditOp[] };
+    };
+    const count = opsPart.data.ops.length;
+    return (
+      <p className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+        ✏️ Edited your draft - {count} change{count === 1 ? "" : "s"}
       </p>
     );
   }
@@ -241,9 +246,10 @@ function PartView({ part }: { part: UIMessage["parts"][number] }) {
       output?: { error?: string };
     };
     // A tool can fail two ways: the execute threw (state "output-error",
-    // errorText set), or it returned an { error } payload (e.g. the db tools).
-    // Surface both - otherwise a failed DB call looks identical to a successful
-    // one and there's nothing to debug from.
+    // errorText set), or it returned an { error } payload (e.g. the db tools
+    // and edit_content validation failures). Surface both - otherwise a
+    // failed call looks identical to a successful one and there's nothing to
+    // debug from.
     const errorText =
       toolPart.state === "output-error"
         ? (toolPart.errorText ?? "tool error")

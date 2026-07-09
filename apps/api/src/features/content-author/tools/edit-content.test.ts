@@ -57,7 +57,7 @@ describe("edit_content tool", () => {
     const part = writer.write.mock.calls[0][0] as {
       type: string;
       id: string;
-      data: { ops: { op: string; blocks?: { id?: string }[] }[] };
+      data: { ops: Array<{ op: string; blocks?: Array<{ id?: string }> }> };
     };
     expect(part.type).toBe("data-content-ops");
     expect(part.id).toBeTruthy();

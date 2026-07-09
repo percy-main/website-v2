@@ -118,8 +118,9 @@ function InlineContent({ content }: { content: unknown }) {
   });
 }
 
-/** Plain-text projection of inline content (for code blocks, alt text). */
-function inlineToText(content: unknown): string {
+/** Plain-text projection of inline content (for code blocks, alt text,
+ *  and the AI assistant's draft projection). */
+export function inlineToText(content: unknown): string {
   if (!Array.isArray(content)) return "";
   return content
     .map((node) => {

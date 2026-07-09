@@ -95,12 +95,6 @@ export function createDraftSession(initial: DraftBlocks): DraftSession {
 
       for (const op of ops) {
         if (op.op === "insert") {
-          if ((op.at === "before" || op.at === "after") && !op.refBlockId) {
-            return {
-              ok: false,
-              error: `refBlockId is required when "at" is "${op.at}".`,
-            };
-          }
           const fresh: ResolvedBlock[] = op.blocks.map((block) => ({
             ...block,
             id: randomUUID(),
@@ -115,9 +109,16 @@ export function createDraftSession(initial: DraftBlocks): DraftSession {
           } else if (op.at === "end") {
             working.push(...freshNodes);
           } else {
-            const ref = locate(working, op.refBlockId as string);
+            const refBlockId = op.refBlockId;
+            if (!refBlockId) {
+              return {
+                ok: false,
+                error: `refBlockId is required when "at" is "${op.at}".`,
+              };
+            }
+            const ref = locate(working, refBlockId);
             if (!ref) {
-              return { ok: false, error: unknownIdError(op.refBlockId as string) };
+              return { ok: false, error: unknownIdError(refBlockId) };
             }
             ref.siblings.splice(
               op.at === "before" ? ref.index : ref.index + 1,
