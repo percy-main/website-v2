@@ -1,9 +1,13 @@
-import { renderBlockCatalogForPrompt } from "@percy-main/shared/content";
+import {
+  renderBlockCatalogForPrompt,
+  type DraftBlock,
+  type DraftBlocks,
+} from "@percy-main/shared/content";
 
 /**
- * The slice of editor state the modal sends with each turn so the agent can
- * ground its research (e.g. the match report's playCricketId) and avoid
- * duplicating what's already in the draft.
+ * The slice of editor state the panel sends with each turn so the agent can
+ * ground its research (e.g. the match report's playCricketId) and see the
+ * existing draft it is editing.
  */
 export interface EditorContext {
   /** Content kind: page | news | event | game_report | person. */
@@ -12,8 +16,9 @@ export interface EditorContext {
   slug?: string;
   /** Kind-specific metadata (e.g. { playCricketId } for a game_report). */
   metadata: Record<string, unknown>;
-  /** Block types already present in the draft, so the agent appends complementary content. */
-  existingBlockTypes?: string[];
+  /** Plain-text projection of the live draft, ids included, so the agent can
+   *  target blocks with edit_content and avoid duplicating content. */
+  blocks: DraftBlocks;
 }
 
 const PERSONA = `You are the content assistant for Percy Main Community Sports Club, a friendly amateur cricket club in the north east of England. You help club volunteers write rich, engaging content for the club website - match reports, news posts, event pages and more - by researching the club's own data and writing finished content blocks straight into the editor.`;
@@ -59,12 +64,54 @@ const STYLE_RULES = `Style:
 - Never use em dashes or en dashes (Unicode U+2014 and U+2013) anywhere in the content you write. Use a spaced hyphen " - ", a comma, or a full stop instead.`;
 
 const WORKFLOW_RULES = `Workflow:
-1. Read the editor context below - especially any ids in the metadata (e.g. a match report's playCricketId). Let it drive your research.
+1. Read the editor context below - especially any ids in the metadata (e.g. a match report's playCricketId) and the current draft listing. Let them drive your research.
 2. Research with the data tools.
-3. Call write_content to append finished blocks to the draft. You can call it multiple times. Blocks append to the END of the current draft in the order you provide, so don't repeat content the draft already contains.
-4. After writing, briefly tell the user in chat what you added and offer to adjust or add more.
+3. Write with the content tools: write_content APPENDS finished blocks to the end of the draft; edit_content inserts blocks at a specific position, rewrites a block, or deletes blocks. Both can be called multiple times. Tool receipts return the ids of blocks you add - use those ids to target follow-up edits.
+4. After writing, briefly tell the user in chat what you changed and offer to adjust or add more.
 
 Build genuinely rich content: lead with a heading and an engaging intro, weave in the relevant cricket blocks (gamePreview, wagonWheel, wormChart, leagueTable, leaderboard, recordsWall) where they add value, and close warmly. Don't just write one paragraph.`;
+
+const EDITING_RULES = `Editing the draft:
+- The draft listing below is a snapshot from the start of this turn. Your own write_content/edit_content calls change the draft immediately - track what you changed via the tool receipts; the listing does not refresh mid-turn.
+- Prefer targeted edits over wholesale rewrites: update or insert around the user's existing work rather than deleting and re-writing the whole page, unless the user asks for a rewrite.
+- Never rewrite or remove image blocks (contentImage, photoGallery) unless the user explicitly asks - a deleted photo cannot be restored by you.
+- update with "content" replaces a block's text with plain text: any bold/italic/links inside that block are lost. Blocks where this matters are marked [has formatting] in the listing. For TEXT blocks you may omit "content" to keep the existing text (formatting included) while changing type or props; table and cricket/club blocks must be re-specified in full (required props included).`;
+
+/** One listing line per block: `[id=x] type(props): "content" [has formatting]`. */
+function renderDraftBlock(
+  block: DraftBlock,
+  indent: string,
+  lines: string[],
+): void {
+  const props =
+    block.props && Object.keys(block.props).length > 0
+      ? ` ${JSON.stringify(block.props)}`
+      : "";
+  // Tables stringify as their tableContent object - the agent needs the cell
+  // values to rewrite them; prose stringifies as a quoted string.
+  const content =
+    block.content === undefined ? "" : `: ${JSON.stringify(block.content)}`;
+  const formatting = block.hasFormatting
+    ? " [has formatting - rewriting loses bold/links]"
+    : "";
+  lines.push(
+    `${indent}- [id=${block.id}] ${block.type}${props}${content}${formatting}`,
+  );
+  for (const child of block.children ?? []) {
+    renderDraftBlock(child, `${indent}  `, lines);
+  }
+}
+
+/** True when the draft is empty for editing purposes: no blocks, or only
+ *  content-less paragraphs (the blank paragraph BlockNote always keeps). */
+function isBlankDraft(blocks: DraftBlocks): boolean {
+  return blocks.every(
+    (block) =>
+      block.type === "paragraph" &&
+      !block.content &&
+      (block.children ?? []).length === 0,
+  );
+}
 
 function renderEditorContext(ctx: EditorContext): string {
   const lines = [
@@ -77,12 +124,19 @@ function renderEditorContext(ctx: EditorContext): string {
   if (metaKeys.length > 0) {
     lines.push(`- Metadata: ${JSON.stringify(ctx.metadata)}`);
   }
-  if (ctx.existingBlockTypes && ctx.existingBlockTypes.length > 0) {
+  if (ctx.blocks.length === 0) {
+    lines.push(`- The draft is currently empty.`);
+  } else if (isBlankDraft(ctx.blocks)) {
     lines.push(
-      `- The draft already contains these block types: ${ctx.existingBlockTypes.join(", ")}. Add content that complements them; don't duplicate.`,
+      `- The draft is currently empty (just a blank paragraph, id=${ctx.blocks[0].id} - update it or simply append).`,
     );
   } else {
-    lines.push(`- The draft is currently empty.`);
+    lines.push(
+      `- Current draft, in order (target blocks by id with edit_content):`,
+    );
+    for (const block of ctx.blocks) {
+      renderDraftBlock(block, "  ", lines);
+    }
   }
   return lines.join("\n");
 }
@@ -105,6 +159,7 @@ export function buildContentAuthorSystemPrompt(
     DB_GUIDANCE,
     factRules(options.hasFactRetrieval),
     WORKFLOW_RULES,
+    EDITING_RULES,
     STYLE_RULES,
     `Content blocks you can write (via write_content):\n${renderBlockCatalogForPrompt()}`,
     todayLine,

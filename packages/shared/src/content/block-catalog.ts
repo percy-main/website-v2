@@ -281,12 +281,39 @@ export const AGENT_WRITABLE_BLOCK_TYPES: readonly string[] =
 // validates each block against its catalog entry, so adding a catalog entry
 // is enough to extend the agent's vocabulary - no schema edit needed.
 
+/**
+ * Size caps shared by the agent-facing schemas (enforced, request rejected)
+ * and the web draft projection (truncates to fit, so a pathological editor
+ * document degrades instead of failing the whole chat request). Keep the two
+ * sides in sync by always reading from here.
+ */
+export const CONTENT_LIMITS = {
+  blockContentChars: 8_000,
+  topLevelBlocks: 500,
+  childBlocks: 100,
+  tableRows: 100,
+  tableCellsPerRow: 30,
+  tableCellChars: 2_000,
+} as const;
+
 /** Structured content for a `table` block. Cells are plain strings; BlockNote
  *  wraps each in a text node. */
 export const tableContentSchema = z.object({
   type: z.literal("tableContent"),
-  columnWidths: z.array(z.number().nullable()).optional(),
-  rows: z.array(z.object({ cells: z.array(z.string()) })).min(1),
+  columnWidths: z
+    .array(z.number().nullable())
+    .max(CONTENT_LIMITS.tableCellsPerRow)
+    .optional(),
+  rows: z
+    .array(
+      z.object({
+        cells: z
+          .array(z.string().max(CONTENT_LIMITS.tableCellChars))
+          .max(CONTENT_LIMITS.tableCellsPerRow),
+      }),
+    )
+    .min(1)
+    .max(CONTENT_LIMITS.tableRows),
 });
 export type TableContent = z.infer<typeof tableContentSchema>;
 
@@ -403,3 +430,104 @@ export function renderBlockCatalogForPrompt(): string {
   );
   return lines.join("\n");
 }
+
+// ── Draft projection (editor -> agent) ──────────────────────────────────
+//
+// A compact read-only projection of the live BlockNote document, sent by the
+// editor with every chat turn so the agent can see and target existing
+// content. Inline content is flattened to a plain string client-side; blocks
+// whose flattening dropped marks (bold/italic/links) are tagged hasFormatting
+// so the agent knows a rewrite would lose them.
+
+export interface DraftBlock {
+  id: string;
+  type: string;
+  /** Plain-text projection of the block's inline content (or tableContent). */
+  content?: string | TableContent;
+  props?: Record<string, string | number | boolean>;
+  /** True when flattening dropped inline marks (bold/italic/links). */
+  hasFormatting?: boolean;
+  children?: DraftBlock[];
+}
+
+export const draftBlockSchema: z.ZodType<DraftBlock> = z.lazy(() =>
+  z.object({
+    id: z.string().min(1),
+    type: z.string().min(1),
+    content: z
+      .union([
+        z.string().max(CONTENT_LIMITS.blockContentChars),
+        tableContentSchema,
+      ])
+      .optional(),
+    props: z.record(z.string(), blockPropValueSchema).optional(),
+    hasFormatting: z.boolean().optional(),
+    children: z
+      .array(draftBlockSchema)
+      .max(CONTENT_LIMITS.childBlocks)
+      .optional(),
+  }),
+);
+
+export const draftBlocksSchema = z
+  .array(draftBlockSchema)
+  .max(CONTENT_LIMITS.topLevelBlocks);
+export type DraftBlocks = z.infer<typeof draftBlocksSchema>;
+
+// ── Edit operations (agent -> editor) ───────────────────────────────────
+//
+// The edit_content tool's vocabulary. Insert positions are a flat enum plus
+// an optional refBlockId rather than a nested union so the tool's JSON schema
+// stays simple for the LLM (same reasoning as writeContentBlockSchema being
+// non-recursive). "refBlockId is required for before/after" is enforced by
+// the tool at run time, not here, so the model gets a friendly correctable
+// error receipt instead of an opaque schema failure.
+
+export const insertPositionSchema = z.enum(["start", "end", "before", "after"]);
+export type InsertPosition = z.infer<typeof insertPositionSchema>;
+
+export const editInsertOpSchema = z.object({
+  op: z.literal("insert"),
+  at: insertPositionSchema,
+  refBlockId: z.string().min(1).optional(),
+  blocks: writeContentBodySchema,
+});
+
+export const editUpdateOpSchema = z.object({
+  op: z.literal("update"),
+  blockId: z.string().min(1),
+  // writeContentBlockSchema also rejects non-agent-writable replacement
+  // blocks (e.g. contentImage) via its catalog superRefine.
+  block: writeContentBlockSchema,
+});
+
+export const editDeleteOpSchema = z.object({
+  op: z.literal("delete"),
+  blockIds: z.array(z.string().min(1)).min(1),
+});
+
+export const editOpSchema = z.discriminatedUnion("op", [
+  editInsertOpSchema,
+  editUpdateOpSchema,
+  editDeleteOpSchema,
+]);
+export type EditOp = z.infer<typeof editOpSchema>;
+
+export const editOpsSchema = z.array(editOpSchema).min(1).max(20);
+export type EditOps = z.infer<typeof editOpsSchema>;
+
+// Server-resolved shapes streamed to the client as a data-content-ops part.
+// Inserted blocks get their ids assigned server-side (by the draft session)
+// so the model can reference them in later tool calls; the client honours
+// them via PartialBlock.id. Type-only: the client trusts the stream, same as
+// the data-content-blocks parts.
+export type ResolvedBlock = WriteContentBlock & { id: string };
+export type ResolvedEditOp =
+  | {
+      op: "insert";
+      at: InsertPosition;
+      refBlockId?: string;
+      blocks: ResolvedBlock[];
+    }
+  | { op: "update"; blockId: string; block: WriteContentBlock }
+  | { op: "delete"; blockIds: string[] };

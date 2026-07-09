@@ -85,17 +85,23 @@ export function TabsContent({
   value,
   className,
   children,
+  forceMount = false,
 }: {
   value: string;
   className?: string;
   children: React.ReactNode;
+  /** Keep the panel mounted (hidden) when inactive, so its state survives
+   *  tab switches. Mirrors Radix Tabs' forceMount. */
+  forceMount?: boolean;
 }) {
   const { value: selected } = useTabs();
-  if (selected !== value) return null;
+  const isActive = selected === value;
+  if (!isActive && !forceMount) return null;
 
   return (
     <div
       role="tabpanel"
+      hidden={!isActive}
       className={cn(
         "ring-offset-surface mt-2 focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none",
         className,

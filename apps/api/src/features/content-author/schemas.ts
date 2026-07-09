@@ -1,17 +1,22 @@
+import { draftBlocksSchema } from "@percy-main/shared/content";
 import { z } from "zod";
 
 /**
- * Editor state the modal sends each turn. Kept loose (kind/metadata are
+ * Editor state the panel sends each turn. Kept loose (kind/metadata are
  * strings/records, not the full content union) because this only seeds the
- * system prompt - it never writes to the DB. The real content gates apply
- * when the user saves the draft through the content API.
+ * system prompt and the per-turn draft session - it never writes to the DB.
+ * The real content gates apply when the user saves the draft through the
+ * content API. `blocks` is the client's plain-text projection of the live
+ * BlockNote document (ids included) so the agent can see and edit existing
+ * content; it defaults to [] so an older client that doesn't send it
+ * degrades to append-only behaviour.
  */
 export const editorContextSchema = z.object({
   kind: z.string().min(1),
   title: z.string(),
   slug: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).default({}),
-  existingBlockTypes: z.array(z.string()).optional(),
+  blocks: draftBlocksSchema.default([]),
 });
 export type EditorContextInput = z.infer<typeof editorContextSchema>;
 
