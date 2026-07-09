@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENT_WRITABLE_BLOCK_TYPES,
+  draftBlocksSchema,
+  editOpsSchema,
   getBlockCatalogEntry,
   renderBlockCatalogForPrompt,
   writeContentBodySchema,
@@ -94,5 +96,114 @@ describe("writeContentBodySchema - validation", () => {
 
   it("rejects an empty body", () => {
     expect(writeContentBodySchema.safeParse([]).success).toBe(false);
+  });
+});
+
+describe("draftBlocksSchema - validation", () => {
+  it("accepts nested children and table content", () => {
+    const result = draftBlocksSchema.safeParse([
+      {
+        id: "a1",
+        type: "bulletListItem",
+        content: "Fixtures",
+        children: [
+          { id: "a2", type: "bulletListItem", content: "vs Newcastle City" },
+        ],
+      },
+      {
+        id: "b1",
+        type: "table",
+        content: { type: "tableContent", rows: [{ cells: ["a", "b"] }] },
+      },
+      {
+        id: "c1",
+        type: "paragraph",
+        content: "See the fixtures page.",
+        hasFormatting: true,
+      },
+    ]);
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an unknown block type (projection mirrors the editor, not the catalog)", () => {
+    const result = draftBlocksSchema.safeParse([
+      { id: "x", type: "contentImage", props: { alt: "The pavilion" } },
+    ]);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a block missing an id or type", () => {
+    expect(
+      draftBlocksSchema.safeParse([{ type: "paragraph", content: "no id" }])
+        .success,
+    ).toBe(false);
+    expect(
+      draftBlocksSchema.safeParse([{ id: "a", content: "no type" }]).success,
+    ).toBe(false);
+  });
+
+  it("accepts an empty draft", () => {
+    expect(draftBlocksSchema.safeParse([]).success).toBe(true);
+  });
+});
+
+describe("editOpsSchema - validation", () => {
+  it("accepts a mix of insert, update and delete ops", () => {
+    const result = editOpsSchema.safeParse([
+      {
+        op: "insert",
+        at: "after",
+        refBlockId: "abc",
+        blocks: [{ type: "paragraph", content: "New intro." }],
+      },
+      {
+        op: "update",
+        blockId: "def",
+        block: { type: "heading", props: { level: 2 }, content: "Reworded" },
+      },
+      { op: "delete", blockIds: ["ghi"] },
+    ]);
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts insert at start/end without a refBlockId (tool enforces before/after)", () => {
+    const result = editOpsSchema.safeParse([
+      {
+        op: "insert",
+        at: "start",
+        blocks: [{ type: "paragraph", content: "Top." }],
+      },
+    ]);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an update whose replacement block is invalid", () => {
+    expect(
+      editOpsSchema.safeParse([
+        { op: "update", blockId: "x", block: { type: "marquee" } },
+      ]).success,
+    ).toBe(false);
+    expect(
+      editOpsSchema.safeParse([
+        {
+          op: "update",
+          blockId: "x",
+          block: { type: "contentImage", props: {} },
+        },
+      ]).success,
+    ).toBe(false);
+  });
+
+  it("rejects a delete with no ids and an empty ops array", () => {
+    expect(
+      editOpsSchema.safeParse([{ op: "delete", blockIds: [] }]).success,
+    ).toBe(false);
+    expect(editOpsSchema.safeParse([]).success).toBe(false);
+  });
+
+  it("rejects an unknown op", () => {
+    expect(
+      editOpsSchema.safeParse([{ op: "move", blockId: "x" }]).success,
+    ).toBe(false);
   });
 });
