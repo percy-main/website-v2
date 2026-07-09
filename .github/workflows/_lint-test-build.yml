@@ -173,6 +173,12 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-build-
       - run: pnpm build
+        # The prerenderer Lambda bundle is only built by the deploy
+        # workflows, so build it here too: build:ssr runs
+        # check-ssr-sigv4a.mjs, which fails the PR if a dependency bump
+        # splits @smithy/signature-v4 into two bundled copies and breaks
+        # the KVS SigV4a signer at runtime (as PR #617 did).
+      - run: pnpm --filter web build:ssr
 
   openapi-drift:
     # Guardrail (#343): the OpenAPI spec and the typed client under
