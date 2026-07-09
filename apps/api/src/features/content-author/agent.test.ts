@@ -32,7 +32,7 @@ function makeAgent(overrides?: {
     kind: "game_report",
     title: "Percy Main vs Tynemouth",
     metadata: { playCricketId: "999" },
-    existingBlockTypes: [],
+    blocks: [],
     ...overrides?.editorContext,
   };
 
@@ -50,9 +50,10 @@ function makeAgent(overrides?: {
 }
 
 describe("content-author agent - tool surface + reasoning", () => {
-  it("registers the reused data tools and the write_content tool", () => {
+  it("registers the reused data tools and the content tools", () => {
     const agent = makeAgent();
     expect(agent.tools.write_content).toBeDefined();
+    expect(agent.tools.edit_content).toBeDefined();
     expect(agent.tools.pc_match_detail).toBeDefined();
     expect(agent.tools.db_run_sql).toBeDefined();
     expect(agent.tools.weather_get).toBeDefined();
@@ -137,9 +138,56 @@ describe("content-author agent - system prompt", () => {
     expect(agent.system).toContain("game_report");
   });
 
-  it("lists the writable blocks and excludes contentImage", () => {
+  it("lists the writable blocks and excludes contentImage from the catalog", () => {
     const agent = makeAgent();
     expect(agent.system).toContain("gamePreview");
-    expect(agent.system).not.toContain("contentImage");
+    // The catalog reference lists blocks as `type` in backticks; contentImage
+    // must not be offered there (it IS named in the editing rules as a block
+    // the agent must not rewrite).
+    expect(agent.system).not.toContain("`contentImage`");
+  });
+
+  it("says the draft is empty when there are no blocks", () => {
+    const agent = makeAgent({ editorContext: { blocks: [] } });
+    expect(agent.system).toContain("The draft is currently empty.");
+  });
+
+  it("treats a single blank paragraph as an empty draft but names its id", () => {
+    const agent = makeAgent({
+      editorContext: { blocks: [{ id: "blank1", type: "paragraph" }] },
+    });
+    expect(agent.system).toContain("currently empty");
+    expect(agent.system).toContain("id=blank1");
+  });
+
+  it("renders the draft listing with ids, nesting and formatting markers", () => {
+    const agent = makeAgent({
+      editorContext: {
+        blocks: [
+          {
+            id: "h1",
+            type: "heading",
+            props: { level: 2 },
+            content: "A fine win",
+          },
+          {
+            id: "p1",
+            type: "paragraph",
+            content: "See the fixtures page.",
+            hasFormatting: true,
+            children: [{ id: "c1", type: "bulletListItem", content: "Nested" }],
+          },
+        ],
+      },
+    });
+    expect(agent.system).toContain("[id=h1] heading");
+    expect(agent.system).toContain('"A fine win"');
+    expect(agent.system).toContain('{"level":2}');
+    expect(agent.system).toContain(
+      "[id=p1] paragraph: \"See the fixtures page.\" [has formatting - rewriting loses bold/links]",
+    );
+    expect(agent.system).toContain("[id=c1] bulletListItem");
+    // Editing guidance ships whenever the tools do.
+    expect(agent.system).toContain("edit_content");
   });
 });

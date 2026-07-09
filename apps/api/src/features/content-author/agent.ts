@@ -16,10 +16,12 @@ import { createDbTools } from "../scout/tools/db.ts";
 import { createFactTools } from "../scout/tools/facts.ts";
 import { createPlayCricketTools } from "../scout/tools/play-cricket.ts";
 import { createWeatherTools } from "../scout/tools/weather.ts";
+import { createDraftSession } from "./draft-session.ts";
 import {
   buildContentAuthorSystemPrompt,
   type EditorContext,
 } from "./system-prompt.ts";
+import { createEditContentTool } from "./tools/edit-content.ts";
 import { createWriteContentTool } from "./tools/write-content.ts";
 
 // streamText's providerOptions is a deep alias not re-exported from "ai"
@@ -86,7 +88,18 @@ export function createContentAuthorAgent(
     logger: deps.logger,
   });
   const weatherTools = createWeatherTools({ cache });
-  const writeContentTools = createWriteContentTool({ writer: deps.writer });
+  // One draft session per request, shared by write_content and edit_content:
+  // it mirrors the client's draft (ids/types/nesting) so edits validate
+  // against real block ids, including blocks appended earlier in the turn.
+  const session = createDraftSession(deps.editorContext.blocks);
+  const writeContentTools = createWriteContentTool({
+    writer: deps.writer,
+    session,
+  });
+  const editContentTools = createEditContentTool({
+    writer: deps.writer,
+    session,
+  });
 
   // Read-only fact retrieval for grounding (teams, grounds, players). We expose
   // ONLY fact_retrieve - the author never records or cites facts.
@@ -131,6 +144,7 @@ export function createContentAuthorAgent(
       ...weatherTools,
       ...factTools,
       ...writeContentTools,
+      ...editContentTools,
     },
     maxSteps: deps.config.SCOUT_MAX_STEPS,
     maxOutputTokens: MAX_OUTPUT_TOKENS,
