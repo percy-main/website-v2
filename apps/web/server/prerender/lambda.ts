@@ -54,6 +54,13 @@ import {
 // KVS call fails with "Neither CRT nor JS SigV4a implementation is
 // available". The package declares sideEffects: true, so bundlers keep
 // this.
+//
+// The import alone is not sufficient: the lockfile must resolve a
+// SINGLE copy of @smithy/signature-v4, or the bundle gets two container
+// objects and the registration lands in the one the signer doesn't
+// read - same runtime error (PR #617 broke prod this way via a version
+// split). scripts/check-ssr-sigv4a.mjs asserts this after every
+// build:ssr; if it fails, run `pnpm dedupe @smithy/signature-v4`.
 import "@smithy/signature-v4a";
 import { QueryClient } from "@tanstack/react-query";
 import { readFileSync } from "node:fs";

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:ssr": "vite build --ssr server/prerender/lambda.ts --outDir dist-server",
+    "build:ssr": "vite build --ssr server/prerender/lambda.ts --outDir dist-server && node scripts/check-ssr-sigv4a.mjs",
     "check:ssr-assets": "node scripts/check-ssr-asset-parity.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
