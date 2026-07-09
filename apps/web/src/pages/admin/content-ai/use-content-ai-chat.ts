@@ -1,6 +1,6 @@
 import { API_BASE } from "@/lib/api-client";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type DataUIPart, type UIDataTypes } from "ai";
 import { useMemo } from "react";
 
 /**
@@ -12,7 +12,11 @@ import { useMemo } from "react";
  * stays fresh as the draft changes. Same transport wiring as Scout's
  * use-scout-chat.
  */
-export function useContentAiChat() {
+export function useContentAiChat(options?: {
+  /** Fires once per streamed data part (data-content-blocks / data-content-ops)
+   *  as it arrives - the panel applies them to the editor from here. */
+  onData?: (dataPart: DataUIPart<UIDataTypes>) => void;
+}) {
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -22,5 +26,5 @@ export function useContentAiChat() {
     [],
   );
 
-  return useChat({ transport });
+  return useChat({ transport, onData: options?.onData });
 }

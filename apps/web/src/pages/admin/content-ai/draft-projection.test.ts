@@ -157,6 +157,29 @@ describe("projectDraftBlocks", () => {
     expect(game.props).toEqual({ playCricketId: "123456" });
   });
 
+  it("caps table rows, cells and cell text inside the schema limits", () => {
+    const doc: EditorDocumentBlock[] = [
+      {
+        id: "t1",
+        type: "table",
+        content: {
+          type: "tableContent",
+          rows: Array.from({ length: 150 }, () => ({
+            cells: Array.from({ length: 40 }, () => [text("x".repeat(3_000))]),
+          })),
+        },
+        children: [],
+      },
+    ];
+    const [block] = projectDraftBlocks(doc);
+    const table = block.content as {
+      rows: Array<{ cells: string[] }>;
+    };
+    expect(table.rows).toHaveLength(100);
+    expect(table.rows[0].cells).toHaveLength(30);
+    expect(table.rows[0].cells[0].length).toBe(2_000);
+  });
+
   it("caps runaway documents inside the schema limits", () => {
     const doc: EditorDocumentBlock[] = Array.from({ length: 600 }, (_, i) => ({
       id: `p${String(i)}`,

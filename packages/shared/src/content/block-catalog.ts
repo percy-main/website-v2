@@ -281,12 +281,39 @@ export const AGENT_WRITABLE_BLOCK_TYPES: readonly string[] =
 // validates each block against its catalog entry, so adding a catalog entry
 // is enough to extend the agent's vocabulary - no schema edit needed.
 
+/**
+ * Size caps shared by the agent-facing schemas (enforced, request rejected)
+ * and the web draft projection (truncates to fit, so a pathological editor
+ * document degrades instead of failing the whole chat request). Keep the two
+ * sides in sync by always reading from here.
+ */
+export const CONTENT_LIMITS = {
+  blockContentChars: 8_000,
+  topLevelBlocks: 500,
+  childBlocks: 100,
+  tableRows: 100,
+  tableCellsPerRow: 30,
+  tableCellChars: 2_000,
+} as const;
+
 /** Structured content for a `table` block. Cells are plain strings; BlockNote
  *  wraps each in a text node. */
 export const tableContentSchema = z.object({
   type: z.literal("tableContent"),
-  columnWidths: z.array(z.number().nullable()).optional(),
-  rows: z.array(z.object({ cells: z.array(z.string()) })).min(1),
+  columnWidths: z
+    .array(z.number().nullable())
+    .max(CONTENT_LIMITS.tableCellsPerRow)
+    .optional(),
+  rows: z
+    .array(
+      z.object({
+        cells: z
+          .array(z.string().max(CONTENT_LIMITS.tableCellChars))
+          .max(CONTENT_LIMITS.tableCellsPerRow),
+      }),
+    )
+    .min(1)
+    .max(CONTENT_LIMITS.tableRows),
 });
 export type TableContent = z.infer<typeof tableContentSchema>;
 
@@ -427,14 +454,24 @@ export const draftBlockSchema: z.ZodType<DraftBlock> = z.lazy(() =>
   z.object({
     id: z.string().min(1),
     type: z.string().min(1),
-    content: z.union([z.string().max(8_000), tableContentSchema]).optional(),
+    content: z
+      .union([
+        z.string().max(CONTENT_LIMITS.blockContentChars),
+        tableContentSchema,
+      ])
+      .optional(),
     props: z.record(z.string(), blockPropValueSchema).optional(),
     hasFormatting: z.boolean().optional(),
-    children: z.array(draftBlockSchema).max(100).optional(),
+    children: z
+      .array(draftBlockSchema)
+      .max(CONTENT_LIMITS.childBlocks)
+      .optional(),
   }),
 );
 
-export const draftBlocksSchema = z.array(draftBlockSchema).max(500);
+export const draftBlocksSchema = z
+  .array(draftBlockSchema)
+  .max(CONTENT_LIMITS.topLevelBlocks);
 export type DraftBlocks = z.infer<typeof draftBlocksSchema>;
 
 // ── Edit operations (agent -> editor) ───────────────────────────────────

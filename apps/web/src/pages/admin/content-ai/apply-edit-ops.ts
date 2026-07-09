@@ -38,59 +38,67 @@ export function appendBlocks(
   editor.insertBlocks(clone(blocks), doc[doc.length - 1], "after");
 }
 
+/** Every existing-block id an op batch references (insert refs, update and
+ *  delete targets). Ids of blocks the batch itself inserts are not included -
+ *  the server guarantees in-batch ordering is valid. */
+function referencedIds(ops: ResolvedEditOp[]): string[] {
+  const ids: string[] = [];
+  for (const op of ops) {
+    if (op.op === "insert") {
+      if (op.refBlockId) ids.push(op.refBlockId);
+    } else if (op.op === "update") {
+      ids.push(op.blockId);
+    } else {
+      ids.push(...op.blockIds);
+    }
+  }
+  return ids;
+}
+
+export type ApplyEditOpsResult =
+  { applied: true } | { applied: false; missingIds: string[] };
+
 /**
- * Apply edit_content ops in stream order. Ops referencing blocks the user
- * has since deleted (or ids stale for any reason) are skipped rather than
- * thrown - the draft is the user's; the agent's view is best-effort.
- * Returns how many ops were skipped so the panel can surface it.
+ * Apply edit_content ops in stream order, all-or-nothing: if ANY referenced
+ * block id no longer resolves (the user edited or restored a revision while
+ * the agent was working), the WHOLE batch is dropped and reported, never
+ * partially applied. The server validated the batch atomically against its
+ * own mirror; applying half of it here could pair a skipped insert with a
+ * destructive delete. The draft is the user's - their edits win.
  */
 export function applyEditOps(
   editor: EditorLike,
   ops: ResolvedEditOp[],
-): { skipped: number } {
-  let skipped = 0;
+): ApplyEditOpsResult {
+  const missingIds = [
+    ...new Set(referencedIds(ops).filter((id) => !editor.getBlock(id))),
+  ];
+  if (missingIds.length > 0) return { applied: false, missingIds };
 
   for (const op of ops) {
     if (op.op === "insert") {
       const doc = editor.document;
       if (op.at === "start" || op.at === "end") {
-        if (doc.length === 0) {
-          skipped += 1;
-          continue;
-        }
+        // BlockNote documents always have >= 1 block to anchor on.
+        if (doc.length === 0) continue;
         const reference = op.at === "start" ? doc[0] : doc[doc.length - 1];
         editor.insertBlocks(
           clone(op.blocks),
           reference,
           op.at === "start" ? "before" : "after",
         );
-      } else {
-        const reference = op.refBlockId ? editor.getBlock(op.refBlockId) : null;
-        if (!reference || !op.refBlockId) {
-          skipped += 1;
-          continue;
-        }
+      } else if (op.refBlockId) {
         editor.insertBlocks(clone(op.blocks), op.refBlockId, op.at);
       }
     } else if (op.op === "update") {
-      if (!editor.getBlock(op.blockId)) {
-        skipped += 1;
-        continue;
-      }
       // PartialBlock semantics: provided fields replace, omitted fields keep
       // their current value (so an update without `content` retains the
       // block's existing formatted text).
       editor.updateBlock(op.blockId, clone(op.block));
     } else {
-      const existing = op.blockIds.filter((id) => Boolean(editor.getBlock(id)));
-      if (existing.length < op.blockIds.length) {
-        skipped += op.blockIds.length - existing.length;
-      }
-      if (existing.length > 0) {
-        editor.removeBlocks(existing);
-      }
+      editor.removeBlocks(op.blockIds);
     }
   }
 
-  return { skipped };
+  return { applied: true };
 }

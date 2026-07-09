@@ -3576,8 +3576,9 @@ function AssistantPane({
   };
 
   const handleApplyOps = (ops: ResolvedEditOp[]) => {
-    applyEditOps(editor, ops);
-    dirtyRef.current = true;
+    const result = applyEditOps(editor, ops);
+    if (result.applied) dirtyRef.current = true;
+    return result.applied;
   };
 
   // Built fresh on each send so the agent sees the current draft (block ids +

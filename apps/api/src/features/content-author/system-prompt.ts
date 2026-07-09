@@ -75,7 +75,7 @@ const EDITING_RULES = `Editing the draft:
 - The draft listing below is a snapshot from the start of this turn. Your own write_content/edit_content calls change the draft immediately - track what you changed via the tool receipts; the listing does not refresh mid-turn.
 - Prefer targeted edits over wholesale rewrites: update or insert around the user's existing work rather than deleting and re-writing the whole page, unless the user asks for a rewrite.
 - Never rewrite or remove image blocks (contentImage, photoGallery) unless the user explicitly asks - a deleted photo cannot be restored by you.
-- update with "content" replaces a block's text with plain text: any bold/italic/links inside that block are lost. Blocks where this matters are marked [has formatting] in the listing. To change only a block's type or props (e.g. a heading level), omit "content" - the existing text, formatting included, is kept.`;
+- update with "content" replaces a block's text with plain text: any bold/italic/links inside that block are lost. Blocks where this matters are marked [has formatting] in the listing. For TEXT blocks you may omit "content" to keep the existing text (formatting included) while changing type or props; table and cricket/club blocks must be re-specified in full (required props included).`;
 
 /** One listing line per block: `[id=x] type(props): "content" [has formatting]`. */
 function renderDraftBlock(

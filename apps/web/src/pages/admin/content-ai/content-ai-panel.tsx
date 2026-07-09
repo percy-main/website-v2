@@ -23,8 +23,10 @@ interface ContentAiPanelProps {
   getEditorContext: () => ContentAiEditorContext;
   /** Append agent-authored blocks to the live editor (parent owns the editor). */
   onInsertBlocks: (blocks: ResolvedBlock[]) => void;
-  /** Apply agent edit ops to the live editor (parent owns the editor). */
-  onApplyOps: (ops: ResolvedEditOp[]) => void;
+  /** Apply agent edit ops to the live editor (parent owns the editor).
+   *  Returns false when the whole batch was dropped because the draft
+   *  changed underneath it (stale block ids) - the panel flags that chip. */
+  onApplyOps: (ops: ResolvedEditOp[]) => boolean;
 }
 
 /**
@@ -39,44 +41,43 @@ export function ContentAiPanel({
   onInsertBlocks,
   onApplyOps,
 }: ContentAiPanelProps) {
-  const { messages, sendMessage, status, error, stop } = useContentAiChat();
   const [value, setValue] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Apply each data part exactly once, in stream order. useChat re-renders
-  // parts on every streamed token, so dedupe by the part's id. One shared set
-  // covers both part types, so appends and edits stay ordered relative to
-  // each other. Lazy useState initialiser (not useRef(new Set())) so the Set
-  // is built once, not rebuilt and discarded every render.
+  // Edit-op parts whose whole batch was dropped because the draft changed
+  // underneath them - their chips render as a warning instead of a success.
+  const [skippedPartKeys, setSkippedPartKeys] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Belt-and-braces dedupe: onData should fire once per part, but applying a
+  // block twice would corrupt the draft, so guard on the part id anyway.
+  // Lazy useState initialiser so the Set is built once, not per render.
   const [seenPartIds] = useState(() => new Set<string>());
-  useEffect(() => {
-    for (const message of messages) {
-      if (message.role !== "assistant") continue;
-      message.parts.forEach((part, index) => {
-        if (
-          part.type !== "data-content-blocks" &&
-          part.type !== "data-content-ops"
-        ) {
-          return;
+
+  // Data parts apply to the editor as they stream in, in arrival order (one
+  // handler covers both types so appends and edits stay ordered relative to
+  // each other). Both part types always carry a server-assigned id.
+  const { messages, sendMessage, status, error, stop } = useContentAiChat({
+    onData: (dataPart) => {
+      if (
+        dataPart.type !== "data-content-blocks" &&
+        dataPart.type !== "data-content-ops"
+      ) {
+        return;
+      }
+      const key = dataPart.id;
+      if (!key || seenPartIds.has(key)) return;
+      seenPartIds.add(key);
+      if (dataPart.type === "data-content-blocks") {
+        const { blocks } = dataPart.data as { blocks?: ResolvedBlock[] };
+        if (blocks && blocks.length > 0) onInsertBlocks(blocks);
+      } else {
+        const { ops } = dataPart.data as { ops?: ResolvedEditOp[] };
+        if (ops && ops.length > 0 && !onApplyOps(ops)) {
+          setSkippedPartKeys((prev) => new Set(prev).add(key));
         }
-        const dataPart = part as {
-          type: string;
-          id?: string;
-          data: { blocks?: ResolvedBlock[]; ops?: ResolvedEditOp[] };
-        };
-        const key = dataPart.id ?? `${message.id}:${String(index)}`;
-        if (seenPartIds.has(key)) return;
-        seenPartIds.add(key);
-        if (part.type === "data-content-blocks") {
-          const blocks = dataPart.data.blocks ?? [];
-          if (blocks.length > 0) onInsertBlocks(blocks);
-        } else {
-          const ops = dataPart.data.ops ?? [];
-          if (ops.length > 0) onApplyOps(ops);
-        }
-      });
-    }
-  }, [messages, onInsertBlocks, onApplyOps, seenPartIds]);
+      }
+    },
+  });
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keep the latest message in view as content streams in.
   useEffect(() => {
@@ -102,7 +103,11 @@ export function ContentAiPanel({
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto py-2">
         {messages.length === 0 && <EmptyState />}
         {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble
+            key={message.id}
+            message={message}
+            skippedPartKeys={skippedPartKeys}
+          />
         ))}
         {isStreaming && (
           <p className="text-xs text-stone-400">The assistant is working…</p>
@@ -171,7 +176,13 @@ function EmptyState() {
   );
 }
 
-function MessageBubble({ message }: { message: UIMessage }) {
+function MessageBubble({
+  message,
+  skippedPartKeys,
+}: {
+  message: UIMessage;
+  skippedPartKeys: ReadonlySet<string>;
+}) {
   const isUser = message.role === "user";
   return (
     <div className={isUser ? "flex justify-end" : "flex justify-start"}>
@@ -181,9 +192,18 @@ function MessageBubble({ message }: { message: UIMessage }) {
           (isUser ? "bg-blue-600 text-white" : "bg-stone-100 text-stone-800")
         }
       >
-        {message.parts.map((part, index) => (
-          <PartView key={`${message.id}-${index}-${part.type}`} part={part} />
-        ))}
+        {message.parts.map((part, index) => {
+          // Data parts carry the server-assigned id the onData handler used,
+          // so a dropped ops batch finds its own chip.
+          const partId = (part as { id?: string }).id;
+          return (
+            <PartView
+              key={`${message.id}-${index}-${part.type}`}
+              part={part}
+              skipped={partId !== undefined && skippedPartKeys.has(partId)}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -200,7 +220,14 @@ function toolLabel(toolType: string): string {
   return name;
 }
 
-function PartView({ part }: { part: UIMessage["parts"][number] }) {
+function PartView({
+  part,
+  skipped = false,
+}: {
+  part: UIMessage["parts"][number];
+  /** True when this part's edit-op batch was dropped as stale. */
+  skipped?: boolean;
+}) {
   if (part.type === "text") {
     return <p className="whitespace-pre-wrap">{part.text}</p>;
   }
@@ -233,6 +260,14 @@ function PartView({ part }: { part: UIMessage["parts"][number] }) {
       data: { ops: ResolvedEditOp[] };
     };
     const count = opsPart.data.ops.length;
+    if (skipped) {
+      return (
+        <p className="rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
+          ⚠ The draft changed while the assistant was editing - {count} change
+          {count === 1 ? "" : "s"} skipped. Ask again if you still want them.
+        </p>
+      );
+    }
     return (
       <p className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
         ✏️ Edited your draft - {count} change{count === 1 ? "" : "s"}

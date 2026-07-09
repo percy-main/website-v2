@@ -14,8 +14,11 @@ E2E screenshots for morning review are in `/tmp/content-ai-screenshots/`
 1. **`update` op keeps omitted fields** (BlockNote `updateBlock` partial
    semantics) rather than wholesale replacement. This lets the agent change a
    heading level or block type without destroying the block's formatted text,
-   which softens the plain-text-rewrite trade-off. The tool description and
-   system prompt teach this explicitly.
+   which softens the plain-text-rewrite trade-off. Codex review caught a
+   doc/validation mismatch here: the replacement block is schema-validated in
+   full (required props, table content), so the docs now scope the "omit to
+   keep" affordance to text-block `content` only - data blocks must be
+   re-specified in full.
    _To change:_ make the client pass `content: ""`/explicit fields in
    `applyEditOps` (apps/web `content-ai/apply-edit-ops.ts`) and reword the
    tool description in `tools/edit-content.ts`.
@@ -68,9 +71,11 @@ E2E screenshots for morning review are in `/tmp/content-ai-screenshots/`
   rules, and the omitted-fields update semantics above. Proper fix (rich
   inline content in the write schema) is deferred; the op protocol is
   forward-compatible.
-- Draft snapshot is per-send: user edits mid-turn can strand an op; the client
-  skips stale-id ops silently (count returned but not yet surfaced in the UI)
-  and the next send resyncs.
+- Draft snapshot is per-send: user edits mid-turn can strand an op batch. The
+  client preflights every referenced id and drops the WHOLE batch if any is
+  stale (all-or-nothing, matching the server - Codex review pointed out that
+  partial application could pair a skipped insert with a destructive delete);
+  a dropped batch renders as an amber "changes skipped" chip in the chat.
 - Chat resets when the editor closes or the page reloads (route stays
   stateless, per ADR 049). It now survives tab switches - that was the bug.
 
@@ -88,6 +93,16 @@ E2E screenshots for morning review are in `/tmp/content-ai-screenshots/`
   a follow-up turn deleted the block the agent had added in the PREVIOUS turn
   (server-assigned ids stay stable across turns); the conversation survived
   Details<->Assistant tab switches; Cmd+Z undid an agent delete.
+
+## Codex review
+
+Three findings, all fixed in place: (1) client op application was best-effort
+per-op and could partially apply a destructive batch on stale ids - now
+all-or-nothing with the skip surfaced in the chat; (2) the update op was
+documented as patch-like but validated as a full block - docs now scope the
+partial affordance to text-block content; (3) table content had no size caps
+in the projection or schema - now capped via a shared `CONTENT_LIMITS` const
+(100 rows / 30 cells / 2k chars per cell).
 
 ## Heads-up: I restarted your dev servers
 

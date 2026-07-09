@@ -94,6 +94,29 @@ describe("writeContentBodySchema - validation", () => {
     expect(result.success).toBe(true);
   });
 
+  it("rejects tables beyond the shared size caps", () => {
+    const tooManyRows = writeContentBodySchema.safeParse([
+      {
+        type: "table",
+        content: {
+          type: "tableContent",
+          rows: Array.from({ length: 101 }, () => ({ cells: ["x"] })),
+        },
+      },
+    ]);
+    expect(tooManyRows.success).toBe(false);
+    const oversizedCell = writeContentBodySchema.safeParse([
+      {
+        type: "table",
+        content: {
+          type: "tableContent",
+          rows: [{ cells: ["y".repeat(2_001)] }],
+        },
+      },
+    ]);
+    expect(oversizedCell.success).toBe(false);
+  });
+
   it("rejects an empty body", () => {
     expect(writeContentBodySchema.safeParse([]).success).toBe(false);
   });

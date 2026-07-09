@@ -1,5 +1,6 @@
 import { inlineToText } from "@/lib/inline-content.js";
 import {
+  CONTENT_LIMITS,
   CUSTOM_BLOCK_TYPES,
   type DraftBlock,
   type DraftBlocks,
@@ -19,12 +20,17 @@ export interface EditorDocumentBlock {
   children?: EditorDocumentBlock[];
 }
 
-// Schema caps (draftBlockSchema / draftBlocksSchema) - stay inside them so a
-// pathological draft degrades (tail truncated from the agent's view) instead
-// of failing the whole request.
-const MAX_CONTENT_CHARS = 8_000;
-const MAX_TOP_LEVEL_BLOCKS = 500;
-const MAX_CHILDREN = 100;
+// Schema caps (CONTENT_LIMITS drives draftBlockSchema / tableContentSchema) -
+// stay inside them so a pathological draft degrades (tail truncated from the
+// agent's view) instead of failing the whole request.
+const {
+  blockContentChars: MAX_CONTENT_CHARS,
+  topLevelBlocks: MAX_TOP_LEVEL_BLOCKS,
+  childBlocks: MAX_CHILDREN,
+  tableRows: MAX_TABLE_ROWS,
+  tableCellsPerRow: MAX_TABLE_CELLS,
+  tableCellChars: MAX_CELL_CHARS,
+} = CONTENT_LIMITS;
 
 /** True when flattening this inline node to text would lose marks or links. */
 function nodeHasFormatting(node: unknown): boolean {
@@ -73,13 +79,15 @@ function projectTableContent(
   if (!Array.isArray(rawRows) || rawRows.length === 0) return undefined;
 
   let hasFormatting = false;
-  const rows = rawRows.map((row) => {
+  const rows = rawRows.slice(0, MAX_TABLE_ROWS).map((row) => {
     const rawCells = (row as { cells?: unknown }).cells;
-    const cells = (Array.isArray(rawCells) ? rawCells : []).map((cell) => {
-      const projected = cellToText(cell);
-      hasFormatting ||= projected.hasFormatting;
-      return projected.text;
-    });
+    const cells = (Array.isArray(rawCells) ? rawCells : [])
+      .slice(0, MAX_TABLE_CELLS)
+      .map((cell) => {
+        const projected = cellToText(cell);
+        hasFormatting ||= projected.hasFormatting;
+        return projected.text.slice(0, MAX_CELL_CHARS);
+      });
     return { cells };
   });
 
@@ -89,7 +97,7 @@ function projectTableContent(
   const columnWidths =
     Array.isArray(rawWidths) &&
     rawWidths.every((width) => typeof width === "number" || width === null)
-      ? (rawWidths as Array<number | null>)
+      ? (rawWidths as Array<number | null>).slice(0, MAX_TABLE_CELLS)
       : undefined;
 
   return {

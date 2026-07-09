@@ -357,6 +357,7 @@ export { blockPropValueSchema, CUSTOM_BLOCK_TYPES } from "./block-types.ts";
 export {
   AGENT_WRITABLE_BLOCK_TYPES,
   BLOCK_CATALOG,
+  CONTENT_LIMITS,
   draftBlockSchema,
   draftBlocksSchema,
   editDeleteOpSchema,

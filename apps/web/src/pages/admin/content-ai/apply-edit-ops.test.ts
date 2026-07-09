@@ -45,8 +45,8 @@ describe("applyEditOps", () => {
         blocks: [{ id: "e1", type: "paragraph", content: "Last" }],
       },
     ];
-    const { skipped } = applyEditOps(editor, ops);
-    expect(skipped).toBe(0);
+    const result = applyEditOps(editor, ops);
+    expect(result.applied).toBe(true);
     expect(editor.insertBlocks).toHaveBeenNthCalledWith(
       1,
       [{ id: "s1", type: "paragraph", content: "First" }],
@@ -80,7 +80,7 @@ describe("applyEditOps", () => {
 
   it("updates and deletes existing blocks", () => {
     const editor = makeEditor(["a", "b", "c"]);
-    const { skipped } = applyEditOps(editor, [
+    const result = applyEditOps(editor, [
       {
         op: "update",
         blockId: "a",
@@ -88,7 +88,7 @@ describe("applyEditOps", () => {
       },
       { op: "delete", blockIds: ["b", "c"] },
     ]);
-    expect(skipped).toBe(0);
+    expect(result.applied).toBe(true);
     expect(editor.updateBlock).toHaveBeenCalledWith("a", {
       type: "heading",
       props: { level: 2 },
@@ -97,26 +97,38 @@ describe("applyEditOps", () => {
     expect(editor.removeBlocks).toHaveBeenCalledWith(["b", "c"]);
   });
 
-  it("skips ops whose target ids are stale instead of throwing", () => {
+  it("drops the WHOLE batch when any target id is stale (never partial)", () => {
     const editor = makeEditor(["a"]);
-    const { skipped } = applyEditOps(editor, [
+    const result = applyEditOps(editor, [
+      {
+        op: "insert",
+        at: "before",
+        refBlockId: "gone",
+        blocks: [{ id: "n1", type: "paragraph", content: "replacement" }],
+      },
+      // Without all-or-nothing, this delete of a live block would still fire
+      // even though its paired replacement insert was skipped.
+      { op: "delete", blockIds: ["a"] },
+    ]);
+    expect(result.applied).toBe(false);
+    if (result.applied) throw new Error("expected drop");
+    expect(result.missingIds).toEqual(["gone"]);
+    expect(editor.insertBlocks).not.toHaveBeenCalled();
+    expect(editor.updateBlock).not.toHaveBeenCalled();
+    expect(editor.removeBlocks).not.toHaveBeenCalled();
+  });
+
+  it("reports each missing id once across ops", () => {
+    const editor = makeEditor([]);
+    const result = applyEditOps(editor, [
       {
         op: "update",
         blockId: "gone",
         block: { type: "paragraph", content: "x" },
       },
-      {
-        op: "insert",
-        at: "before",
-        refBlockId: "also-gone",
-        blocks: [{ id: "n1", type: "paragraph", content: "x" }],
-      },
-      { op: "delete", blockIds: ["gone-too", "a"] },
+      { op: "delete", blockIds: ["gone", "gone-too"] },
     ]);
-    expect(skipped).toBe(3);
-    expect(editor.updateBlock).not.toHaveBeenCalled();
-    expect(editor.insertBlocks).not.toHaveBeenCalled();
-    // The one live id still gets removed.
-    expect(editor.removeBlocks).toHaveBeenCalledWith(["a"]);
+    if (result.applied) throw new Error("expected drop");
+    expect(result.missingIds).toEqual(["gone", "gone-too"]);
   });
 });
