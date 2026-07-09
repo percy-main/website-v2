@@ -78,5 +78,22 @@ E2E screenshots for morning review are in `/tmp/content-ai-screenshots/`
 
 - Unit: 20 shared schema tests, 32 API tests (draft session, both tools,
   agent/prompt), 13 web tests (projection, op application) - all green.
-- `pnpm lint`, `pnpm test`, `pnpm build` green across the monorepo.
-- Local E2E against the dev stack with a real agent turn - see screenshots.
+- `pnpm lint`, `pnpm test`, `pnpm build`, react-doctor (diff scan clean)
+  across the monorepo.
+- Local E2E against the dev stack with real DeepSeek agent turns (screenshots
+  in /tmp/content-ai-screenshots/, README.txt inside): tabbed sidebar renders;
+  ?panel=assistant tracks the tab and deep-links; a three-part request
+  produced one edit_content call (heading inserted at top + paragraph
+  rewritten in place, first paragraph untouched) and one write_content append;
+  a follow-up turn deleted the block the agent had added in the PREVIOUS turn
+  (server-assigned ids stay stable across turns); the conversation survived
+  Details<->Assistant tab switches; Cmd+Z undid an agent delete.
+
+## Heads-up: I restarted your dev servers
+
+Both long-running local dev processes were stale and effectively broken:
+vite (port 5173) was serving "504 Outdated Optimize Dep" after the recent
+dependency bumps, and the tsx API watcher (port 3000) was not picking up new
+source at all (first E2E turn ran the OLD agent code - it saw an empty draft
+because the old schema strips `blocks`). I killed both and started fresh ones
+in the background; they die with my session, so run `pnpm dev` as usual.
