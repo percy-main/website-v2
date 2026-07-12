@@ -252,10 +252,7 @@ function InningsView({
   // Shot directions are optional per-ball scorer input — a match can be
   // fully ball-by-ball scored with none recorded. Decided per innings: one
   // side's scorer may have tracked shots while the other's didn't.
-  const inningsHasShotData = useMemo(
-    () => balls.some((b) => b.shotAngle !== null),
-    [balls],
-  );
+  const inningsHasShotData = balls.some((b) => b.shotAngle !== null);
 
   const filtered = useMemo(
     () =>
