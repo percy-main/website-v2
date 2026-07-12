@@ -21,12 +21,10 @@ export function useWagonWheelQuery(matchId: string, enabled = true) {
   });
 }
 
-export function hasWagonWheel(data: WagonWheelData | undefined): boolean {
-  // Require at least one ball with a recorded shot direction — otherwise
-  // the viewer would open onto an empty wheel even though the API
-  // technically returned ball-by-ball rows.
-  return (
-    !!data &&
-    data.innings.some((inn) => inn.balls.some((b) => b.shotAngle !== null))
-  );
+export function hasBallByBall(data: WagonWheelData | undefined): boolean {
+  // Any recorded balls at all. Some matches are scored ball-by-ball without
+  // shot directions — the viewer still has the worm chart, stats and
+  // commentary to show, so shot angles must not gate it (the wheel itself
+  // falls back to a "no shot data" panel per innings).
+  return !!data && data.innings.some((inn) => inn.balls.length > 0);
 }

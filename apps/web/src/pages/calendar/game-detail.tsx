@@ -5,7 +5,7 @@ import { Scorecard } from "@/components/scorecard.js";
 import { StampButton, StampLink } from "@/components/theme/bits.js";
 import { WagonWheelModal } from "@/components/wagon-wheel-modal.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
-import { hasWagonWheel, useWagonWheelQuery } from "@/hooks/use-wagon-wheel.js";
+import { hasBallByBall, useWagonWheelQuery } from "@/hooks/use-wagon-wheel.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
 import {
@@ -208,7 +208,7 @@ function BallByBallTrigger({ game }: { game: GameData }) {
   // Always run the query — needed to decide whether to show the button at
   // all. react-query caches it for the modal so opening is instant.
   const { data, isLoading } = useWagonWheelQuery(game.id);
-  const available = hasWagonWheel(data);
+  const available = hasBallByBall(data);
 
   function setOpen(next: boolean) {
     const params = new URLSearchParams(searchParams);
@@ -422,7 +422,7 @@ function GameDetailContent({ game }: { game: GameData }) {
           )
         )}
 
-        {/* Ball-by-ball viewer — button only renders if wagon-wheel data
+        {/* Ball-by-ball viewer — button only renders if ball-by-ball data
             exists; modal still mounts when ?bbb=1 is in the URL so direct
             links show a fallback. */}
         <BallByBallTrigger game={game} />

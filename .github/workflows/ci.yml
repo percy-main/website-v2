@@ -47,29 +47,34 @@ jobs:
       - run: node .github/scripts/check-unsafe-ddl.mjs "origin/${{ github.base_ref }}"
 
   react-doctor:
-    # Diff-only scan of apps/web on the PR. Any finding (warning or
-    # error) blocks merge — matches the project-wide no-warnings policy
-    # already enforced in eslint.config.mjs via `warnsToErrors()`.
+    # Diff-only scan of apps/web on the PR. Any PR-introduced finding
+    # (warning or error) blocks merge — matches the project-wide
+    # no-warnings policy already enforced in eslint.config.mjs via
+    # `warnsToErrors()`.
     # Scoped to apps/web because react-doctor's rules target React
     # client code; server-side files in apps/api would otherwise trip
     # false positives like `prefer-dynamic-import` on Node-only libs.
     runs-on: ubuntu-latest
     permissions:
+      # Sticky summary comment + inline review comments.
       pull-requests: write
+      # Commit status with the score (the action warns and skips it
+      # without this).
+      statuses: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-      # Pinned to a SHA: their @main shipped a `--pr-comment` flag on
-      # 2026-05-16 that the `react-doctor@latest` npm tag doesn't
-      # recognise yet, breaking CI. Bump deliberately once that gap
-      # closes.
-      - uses: millionco/react-doctor@1880b152e4d6aedd5c06cf2ca51783e53cfb4004
+      # Action and CLI versions travel together: the CLI's report format
+      # is decoded by the action, so an action pinned between releases
+      # breaks when `react-doctor@latest` moves (a May recovery-point pin
+      # + CLI 0.7.6's v3 report format = "exited before producing a JSON
+      # report", #634). Keep the pin on a tagged release so dependabot
+      # bumps it alongside the ecosystem.
+      - uses: millionco/react-doctor@938008119a288f2fb47c66a69cd9279a21f31784 # v2.2.7
         with:
-          diff: main
           directory: apps/web
-          fail-on: warning
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          blocking: warning
 
   image-scan:
     # Build the API container the same way deploy.yml does and run Trivy

@@ -14,7 +14,7 @@ import {
 } from "@/components/wagon-wheel-shared.js";
 import { CumulativeChart } from "@/components/worm-chart.js";
 import {
-  hasWagonWheel,
+  hasBallByBall,
   useWagonWheelQuery,
   type WagonWheelData,
 } from "@/hooks/use-wagon-wheel.js";
@@ -42,8 +42,8 @@ export function WagonWheelModal({
           <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {isLoading && <LoadingState />}
             {isError && <ErrorState />}
-            {!isLoading && !isError && !hasWagonWheel(data) && <EmptyState />}
-            {!isLoading && !isError && hasWagonWheel(data) && data && (
+            {!isLoading && !isError && !hasBallByBall(data) && <EmptyState />}
+            {!isLoading && !isError && hasBallByBall(data) && data && (
               <WagonWheelViewer
                 data={data}
                 inningsTeamNames={inningsTeamNames}
@@ -83,8 +83,8 @@ export function WagonWheel({
     <div className={CRICKET_BLOCK_PANEL_CLASSES}>
       {isLoading && <LoadingState />}
       {isError && <ErrorState />}
-      {!isLoading && !isError && !hasWagonWheel(data) && <EmptyState />}
-      {!isLoading && !isError && hasWagonWheel(data) && data && (
+      {!isLoading && !isError && !hasBallByBall(data) && <EmptyState />}
+      {!isLoading && !isError && hasBallByBall(data) && data && (
         <WagonWheelViewer
           key={configKey}
           data={data}
@@ -130,12 +130,11 @@ function EmptyState() {
         <line x1="32" y1="32" x2="32" y2="6" />
       </svg>
       <p className="text-base font-medium text-stone-200">
-        No wagon wheel data
+        No ball-by-ball data
       </p>
       <p className="max-w-sm text-sm text-stone-400">
-        Ball-by-ball shot tracking isn&apos;t available for this match. It needs
-        a live-scored Play Cricket fixture where the scorer logged shot
-        directions.
+        Ball-by-ball tracking isn&apos;t available for this match. It needs a
+        live-scored Play Cricket fixture.
       </p>
     </div>
   );
@@ -250,6 +249,11 @@ function InningsView({
   const batters = useMemo(() => playerOptions(balls, "bat"), [balls]);
   const bowlers = useMemo(() => playerOptions(balls, "bowl"), [balls]);
 
+  // Shot directions are optional per-ball scorer input — a match can be
+  // fully ball-by-ball scored with none recorded. Decided per innings: one
+  // side's scorer may have tracked shots while the other's didn't.
+  const inningsHasShotData = balls.some((b) => b.shotAngle !== null);
+
   const filtered = useMemo(
     () =>
       balls.filter(
@@ -288,14 +292,27 @@ function InningsView({
         onBatter={setSelectedBatter}
         onBowler={setSelectedBowler}
       />
-      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(280px,_320px)]">
-        <Wheel
-          activeBalls={filtered}
-          allBalls={balls}
-          hoveredKey={hoveredKey}
-          onHover={setHoveredKey}
-        />
+      {inningsHasShotData ? (
+        <div className="grid gap-4 lg:grid-cols-[1fr_minmax(280px,_320px)]">
+          <Wheel
+            activeBalls={filtered}
+            allBalls={balls}
+            hoveredKey={hoveredKey}
+            onHover={setHoveredKey}
+          />
+          <div className="flex flex-col gap-3">
+            <StatsGrid stats={stats} />
+            <Legend />
+            <BallList
+              balls={filtered}
+              selectedOver={selectedOver}
+              onHover={setHoveredKey}
+            />
+          </div>
+        </div>
+      ) : (
         <div className="flex flex-col gap-3">
+          <NoShotDataNote />
           <StatsGrid stats={stats} />
           <Legend />
           <BallList
@@ -304,8 +321,39 @@ function InningsView({
             onHover={setHoveredKey}
           />
         </div>
-      </div>
+      )}
     </>
+  );
+}
+
+/**
+ * Shown in place of the wheel when an innings was scored ball-by-ball but
+ * the scorer never logged shot directions — the worm chart, stats and
+ * commentary above/below are still fully populated.
+ */
+function NoShotDataNote() {
+  return (
+    <div className="flex items-center gap-3 rounded-md border border-stone-800 bg-stone-900 p-3">
+      <svg
+        viewBox="0 0 64 64"
+        className="size-8 shrink-0 text-stone-700"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        aria-hidden="true"
+      >
+        <circle cx="32" cy="32" r="28" />
+        <circle cx="32" cy="32" r="14" strokeDasharray="2 3" />
+        <line x1="32" y1="32" x2="32" y2="6" />
+      </svg>
+      <div>
+        <p className="text-sm font-medium text-stone-200">No shot data</p>
+        <p className="text-xs text-stone-400">
+          The scorer didn&apos;t record shot directions for this innings, so
+          there&apos;s no wagon wheel to draw.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -570,7 +618,7 @@ function OverFilter({
       {open && (
         <div className="px-3 pb-3">
           <p className="mb-2 text-xs text-stone-500">
-            Tap an over to filter the wheel.
+            Tap an over to filter the balls shown.
           </p>
           {/* Wrap into a responsive grid rather than a single horizontally
               scrolling row. A long innings (40+ overs) overflowed an invisible
