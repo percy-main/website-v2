@@ -1,6 +1,7 @@
 import { createClient } from "@percy-main/db";
 import { buildApp } from "./app.ts";
 import { parseConfig } from "./config.ts";
+import { isAbortError } from "./lib/abort-errors.ts";
 
 const config = parseConfig(process.env);
 const { client: db, dialect } = createClient(config.DATABASE_URL);
@@ -15,7 +16,17 @@ const app = await buildApp({ db, dialect, config });
 // Both handlers exit(1) because attaching a listener disables Node's
 // default crash behaviour — without exiting we'd silently keep running
 // in a corrupted state instead of letting ECS restart us cleanly.
+//
+// Exception: AbortError rejections. better-auth's dash plugin leaks
+// them as floating promises when an in-flight operation is cancelled
+// (client disconnect / upstream abort). They are request-scoped, so
+// exiting would hand any browser tab-close a ~40s prod outage while
+// ECS replaces the single task.
 process.on("unhandledRejection", (reason: unknown) => {
+  if (isAbortError(reason)) {
+    app.log.error({ err: reason }, "unhandled_rejection_aborted_operation");
+    return;
+  }
   app.log.fatal({ err: reason }, "unhandled_rejection");
   process.exit(1);
 });
