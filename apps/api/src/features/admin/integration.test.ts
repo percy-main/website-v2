@@ -2016,14 +2016,14 @@ describe("admin service (integration)", () => {
           .execute();
       }
 
-      await expect(
-        mergeMembers(ctx.db)({
-          keepMemberId: keepId,
-          removeMemberId: removeId,
-        }),
-      ).rejects.toThrow(
+      const mergeAttempt = mergeMembers(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+      await expect(mergeAttempt).rejects.toThrow(
         "Both members have an active financial relief grant. Close one of them before merging.",
       );
+      await expect(mergeAttempt).rejects.toMatchObject({ statusCode: 409 });
 
       // Transaction rolled back - the removed member still exists
       const removed = await ctx.db

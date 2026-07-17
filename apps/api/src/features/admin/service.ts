@@ -1893,19 +1893,19 @@ export function mergeMembers(db: Kysely<DB>) {
     }
 
     await db.transaction().execute(async (trx) => {
-      // Fetch inside transaction to avoid TOCTOU race
-      const [keepMember, removeMember] = await Promise.all([
-        trx
-          .selectFrom("member")
-          .where("id", "=", keepMemberId)
-          .selectAll()
-          .executeTakeFirst(),
-        trx
-          .selectFrom("member")
-          .where("id", "=", removeMemberId)
-          .selectAll()
-          .executeTakeFirst(),
-      ]);
+      // Lock both rows for the duration of the merge: inserts into
+      // referencing tables take a key-share lock on the member row, so this
+      // blocks concurrent inserts that the re-points below would miss (they
+      // would otherwise be cascade-deleted or hit an FK error).
+      const lockedMembers = await trx
+        .selectFrom("member")
+        .where("id", "in", [keepMemberId, removeMemberId])
+        .selectAll()
+        .forUpdate()
+        .execute();
+
+      const keepMember = lockedMembers.find((m) => m.id === keepMemberId);
+      const removeMember = lockedMembers.find((m) => m.id === removeMemberId);
 
       if (!keepMember || !removeMember) {
         const error = new Error(
