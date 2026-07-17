@@ -1915,6 +1915,61 @@ export function mergeMembers(db: Kysely<DB>) {
         throw error;
       }
 
+      // A member can hold at most one active relief grant / open relief
+      // request (partial unique indexes). Merging two needs a human decision.
+      const openRequestStatuses = [
+        "submitted",
+        "in_review",
+        "more_info_needed",
+      ];
+      const [
+        keepActiveGrant,
+        removeActiveGrant,
+        keepOpenRequest,
+        removeOpenRequest,
+      ] = await Promise.all([
+        trx
+          .selectFrom("financial_relief_grant")
+          .where("member_id", "=", keepMemberId)
+          .where("closed_at", "is", null)
+          .select("id")
+          .executeTakeFirst(),
+        trx
+          .selectFrom("financial_relief_grant")
+          .where("member_id", "=", removeMemberId)
+          .where("closed_at", "is", null)
+          .select("id")
+          .executeTakeFirst(),
+        trx
+          .selectFrom("financial_relief_request")
+          .where("member_id", "=", keepMemberId)
+          .where("status", "in", openRequestStatuses)
+          .select("id")
+          .executeTakeFirst(),
+        trx
+          .selectFrom("financial_relief_request")
+          .where("member_id", "=", removeMemberId)
+          .where("status", "in", openRequestStatuses)
+          .select("id")
+          .executeTakeFirst(),
+      ]);
+
+      if (keepActiveGrant && removeActiveGrant) {
+        const error = new Error(
+          "Both members have an active financial relief grant. Close one of them before merging.",
+        ) as Error & { statusCode: number };
+        error.statusCode = 409;
+        throw error;
+      }
+
+      if (keepOpenRequest && removeOpenRequest) {
+        const error = new Error(
+          "Both members have an open financial relief request. Resolve one of them before merging.",
+        ) as Error & { statusCode: number };
+        error.statusCode = 409;
+        throw error;
+      }
+
       // Re-point all foreign keys from removeMember to keepMember
       await trx
         .updateTable("membership")
@@ -1940,17 +1995,181 @@ export function mergeMembers(db: Kysely<DB>) {
         .where("member_id", "=", removeMemberId)
         .execute();
 
-      // Preserve stripe_customer_id if keepMember doesn't have one
-      if (!keepMember.stripe_customer_id && removeMember.stripe_customer_id) {
+      await trx
+        .updateTable("lead")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      await trx
+        .updateTable("financial_relief_grant")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      await trx
+        .updateTable("financial_relief_request")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      // availability_response is unique on (availability_request_id,
+      // member_id, match_date) - where both members answered, keep the kept
+      // member's response and drop the duplicate before re-pointing.
+      await trx
+        .deleteFrom("availability_response")
+        .where("member_id", "=", removeMemberId)
+        .where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom("availability_response as keep_response")
+              .select("keep_response.id")
+              .where("keep_response.member_id", "=", keepMemberId)
+              .whereRef(
+                "keep_response.availability_request_id",
+                "=",
+                "availability_response.availability_request_id",
+              )
+              .whereRef(
+                "keep_response.match_date",
+                "=",
+                "availability_response.match_date",
+              ),
+          ),
+        )
+        .execute();
+
+      await trx
+        .updateTable("availability_response")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      // availability_assignment is unique on (availability_fixture_id,
+      // member_id) - same dedupe-then-re-point.
+      await trx
+        .deleteFrom("availability_assignment")
+        .where("member_id", "=", removeMemberId)
+        .where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom("availability_assignment as keep_assignment")
+              .select("keep_assignment.id")
+              .where("keep_assignment.member_id", "=", keepMemberId)
+              .whereRef(
+                "keep_assignment.availability_fixture_id",
+                "=",
+                "availability_assignment.availability_fixture_id",
+              ),
+          ),
+        )
+        .execute();
+
+      await trx
+        .updateTable("availability_assignment")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      // user_group_member has PK (group_id, member_id) and would otherwise be
+      // silently dropped by ON DELETE CASCADE.
+      await trx
+        .deleteFrom("user_group_member")
+        .where("member_id", "=", removeMemberId)
+        .where("group_id", "in", (qb) =>
+          qb
+            .selectFrom("user_group_member")
+            .select("group_id")
+            .where("member_id", "=", keepMemberId),
+        )
+        .execute();
+
+      await trx
+        .updateTable("user_group_member")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      // member_parent_link cascades on both columns. Links between the two
+      // merged records would become self-links - drop them first.
+      await trx
+        .deleteFrom("member_parent_link")
+        .where("member_id", "in", [keepMemberId, removeMemberId])
+        .where("parent_member_id", "in", [keepMemberId, removeMemberId])
+        .execute();
+
+      await trx
+        .deleteFrom("member_parent_link")
+        .where("member_id", "=", removeMemberId)
+        .where("parent_member_id", "in", (qb) =>
+          qb
+            .selectFrom("member_parent_link")
+            .select("parent_member_id")
+            .where("member_id", "=", keepMemberId),
+        )
+        .execute();
+
+      await trx
+        .updateTable("member_parent_link")
+        .set({ member_id: keepMemberId })
+        .where("member_id", "=", removeMemberId)
+        .execute();
+
+      await trx
+        .deleteFrom("member_parent_link")
+        .where("parent_member_id", "=", removeMemberId)
+        .where("member_id", "in", (qb) =>
+          qb
+            .selectFrom("member_parent_link")
+            .select("member_id")
+            .where("parent_member_id", "=", keepMemberId),
+        )
+        .execute();
+
+      await trx
+        .updateTable("member_parent_link")
+        .set({ parent_member_id: keepMemberId })
+        .where("parent_member_id", "=", removeMemberId)
+        .execute();
+
+      // Delete the duplicate, then backfill profile fields the kept record is
+      // missing. Delete-first matters: play_cricket_id, slug and email are
+      // unique, so the removed row must be gone before its values are copied.
+      await trx.deleteFrom("member").where("id", "=", removeMemberId).execute();
+
+      const backfillColumns = [
+        "name",
+        "title",
+        "email",
+        "address",
+        "postcode",
+        "dob",
+        "telephone",
+        "emergency_contact_name",
+        "emergency_contact_telephone",
+        "member_category",
+        "play_cricket_id",
+        "slug",
+        "stripe_customer_id",
+      ] as const;
+
+      const backfill: Partial<
+        Record<(typeof backfillColumns)[number], string>
+      > = {};
+      for (const column of backfillColumns) {
+        const removeValue = removeMember[column];
+        if (keepMember[column] === null && removeValue !== null) {
+          backfill[column] = removeValue;
+        }
+      }
+
+      if (Object.keys(backfill).length > 0) {
         await trx
           .updateTable("member")
-          .set({ stripe_customer_id: removeMember.stripe_customer_id })
+          .set(backfill)
           .where("id", "=", keepMemberId)
           .execute();
       }
-
-      // Delete the duplicate member record
-      await trx.deleteFrom("member").where("id", "=", removeMemberId).execute();
     });
 
     return { success: true };
