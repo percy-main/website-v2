@@ -1,6 +1,6 @@
 import type { DB } from "@percy-main/db";
 import type { Email } from "@percy-main/email";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   seedTestUser,
@@ -1657,6 +1657,444 @@ describe("admin service (integration)", () => {
           removeMemberId: "nonexistent-b",
         }),
       ).rejects.toThrow("One or both member records not found");
+    });
+
+    it("moves availability, group, parent link, lead and financial relief records", async () => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      const keepId = `merge-fk-keep-${suffix}`;
+      const removeId = `merge-fk-rm-${suffix}`;
+      const childId = `merge-fk-child-${suffix}`;
+
+      for (const [id, name] of [
+        [keepId, "Keep"],
+        [removeId, "Remove"],
+        [childId, "Child"],
+      ]) {
+        await ctx.db
+          .insertInto("member")
+          .values({ id, email: `${id}@test.com`, name })
+          .execute();
+      }
+      const { userId } = await seedTestUser(ctx.db, { withMember: false });
+
+      const requestId = `avreq-${suffix}`;
+      await ctx.db
+        .insertInto("availability_request")
+        .values({
+          id: requestId,
+          created_by: userId,
+          date_from: "2026-05-01",
+          date_to: "2026-05-31",
+        })
+        .execute();
+      const responseId = `avresp-${suffix}`;
+      await ctx.db
+        .insertInto("availability_response")
+        .values({
+          id: responseId,
+          availability_request_id: requestId,
+          member_id: removeId,
+          match_date: "2026-05-09",
+          status: "available",
+        })
+        .execute();
+
+      const teamId = `team-${suffix}`;
+      await ctx.db
+        .insertInto("play_cricket_team")
+        .values({ id: teamId, name: "1st XI", site_id: `site-${suffix}` })
+        .execute();
+      const fixtureId = `avfix-${suffix}`;
+      await ctx.db
+        .insertInto("availability_fixture")
+        .values({
+          id: fixtureId,
+          availability_request_id: requestId,
+          is_home: true,
+          match_date: "2026-05-09",
+          opposition: "Opposition CC",
+          play_cricket_match_id: `pcm-${suffix}`,
+          play_cricket_team_id: teamId,
+        })
+        .execute();
+      const assignmentId = `avasg-${suffix}`;
+      await ctx.db
+        .insertInto("availability_assignment")
+        .values({
+          id: assignmentId,
+          availability_fixture_id: fixtureId,
+          member_id: removeId,
+          player_name: "Remove",
+          position: 1,
+        })
+        .execute();
+
+      const groupId = `grp-${suffix}`;
+      await ctx.db
+        .insertInto("user_group")
+        .values({ id: groupId, name: `Group ${suffix}` })
+        .execute();
+      await ctx.db
+        .insertInto("user_group_member")
+        .values({ group_id: groupId, member_id: removeId })
+        .execute();
+
+      await ctx.db
+        .insertInto("member_parent_link")
+        .values({ member_id: childId, parent_member_id: removeId })
+        .execute();
+
+      const leadId = `lead-${suffix}`;
+      await ctx.db
+        .insertInto("lead")
+        .values({
+          id: leadId,
+          email: `lead-${suffix}@test.com`,
+          source: "web",
+          member_id: removeId,
+        })
+        .execute();
+
+      const reliefRequestId = `frr-${suffix}`;
+      await ctx.db
+        .insertInto("financial_relief_request")
+        .values({
+          id: reliefRequestId,
+          member_id: removeId,
+          submitted_by_user_id: userId,
+          contact_preference: "none",
+          declaration_confirmed_at: new Date(),
+          privacy_acknowledged_at: new Date(),
+          requested_match_fees: true,
+          requested_membership_full: false,
+          requested_membership_partial: false,
+          status: "approved",
+        })
+        .execute();
+      const grantId = `frg-${suffix}`;
+      await ctx.db
+        .insertInto("financial_relief_grant")
+        .values({
+          id: grantId,
+          member_id: removeId,
+          request_id: reliefRequestId,
+          decided_by: userId,
+          decision: "approved_full",
+          covers_match_fees: true,
+          covers_membership: false,
+          effective_from: new Date(),
+        })
+        .execute();
+
+      const result = await mergeMembers(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+      expect(result).toEqual({ success: true });
+
+      const repointed = {
+        availability_response: await ctx.db
+          .selectFrom("availability_response")
+          .where("id", "=", responseId)
+          .select("member_id")
+          .executeTakeFirst(),
+        availability_assignment: await ctx.db
+          .selectFrom("availability_assignment")
+          .where("id", "=", assignmentId)
+          .select("member_id")
+          .executeTakeFirst(),
+        lead: await ctx.db
+          .selectFrom("lead")
+          .where("id", "=", leadId)
+          .select("member_id")
+          .executeTakeFirst(),
+        financial_relief_request: await ctx.db
+          .selectFrom("financial_relief_request")
+          .where("id", "=", reliefRequestId)
+          .select("member_id")
+          .executeTakeFirst(),
+        financial_relief_grant: await ctx.db
+          .selectFrom("financial_relief_grant")
+          .where("id", "=", grantId)
+          .select("member_id")
+          .executeTakeFirst(),
+      };
+      for (const [table, row] of Object.entries(repointed)) {
+        expect(row?.member_id, table).toBe(keepId);
+      }
+
+      const groupRow = await ctx.db
+        .selectFrom("user_group_member")
+        .where("group_id", "=", groupId)
+        .selectAll()
+        .execute();
+      expect(groupRow).toHaveLength(1);
+      expect(groupRow[0]?.member_id).toBe(keepId);
+
+      const parentLink = await ctx.db
+        .selectFrom("member_parent_link")
+        .where("member_id", "=", childId)
+        .selectAll()
+        .execute();
+      expect(parentLink).toHaveLength(1);
+      expect(parentLink[0]?.parent_member_id).toBe(keepId);
+
+      const removed = await ctx.db
+        .selectFrom("member")
+        .where("id", "=", removeId)
+        .selectAll()
+        .executeTakeFirst();
+      expect(removed).toBeUndefined();
+    });
+
+    it("keeps the kept member's availability response when both answered the same match", async () => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      const keepId = `merge-avdupe-keep-${suffix}`;
+      const removeId = `merge-avdupe-rm-${suffix}`;
+
+      for (const [id, name] of [
+        [keepId, "Keep"],
+        [removeId, "Remove"],
+      ]) {
+        await ctx.db
+          .insertInto("member")
+          .values({ id, email: `${id}@test.com`, name })
+          .execute();
+      }
+      const { userId } = await seedTestUser(ctx.db, { withMember: false });
+
+      const requestId = `avreq-dupe-${suffix}`;
+      await ctx.db
+        .insertInto("availability_request")
+        .values({
+          id: requestId,
+          created_by: userId,
+          date_from: "2026-06-01",
+          date_to: "2026-06-30",
+        })
+        .execute();
+      await ctx.db
+        .insertInto("availability_response")
+        .values([
+          {
+            id: `avresp-keep-${suffix}`,
+            availability_request_id: requestId,
+            member_id: keepId,
+            match_date: "2026-06-06",
+            status: "available",
+          },
+          {
+            id: `avresp-rm-${suffix}`,
+            availability_request_id: requestId,
+            member_id: removeId,
+            match_date: "2026-06-06",
+            status: "unavailable",
+          },
+        ])
+        .execute();
+
+      await mergeMembers(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+
+      const responses = await ctx.db
+        .selectFrom("availability_response")
+        .where("availability_request_id", "=", requestId)
+        .select(["member_id", "status"])
+        .execute();
+      expect(responses).toHaveLength(1);
+      expect(responses[0]).toEqual({ member_id: keepId, status: "available" });
+    });
+
+    it("dedupes group memberships and drops links between the merged records", async () => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      const keepId = `merge-link-keep-${suffix}`;
+      const removeId = `merge-link-rm-${suffix}`;
+
+      for (const [id, name] of [
+        [keepId, "Keep"],
+        [removeId, "Remove"],
+      ]) {
+        await ctx.db
+          .insertInto("member")
+          .values({ id, email: `${id}@test.com`, name })
+          .execute();
+      }
+
+      const groupId = `grp-dupe-${suffix}`;
+      await ctx.db
+        .insertInto("user_group")
+        .values({ id: groupId, name: `Group ${suffix}` })
+        .execute();
+      await ctx.db
+        .insertInto("user_group_member")
+        .values([
+          { group_id: groupId, member_id: keepId },
+          { group_id: groupId, member_id: removeId },
+        ])
+        .execute();
+
+      // The removed record is linked as the kept member's parent - this link
+      // would become a self-link and must be dropped, not re-pointed.
+      await ctx.db
+        .insertInto("member_parent_link")
+        .values({ member_id: keepId, parent_member_id: removeId })
+        .execute();
+
+      await mergeMembers(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+
+      const groupRows = await ctx.db
+        .selectFrom("user_group_member")
+        .where("group_id", "=", groupId)
+        .selectAll()
+        .execute();
+      expect(groupRows).toHaveLength(1);
+      expect(groupRows[0]?.member_id).toBe(keepId);
+
+      const links = await ctx.db
+        .selectFrom("member_parent_link")
+        .where((eb) =>
+          eb.or([
+            eb("member_id", "=", keepId),
+            eb("parent_member_id", "=", keepId),
+          ]),
+        )
+        .selectAll()
+        .execute();
+      expect(links).toHaveLength(0);
+    });
+
+    it("throws 409 when both members have an active financial relief grant", async () => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      const keepId = `merge-grant-keep-${suffix}`;
+      const removeId = `merge-grant-rm-${suffix}`;
+
+      for (const [id, name] of [
+        [keepId, "Keep"],
+        [removeId, "Remove"],
+      ]) {
+        await ctx.db
+          .insertInto("member")
+          .values({ id, email: `${id}@test.com`, name })
+          .execute();
+      }
+      const { userId } = await seedTestUser(ctx.db, { withMember: false });
+
+      for (const memberId of [keepId, removeId]) {
+        const requestId = `frr-${memberId}`;
+        await ctx.db
+          .insertInto("financial_relief_request")
+          .values({
+            id: requestId,
+            member_id: memberId,
+            submitted_by_user_id: userId,
+            contact_preference: "none",
+            declaration_confirmed_at: new Date(),
+            privacy_acknowledged_at: new Date(),
+            requested_match_fees: true,
+            requested_membership_full: false,
+            requested_membership_partial: false,
+            status: "approved",
+          })
+          .execute();
+        await ctx.db
+          .insertInto("financial_relief_grant")
+          .values({
+            id: `frg-${memberId}`,
+            member_id: memberId,
+            request_id: requestId,
+            decided_by: userId,
+            decision: "approved_full",
+            covers_match_fees: true,
+            covers_membership: false,
+            effective_from: new Date(),
+          })
+          .execute();
+      }
+
+      const mergeAttempt = mergeMembers(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+      await expect(mergeAttempt).rejects.toThrow(
+        "Both members have an active financial relief grant. Close one of them before merging.",
+      );
+      await expect(mergeAttempt).rejects.toMatchObject({ statusCode: 409 });
+
+      // Transaction rolled back - the removed member still exists
+      const removed = await ctx.db
+        .selectFrom("member")
+        .where("id", "=", removeId)
+        .select("id")
+        .executeTakeFirst();
+      expect(removed).toBeDefined();
+    });
+
+    it("backfills missing profile fields without overwriting kept values", async () => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      const keepId = `merge-fill-keep-${suffix}`;
+      const removeId = `merge-fill-rm-${suffix}`;
+
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: keepId,
+          email: `${keepId}@test.com`,
+          name: "Keep Name",
+        })
+        .execute();
+      await ctx.db
+        .insertInto("member")
+        .values({
+          id: removeId,
+          email: `${removeId}@test.com`,
+          name: "Remove Name",
+          title: "Mr",
+          address: "3 The Spinney",
+          postcode: "NE29 1AA",
+          dob: "2007-05-23",
+          telephone: "07700900000",
+          member_category: "senior",
+          play_cricket_id: `pc-${suffix}`,
+        })
+        .execute();
+
+      await mergeMembers(ctx.db)({
+        keepMemberId: keepId,
+        removeMemberId: removeId,
+      });
+
+      const kept = await ctx.db
+        .selectFrom("member")
+        .where("id", "=", keepId)
+        .select([
+          "name",
+          "email",
+          "title",
+          "address",
+          "postcode",
+          sql<string>`dob::text`.as("dob"),
+          "telephone",
+          "member_category",
+          "play_cricket_id",
+        ])
+        .executeTakeFirst();
+
+      expect(kept).toEqual({
+        name: "Keep Name",
+        email: `${keepId}@test.com`,
+        title: "Mr",
+        address: "3 The Spinney",
+        postcode: "NE29 1AA",
+        dob: "2007-05-23",
+        telephone: "07700900000",
+        member_category: "senior",
+        play_cricket_id: `pc-${suffix}`,
+      });
     });
   });
 });

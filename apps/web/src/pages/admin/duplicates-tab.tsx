@@ -298,12 +298,34 @@ function MergePreviewModal({
                     the kept record
                   </li>
                 )}
+                <li>
+                  Any availability responses, squad selections, parent links and
+                  group memberships will be moved to the kept record
+                </li>
                 {!preview.keep.member.stripe_customer_id &&
                   preview.remove.member.stripe_customer_id && (
                     <li>
                       Stripe customer ID will be copied from the removed record
                     </li>
                   )}
+                {(
+                  [
+                    "name",
+                    "title",
+                    "address",
+                    "postcode",
+                    "dob",
+                    "telephone",
+                  ] as const
+                ).some(
+                  (field) =>
+                    !preview.keep.member[field] && preview.remove.member[field],
+                ) && (
+                  <li>
+                    Profile details missing from the kept record (e.g. address,
+                    date of birth, phone) will be copied from the removed record
+                  </li>
+                )}
                 <li>The duplicate member record will be deleted</li>
               </ul>
             </div>
