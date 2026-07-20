@@ -21,7 +21,7 @@
   "dependencies": {
     "@percy-main/shared": "workspace:*",
     "date-fns": "^4.4.0",
-    "kysely": "^0.29.3",
+    "kysely": "^0.29.4",
     "pg": "^8.22.0",
     "zod": "^4.4.3"
   },
