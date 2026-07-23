@@ -91,6 +91,15 @@ export default tseslint.config(
       ],
     },
   },
+  // Vitest asserts on mock method references (`expect(mock.write)`), which
+  // never rebind `this` — typescript-eslint 8.65 tightened unbound-method
+  // to flag them. Off for tests only; production code keeps the rule.
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "@typescript-eslint/unbound-method": "off",
+    },
+  },
   // react-doctor full ruleset is scoped to apps/web — it's a maturity
   // ratchet aimed at the long-established main site. apps/matchday is
   // fresh code under heavy iteration; rather than fight every stylistic
