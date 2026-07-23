@@ -106,7 +106,6 @@ export function TreasurerExpensesSection({
     });
   };
 
-  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- onSuccess calls invalidateExpenses() helper which invalidates both expense query keys; the lint rule doesn't follow indirected calls
   const approveMutation = useMutation({
     mutationFn: (expenseId: string) =>
       callApi(
@@ -120,7 +119,6 @@ export function TreasurerExpensesSection({
     },
   });
 
-  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- onSuccess calls invalidateExpenses() helper which invalidates both expense query keys; the lint rule doesn't follow indirected calls
   const rejectMutation = useMutation({
     mutationFn: ({
       expenseId,
@@ -143,7 +141,6 @@ export function TreasurerExpensesSection({
     },
   });
 
-  // eslint-disable-next-line react-doctor/query-mutation-missing-invalidation -- onSuccess calls invalidateExpenses() helper which invalidates both expense query keys; the lint rule doesn't follow indirected calls
   const reimburseMutation = useMutation({
     mutationFn: (expenseId: string) =>
       callApi(

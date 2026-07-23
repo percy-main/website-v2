@@ -16,6 +16,8 @@ import {
   initialUploadFormState,
   parseTags,
   uploadFormReducer,
+  type UploadFormAction,
+  type UploadFormState,
 } from "./knowledge-admin.reducer";
 
 /**
@@ -197,6 +199,73 @@ interface UploadFormProps {
   onUploaded: () => void;
 }
 
+/**
+ * The 3-step upload flow, at module scope: the React Compiler can't
+ * lower try/catch-with-finally (or throw / value blocks inside a try),
+ * so keeping this inside UploadForm made the whole component bail out
+ * of compilation. Module-level functions aren't compile candidates.
+ */
+async function uploadDocument(
+  form: UploadFormState & { file: File },
+  dispatch: (action: UploadFormAction) => void,
+  onUploaded: () => void,
+): Promise<void> {
+  const { file, title, description, tagsRaw } = form;
+  dispatch({ type: "setError", value: null });
+  dispatch({ type: "setBusy", value: true });
+  try {
+    const contentType = file.type as (typeof ACCEPTED_TYPES)[number];
+    if (!ACCEPTED_TYPES.includes(contentType)) {
+      throw new Error(`Unsupported content type: ${file.type}`);
+    }
+    const tags = parseTags(tagsRaw);
+
+    // 3-step sequence — each await depends on the previous result
+    // (mint.uploadUrl → S3 PUT → commit by mint.id), so the
+    // async-parallel lint rule's auto-detection is a false positive.
+    const mint = await callApi(
+      api.POST("/api/scout/knowledge/documents", {
+        body: {
+          filename: file.name,
+          contentType,
+          sizeBytes: file.size,
+          title: title.trim() || undefined,
+          description: description.trim() || undefined,
+          tags,
+        },
+      }),
+    );
+
+    // Presigned PUT — bypasses the typed client; noticedFetch
+    // surfaces failures (CORS, status, network) in NR Browser.
+    await noticedFetch(
+      mint.uploadUrl,
+      {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": contentType },
+      },
+      { kind: "scout_kb_s3_put" },
+    );
+
+    await callApi(
+      api.POST("/api/scout/knowledge/documents/{id}/commit", {
+        params: { path: { id: mint.id } },
+      }),
+    );
+
+    dispatch({ type: "reset" });
+    onUploaded();
+  } catch (err) {
+    dispatch({
+      type: "setError",
+      value: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    dispatch({ type: "setBusy", value: false });
+  }
+}
+
 function UploadForm({ onUploaded }: UploadFormProps) {
   // Tags syntax: "key:value, key:value2" — array values via repeat.
   // Empty tags raw is fine; service stores {} regardless.
@@ -208,60 +277,7 @@ function UploadForm({ onUploaded }: UploadFormProps) {
 
   const submit = async () => {
     if (!file) return;
-    dispatch({ type: "setError", value: null });
-    dispatch({ type: "setBusy", value: true });
-    try {
-      const contentType = file.type as (typeof ACCEPTED_TYPES)[number];
-      if (!ACCEPTED_TYPES.includes(contentType)) {
-        throw new Error(`Unsupported content type: ${file.type}`);
-      }
-      const tags = parseTags(tagsRaw);
-
-      // 3-step sequence — each await depends on the previous result
-      // (mint.uploadUrl → S3 PUT → commit by mint.id), so the
-      // async-parallel lint rule's auto-detection is a false positive.
-      // eslint-disable-next-line react-doctor/async-parallel
-      const mint = await callApi(
-        api.POST("/api/scout/knowledge/documents", {
-          body: {
-            filename: file.name,
-            contentType,
-            sizeBytes: file.size,
-            title: title.trim() || undefined,
-            description: description.trim() || undefined,
-            tags,
-          },
-        }),
-      );
-
-      // Presigned PUT — bypasses the typed client; noticedFetch
-      // surfaces failures (CORS, status, network) in NR Browser.
-      await noticedFetch(
-        mint.uploadUrl,
-        {
-          method: "PUT",
-          body: file,
-          headers: { "Content-Type": contentType },
-        },
-        { kind: "scout_kb_s3_put" },
-      );
-
-      await callApi(
-        api.POST("/api/scout/knowledge/documents/{id}/commit", {
-          params: { path: { id: mint.id } },
-        }),
-      );
-
-      dispatch({ type: "reset" });
-      onUploaded();
-    } catch (err) {
-      dispatch({
-        type: "setError",
-        value: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      dispatch({ type: "setBusy", value: false });
-    }
+    await uploadDocument({ ...form, file }, dispatch, onUploaded);
   };
 
   return (

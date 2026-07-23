@@ -1,6 +1,6 @@
 import { api, callApi } from "@/lib/api-client";
 import { noticedFetch } from "@/lib/newrelic";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const ACCEPTED_TYPES = [
   "image/png",
@@ -54,10 +54,22 @@ export function useAttachmentUpload({
   maxPerTurn,
 }: UseAttachmentUploadArgs) {
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  // Authoritative copy for imperative logic. State updaters must stay pure
+  // (React may re-run them) and the hook-scope `attachments` closure goes
+  // stale inside multi-file upload loops, so cap checks and cleanup read
+  // this ref and every mutation flows through `commit`.
+  const attachmentsRef = useRef<PendingAttachment[]>([]);
+
+  const commit = (next: PendingAttachment[]) => {
+    attachmentsRef.current = next;
+    setAttachments(next);
+  };
 
   const update = (localId: string, patch: Partial<PendingAttachment>) => {
-    setAttachments((prev) =>
-      prev.map((a) => (a.localId === localId ? { ...a, ...patch } : a)),
+    commit(
+      attachmentsRef.current.map((a) =>
+        a.localId === localId ? { ...a, ...patch } : a,
+      ),
     );
   };
 
@@ -87,18 +99,11 @@ export function useAttachmentUpload({
 
     // Reject before mint if the cap would be exceeded so we don't burn an
     // S3 PUT only to silently drop the chip.
-    let exceeded = false;
-    setAttachments((prev) => {
-      if (prev.length >= maxPerTurn) {
-        exceeded = true;
-        return prev;
-      }
-      return [...prev, pending];
-    });
-    if (exceeded) {
+    if (attachmentsRef.current.length >= maxPerTurn) {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       return;
     }
+    commit([...attachmentsRef.current, pending]);
 
     try {
       const mint = await callApi(
@@ -148,9 +153,9 @@ export function useAttachmentUpload({
   };
 
   const remove = (localId: string) => {
-    const target = attachments.find((a) => a.localId === localId);
+    const target = attachmentsRef.current.find((a) => a.localId === localId);
     if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
-    setAttachments((prev) => prev.filter((a) => a.localId !== localId));
+    commit(attachmentsRef.current.filter((a) => a.localId !== localId));
     // Best-effort: ask the server to drop the row + S3 bytes if mint
     // already returned. Not awaited — the chip is gone locally either way.
     if (target?.id) {
@@ -163,10 +168,10 @@ export function useAttachmentUpload({
   };
 
   const clear = () => {
-    for (const a of attachments) {
+    for (const a of attachmentsRef.current) {
       if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
     }
-    setAttachments([]);
+    commit([]);
   };
 
   const readyIds = attachments.flatMap((a) =>

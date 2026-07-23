@@ -42,7 +42,6 @@ export function fuzzyScore(query: string, target: string): number {
 
   for (const qt of queryTokens) {
     for (const tt of targetTokens) {
-      // eslint-disable-next-line react-doctor/js-set-map-lookups -- String.prototype.includes does substring search for fuzzy name matching; can't be replaced by Set.has
       if (tt.includes(qt) || qt.includes(tt)) {
         matchedTokens++;
         break;
@@ -53,7 +52,6 @@ export function fuzzyScore(query: string, target: string): number {
   let reverseMatchedTokens = 0;
   for (const tt of targetTokens) {
     for (const qt of queryTokens) {
-      // eslint-disable-next-line react-doctor/js-set-map-lookups -- String.prototype.includes does substring search for fuzzy name matching; can't be replaced by Set.has
       if (qt.includes(tt) || tt.includes(qt)) {
         reverseMatchedTokens++;
         break;

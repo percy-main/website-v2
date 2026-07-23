@@ -1700,9 +1700,7 @@ function BeTheKeeper() {
     }
 
     canvas.addEventListener("mousemove", onMouse);
-    // eslint-disable-next-line react-doctor/client-passive-event-listeners -- onTouch calls preventDefault to lock the keeper to the touch position; passive listeners would silently ignore that
     canvas.addEventListener("touchmove", onTouch, { passive: false });
-    // eslint-disable-next-line react-doctor/client-passive-event-listeners -- onTouch calls preventDefault to block the synthetic click; passive listeners would silently ignore that
     canvas.addEventListener("touchstart", onTouch, { passive: false });
     canvas.addEventListener("click", handleClick);
     window.addEventListener("resize", resize);

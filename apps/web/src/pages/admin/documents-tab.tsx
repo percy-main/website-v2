@@ -334,6 +334,7 @@ function AssignUsersDialog({
         : [...prev, userId],
     );
   };
+  const selectedUserIdSet = new Set(selectedUserIds);
 
   return (
     <Dialog
@@ -390,7 +391,7 @@ function AssignUsersDialog({
                     >
                       <input
                         type="checkbox"
-                        checked={selectedUserIds.includes(u.id)}
+                        checked={selectedUserIdSet.has(u.id)}
                         onChange={() => toggleUser(u.id)}
                         className="rounded"
                       />

@@ -159,6 +159,7 @@ export function PhotoGallery({ images }: { images: GalleryImage[] }) {
           <div className="flex flex-1 gap-2 overflow-x-auto p-1">
             {images.map((image, i) => (
               <GalleryThumbButton
+                // eslint-disable-next-line react-doctor/no-array-index-as-key -- see comment above: pure projection of immutable stored data
                 key={`thumb-${String(i)}`}
                 image={image}
                 label={galleryThumbLabel(image, i)}
