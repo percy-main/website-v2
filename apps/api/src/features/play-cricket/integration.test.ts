@@ -1010,7 +1010,6 @@ describe("play-cricket sync (integration)", () => {
     const result = await sync({ siteId: SITE_ID });
 
     expect(result.matchesProcessed).toBe(0);
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
     expect(api.getMatchDetail).not.toHaveBeenCalled();
   });
 

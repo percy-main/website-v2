@@ -205,7 +205,6 @@ describe("runSync", () => {
 
     expect(result.matchesProcessed).toBe(0);
     expect(result.errors).toHaveLength(0);
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
     expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(
       new Date().getFullYear(),
     );
@@ -215,13 +214,11 @@ describe("runSync", () => {
     const sync = runSync(mockDb, mockApi, null, log);
     await sync({ siteId: "134", extraSeasons: [2024, 2025] });
 
-    /* eslint-disable @typescript-eslint/unbound-method -- vi.fn() mocks */
     expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(2024);
     expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(2025);
     expect(mockApi.getMatchesSummary).toHaveBeenCalledWith(
       new Date().getFullYear(),
     );
-    /* eslint-enable @typescript-eslint/unbound-method */
   });
 
   it("skips already-processed matches outside the resync window", async () => {
@@ -255,7 +252,6 @@ describe("runSync", () => {
     const result = await sync({ siteId: "134" });
 
     expect(result.matchesProcessed).toBe(0);
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
     expect(mockApi.getMatchDetail).not.toHaveBeenCalled();
   });
 
@@ -315,7 +311,6 @@ describe("runSync", () => {
     const sync = runSync(mockDb, mockApi, null, log);
     await sync({ siteId: "134" });
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
     expect(mockApi.getMatchDetail).toHaveBeenCalledWith("12345");
   });
 
@@ -337,7 +332,6 @@ describe("runSync", () => {
     await sync({ siteId: "134" });
 
     // Should have called insertInto for the sync log
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn() mock
     expect(mockDb.insertInto).toHaveBeenCalledWith("play_cricket_sync_log");
   });
 });
