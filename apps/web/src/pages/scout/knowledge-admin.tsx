@@ -220,7 +220,6 @@ function UploadForm({ onUploaded }: UploadFormProps) {
       // 3-step sequence — each await depends on the previous result
       // (mint.uploadUrl → S3 PUT → commit by mint.id), so the
       // async-parallel lint rule's auto-detection is a false positive.
-      // eslint-disable-next-line react-doctor/async-parallel
       const mint = await callApi(
         api.POST("/api/scout/knowledge/documents", {
           body: {

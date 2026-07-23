@@ -186,7 +186,9 @@ function hasMemberDetails(
 function OnboardingModal({ onGoToDetails }: { onGoToDetails: () => void }) {
   const query = useMemberDetails();
   const [dismissed, setDismissed] = useState(
-    () => !!localStorage.getItem(ONBOARDING_DISMISSED_KEY),
+    () =>
+      typeof localStorage !== "undefined" &&
+      !!localStorage.getItem(ONBOARDING_DISMISSED_KEY),
   );
 
   const open =

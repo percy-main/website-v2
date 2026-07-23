@@ -27,7 +27,6 @@ const defaultColor: CategoryColor = {
 export function getCategoryColor(tagTitle: string): CategoryColor {
   const lower = tagTitle.toLowerCase();
   for (const [keyword, color] of Object.entries(categoryMap)) {
-    // eslint-disable-next-line react-doctor/js-set-map-lookups -- String.prototype.includes does substring search; can't be replaced by Set.has
     if (lower.includes(keyword)) {
       return color;
     }

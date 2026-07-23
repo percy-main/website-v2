@@ -2019,10 +2019,11 @@ function TagsInput({
   onChange: (tags: string[]) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const existingTags = new Set(tags);
 
   const commit = (raw: string) => {
     const tag = raw.trim();
-    if (tag && !tags.includes(tag)) onChange([...tags, tag]);
+    if (tag && !existingTags.has(tag)) onChange([...tags, tag]);
     setDraft("");
   };
 
@@ -2086,7 +2087,7 @@ function TagsInput({
       />
       <datalist id="news-tag-suggestions">
         {suggestions.flatMap((s) =>
-          tags.includes(s) ? [] : [<option key={s} value={s} />],
+          existingTags.has(s) ? [] : [<option key={s} value={s} />],
         )}
       </datalist>
     </div>

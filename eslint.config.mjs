@@ -165,6 +165,24 @@ export default tseslint.config(
       "react-doctor/prefer-html-dialog": "off",
     },
   },
+  // no-locale-format-in-render (new in the 0.5.8 -> 0.8.1 bump, #646) guards
+  // against SSR hydration mismatches from visitor-locale date formatting.
+  // Auth-gated surfaces are never prerendered (prerender enumerates only
+  // public content routes), so there the formatting runs exclusively in the
+  // member's browser and cannot mismatch - visitor-locale output is the
+  // desired behaviour. Public/prerendered code keeps the rule.
+  {
+    files: [
+      "apps/web/src/pages/admin/**/*.{ts,tsx}",
+      "apps/web/src/pages/members/**/*.{ts,tsx}",
+      "apps/web/src/pages/scout/**/*.{ts,tsx}",
+      "apps/web/src/pages/fantasy/**/*.{ts,tsx}",
+      "apps/web/src/components/members/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "react-doctor/no-locale-format-in-render": "off",
+    },
+  },
   // Matchday: subset of react-doctor — just the correctness rules.
   // set-state-in-effect comes from react-hooks/recommended-latest
   // (applied globally above) so doesn't need re-declaring here.

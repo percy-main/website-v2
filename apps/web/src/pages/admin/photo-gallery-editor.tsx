@@ -208,6 +208,7 @@ export function PhotoGalleryEditor({
           <div className="mt-2 flex gap-2 overflow-x-auto p-1">
             {images.map((image, i) => (
               <GalleryThumbButton
+                // eslint-disable-next-line react-doctor/no-array-index-as-key -- thumbs are stateless and selection is index-tracked; images carry no unique id (a photo can be added twice)
                 key={`thumb-${String(i)}`}
                 image={image}
                 label={galleryThumbLabel(image, i)}

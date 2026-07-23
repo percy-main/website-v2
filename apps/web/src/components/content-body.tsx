@@ -79,6 +79,7 @@ function InlineContent({ content }: { content: unknown }) {
     const key = `inline-${String(i)}`;
     if (isStyledText(node)) {
       return (
+        // eslint-disable-next-line react-doctor/no-array-index-as-key -- see function docblock: inline nodes carry no ids
         <Fragment key={key}>
           <StyledTextView node={node} />
         </Fragment>
@@ -86,8 +87,10 @@ function InlineContent({ content }: { content: unknown }) {
     }
     if (isInlineLink(node)) {
       const inner = <InlineContent content={node.content} />;
+      // eslint-disable-next-line react-doctor/no-array-index-as-key -- see function docblock: inline nodes carry no ids
       if (!isSafeHref(node.href)) return <span key={key}>{inner}</span>;
       return (
+        // eslint-disable-next-line react-doctor/no-array-index-as-key -- see function docblock: inline nodes carry no ids
         <a key={key} href={node.href}>
           {inner}
         </a>
@@ -328,6 +331,7 @@ function BlockView({ block }: { block: ContentBlock }) {
           <mdxComponents.PersonGrid>
             {entries.map((entry, i) => (
               <mdxComponents.Person
+                // eslint-disable-next-line react-doctor/no-array-index-as-key -- static projection of stored content; index only disambiguates a repeated slug
                 key={`${entry.slug}-${String(i)}`}
                 slug={entry.slug}
                 role={entry.role}

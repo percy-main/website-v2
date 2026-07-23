@@ -94,7 +94,7 @@ export function PersonGridEditor({
         const name = person?.name ?? entry.slug;
         return (
           <EditablePersonCard
-            key={`${entry.slug}-${String(i)}`}
+            key={entry.slug}
             name={name}
             picture={person?.picture}
             role={entry.role ?? ""}

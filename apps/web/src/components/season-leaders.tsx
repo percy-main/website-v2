@@ -180,6 +180,7 @@ export function SeasonLeaders() {
             >
               {battingEntries.map((entry, idx) => (
                 <TableRow
+                  // eslint-disable-next-line react-doctor/no-array-index-as-key -- static top-N projection; index only used when slug and name are missing
                   key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}
                 >
                   <TableCell className="text-muted">{idx + 1}</TableCell>
@@ -230,6 +231,7 @@ export function SeasonLeaders() {
             >
               {bowlingEntries.map((entry, idx) => (
                 <TableRow
+                  // eslint-disable-next-line react-doctor/no-array-index-as-key -- static top-N projection; index only used when slug and name are missing
                   key={entry.slug ?? `${entry.playerName ?? "unknown"}-${idx}`}
                 >
                   <TableCell className="text-muted">{idx + 1}</TableCell>
