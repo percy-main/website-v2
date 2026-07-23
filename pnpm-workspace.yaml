@@ -24,6 +24,11 @@ overrides:
   ai@<7.0.18: ">=7.0.18"
   "@ai-sdk/provider-utils@<5.0.6": ">=5.0.6"
   "@ai-sdk/gateway@<4.0.14": ">=4.0.14"
+  # Unification override, not security: @smithy/signature-v4 must resolve
+  # to a single copy or the prerender SigV4a signer registration breaks
+  # (check-ssr-sigv4a, #623). signature-v4a 3.5.5 needs >=5.6.9 while the
+  # aws-sdk pins resolve 5.6.8; dedupe won't cross the split on its own.
+  "@smithy/signature-v4@<5.6.9": ">=5.6.9"
   axios@<1.18.0: ">=1.18.0"
   esbuild@<0.28.1: ">=0.28.1"
   fast-xml-parser@<5.7.0: ">=5.7.0"
