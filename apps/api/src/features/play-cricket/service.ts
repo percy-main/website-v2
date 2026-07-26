@@ -306,6 +306,8 @@ export function getPlayerCareerStats(db: Kysely<DB>) {
     const battingBySeasonRows = await db
       .selectFrom("match_performance_batting")
       .where("player_id", "=", playCricketId)
+      // "Did not bat" appearance rows are not innings
+      .where("did_bat", "=", true)
       .select([
         "season",
         "game_type",
@@ -550,6 +552,8 @@ export function getPlayerSeasonStats(db: Kysely<DB>) {
       .where("player_id", "=", playCricketId)
       .where("season", "=", season)
       .where("game_type", "=", gameType)
+      // "Did not bat" appearance rows are not innings
+      .where("did_bat", "=", true)
       .selectAll()
       .execute();
 

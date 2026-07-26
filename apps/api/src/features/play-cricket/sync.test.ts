@@ -5,6 +5,7 @@ import { createNoopLogger } from "../../lib/worker-logger.ts";
 import type { PlayCricketApiClient } from "./api-client.ts";
 import {
   didBat,
+  hasScorecardEntry,
   isJuniorTeam,
   isNotOut,
   parseDismissalType,
@@ -113,6 +114,33 @@ describe("sync helpers", () => {
       ).toBe(true);
       expect(
         didBat({ how_out: null, runs: "0", balls: "0", times_out: "1" }),
+      ).toBe(true);
+    });
+  });
+
+  describe("hasScorecardEntry", () => {
+    it("returns true for explicit how_out, including did not bat", () => {
+      expect(hasScorecardEntry({ how_out: "ct" })).toBe(true);
+      expect(hasScorecardEntry({ how_out: "not out" })).toBe(true);
+      // DNB rows are stored (as did_bat = false appearances)
+      expect(hasScorecardEntry({ how_out: "did not bat" })).toBe(true);
+      expect(hasScorecardEntry({ how_out: "absent" })).toBe(true);
+    });
+
+    it("returns false for placeholder rows with no how_out and no stats", () => {
+      expect(hasScorecardEntry({ how_out: null })).toBe(false);
+      expect(hasScorecardEntry({ how_out: "" })).toBe(false);
+      expect(hasScorecardEntry({ how_out: "", runs: "0", balls: "0" })).toBe(
+        false,
+      );
+    });
+
+    it("returns true for softball batters (null how_out with stats)", () => {
+      expect(hasScorecardEntry({ how_out: null, runs: "5", balls: "8" })).toBe(
+        true,
+      );
+      expect(
+        hasScorecardEntry({ how_out: null, runs: "0", times_out: "1" }),
       ).toBe(true);
     });
   });

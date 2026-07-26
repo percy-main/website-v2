@@ -12,6 +12,8 @@ export function listBattingLeaderboard(db: Kysely<DB>) {
       .innerJoin("play_cricket_team as t", "t.id", "b.team_id")
       .leftJoin("member as m", "m.play_cricket_id", "b.player_id")
       .where("b.game_type", "=", params.gameType)
+      // "Did not bat" appearance rows are not innings
+      .where("b.did_bat", "=", true)
       .groupBy(["b.player_id", "m.slug"])
       .select(["b.player_id as playerId", "m.slug"])
       .select((eb) => [

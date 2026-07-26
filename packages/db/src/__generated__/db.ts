@@ -612,6 +612,7 @@ export interface MatchPerformanceBatting {
   balls: Generated<number>;
   competition_type: Generated<string>;
   created_at: Generated<string>;
+  did_bat: Generated<boolean>;
   dismissal_penalty: Generated<number>;
   fours: Generated<number>;
   game_type: Generated<string>;

@@ -159,6 +159,7 @@ export function calculateFantasyScores(db: Kysely<DB>) {
             "fours",
             "sixes",
             "not_out",
+            "did_bat",
           ])
           .execute(),
         db
@@ -316,15 +317,19 @@ export function calculateFantasyScores(db: Kysely<DB>) {
       const info = matchInfo.get(app.matchId);
       const teamWon = info?.winnerTeamId === app.teamId;
 
-      const battingPts = bat
-        ? calculateBattingPoints({
-            runs: bat.runs,
-            balls: bat.balls,
-            fours: bat.fours,
-            sixes: bat.sixes,
-            notOut: bat.not_out,
-          }).total
-        : 0;
+      // A "did not bat" row is an appearance, not an innings: the player
+      // still earns team points (they were in the XI) but no batting
+      // points and no duck penalty.
+      const battingPts =
+        bat?.did_bat === true
+          ? calculateBattingPoints({
+              runs: bat.runs,
+              balls: bat.balls,
+              fours: bat.fours,
+              sixes: bat.sixes,
+              notOut: bat.not_out,
+            }).total
+          : 0;
 
       const bowlingPts = bowl
         ? calculateBowlingPoints({

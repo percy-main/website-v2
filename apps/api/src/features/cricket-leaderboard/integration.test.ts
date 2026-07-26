@@ -70,6 +70,7 @@ async function seedBattingPerformance(overrides: {
   gameType?: string;
   timesOut?: number;
   dismissalPenalty?: number;
+  didBat?: boolean;
 }) {
   const notOut = overrides.notOut ?? false;
   await ctx.db
@@ -84,6 +85,7 @@ async function seedBattingPerformance(overrides: {
       season: overrides.season,
       runs: overrides.runs,
       balls: overrides.balls ?? 30,
+      did_bat: overrides.didBat ?? true,
       not_out: notOut,
       // Default to "dismissed once if not_out=false, never if not_out=true" so
       // existing hardball seeds continue to behave the same after the softball
@@ -177,6 +179,61 @@ describe("cricket leaderboard service (integration)", () => {
       expect(entry.average).toBeNull();
       // Strike rate: 150/90 * 100 = 166.67
       expect(entry.strikeRate).toBeCloseTo(166.67, 1);
+    });
+
+    it("excludes did-not-bat appearance rows from innings and not-outs", async () => {
+      await seedTeams();
+
+      const playerId = `player-${crypto.randomUUID()}`;
+      // Three real innings (one not out) plus a DNB appearance
+      await seedBattingPerformance({
+        playerId,
+        playerName: "C Batsman",
+        teamId: SENIOR_TEAM_ID,
+        season: 2024,
+        runs: 40,
+      });
+      await seedBattingPerformance({
+        playerId,
+        playerName: "C Batsman",
+        teamId: SENIOR_TEAM_ID,
+        season: 2024,
+        runs: 25,
+      });
+      await seedBattingPerformance({
+        playerId,
+        playerName: "C Batsman",
+        teamId: SENIOR_TEAM_ID,
+        season: 2024,
+        runs: 35,
+        notOut: true,
+      });
+      await seedBattingPerformance({
+        playerId,
+        playerName: "C Batsman",
+        teamId: SENIOR_TEAM_ID,
+        season: 2024,
+        runs: 0,
+        balls: 0,
+        didBat: false,
+        timesOut: 0,
+      });
+
+      const result = await listBattingLeaderboard(ctx.db)({
+        season: 2024,
+        limit: 50,
+        gameType: "Standard",
+      });
+
+      const entry = result.entries.find((e) => e.playerId === playerId);
+      assert(entry, "Expected batting entry for player");
+      // The DNB row is an appearance, not an innings - and must not be
+      // counted as a not-out either (its times_out is also 0)
+      expect(entry.innings).toBe(3);
+      expect(entry.notOuts).toBe(1);
+      expect(entry.runs).toBe(100);
+      // 100 runs / 2 dismissals = 50.00
+      expect(entry.average).toBe(50);
     });
 
     it("calculates batting average when 3+ innings", async () => {

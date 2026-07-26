@@ -44,20 +44,24 @@ function isNotOut(howOut: string | null | undefined): boolean {
   return NOT_OUT_CODES.has(howOut.toLowerCase().trim());
 }
 
-// Players listed on the scorecard who never took strike. Filtered out before
-// insert - a DNB row is not an innings and must never count as one.
+// Players listed on the scorecard who never took strike. Stored with
+// did_bat = false: they count as match appearances (fantasy team win bonus,
+// career-matches record) but never as innings - anything aggregating
+// innings or not-outs must filter on did_bat.
 const DID_NOT_BAT_CODES = new Set(["dnb", "did not bat", "absent"]);
+
+interface BatEntry {
+  how_out?: string | null;
+  runs?: string | null;
+  balls?: string | null;
+  times_out?: string | null;
+}
 
 // In Pairs (Women's Softball) every batter rotates after their allotted balls
 // without a per-player dismissal code, so `how_out` is null for everyone who
 // played. We can't use it as the sole "did this player bat" signal — fall
 // back to runs, balls, and times_out, which softball does populate.
-function didBat(bat: {
-  how_out?: string | null;
-  runs?: string | null;
-  balls?: string | null;
-  times_out?: string | null;
-}): boolean {
+function didBat(bat: BatEntry): boolean {
   const code = (bat.how_out ?? "").toLowerCase().trim();
   if (DID_NOT_BAT_CODES.has(code)) return false;
   if (code !== "") return true;
@@ -71,6 +75,15 @@ function didBat(bat: {
     (Number.isFinite(balls) && balls > 0) ||
     (Number.isFinite(timesOut) && timesOut > 0)
   );
+}
+
+// Whether the scorecard actually says anything about this player. Rows with
+// no how_out and no quantitative signal are placeholder padding (common in
+// Pairs cards) and are not stored at all — unlike explicit "did not bat"
+// rows, which are stored as appearances.
+function hasScorecardEntry(bat: BatEntry): boolean {
+  const code = (bat.how_out ?? "").toLowerCase().trim();
+  return code !== "" || didBat(bat);
 }
 
 function parseDismissalType(
@@ -107,7 +120,13 @@ interface FieldingAgg {
 
 // --- Exported for testing ---
 
-export { didBat, isJuniorTeam, isNotOut, parseDismissalType };
+export {
+  didBat,
+  hasScorecardEntry,
+  isJuniorTeam,
+  isNotOut,
+  parseDismissalType,
+};
 
 // --- Main sync logic ---
 
@@ -257,14 +276,19 @@ async function storeBattingPerformances(
   dismissalPenalty: number,
 ): Promise<void> {
   for (const bat of innings) {
-    if (!didBat(bat)) continue;
+    if (!hasScorecardEntry(bat)) continue;
+
+    // "Did not bat" rows are appearances, not innings: no dismissal, and
+    // not_out = false because there was no innings to be not out in.
+    const didBatFlag = didBat(bat);
 
     // For Pairs games trust the API's per-batter times_out (can be 2+); for
     // Standard, derive it from not_out so the column stays consistent across
     // formats. The unified average formula relies on this column for both.
     const apiTimesOut = parseInt(bat.times_out ?? "");
-    const timesOut =
-      gameType === "Pairs" && Number.isFinite(apiTimesOut)
+    const timesOut = !didBatFlag
+      ? 0
+      : gameType === "Pairs" && Number.isFinite(apiTimesOut)
         ? apiTimesOut
         : isNotOut(bat.how_out)
           ? 0
@@ -273,7 +297,7 @@ async function storeBattingPerformances(
     // null for every batter so the old how_out-based check would mark a
     // dismissed Pairs batter as not out, which would corrupt any consumer
     // still reading the legacy column.
-    const notOut = timesOut === 0;
+    const notOut = didBatFlag && timesOut === 0;
 
     await db
       .insertInto("match_performance_batting")
@@ -291,6 +315,7 @@ async function storeBattingPerformances(
         fours: parseInt(bat.fours) || 0,
         sixes: parseInt(bat.sixes) || 0,
         how_out: bat.how_out ?? "",
+        did_bat: didBatFlag,
         not_out: notOut,
         times_out: timesOut,
         dismissal_penalty: dismissalPenalty,
@@ -305,6 +330,7 @@ async function storeBattingPerformances(
           fours: parseInt(bat.fours) || 0,
           sixes: parseInt(bat.sixes) || 0,
           how_out: bat.how_out ?? "",
+          did_bat: didBatFlag,
           not_out: notOut,
           times_out: timesOut,
           dismissal_penalty: dismissalPenalty,

@@ -831,12 +831,11 @@ describe("play-cricket sync (integration)", () => {
       .selectAll()
       .execute();
 
-    // 3 batters in the fixture, but "did not bat" (player 1003) must be
-    // dropped: a DNB row is not an innings.
-    expect(batting).toHaveLength(2);
+    expect(batting).toHaveLength(3);
     const aBatsman = batting.find((b) => b.player_id === "1001");
     assert(aBatsman, "Expected batting record for player 1001");
     expect(aBatsman.runs).toBe(85);
+    expect(aBatsman.did_bat).toBe(true);
     expect(aBatsman.not_out).toBe(false);
     expect(aBatsman.times_out).toBe(1);
 
@@ -844,8 +843,18 @@ describe("play-cricket sync (integration)", () => {
     const bKeeper = batting.find((b) => b.player_id === "1002");
     assert(bKeeper, "Expected batting record for player 1002");
     expect(bKeeper.runs).toBe(60);
+    expect(bKeeper.did_bat).toBe(true);
     expect(bKeeper.not_out).toBe(true);
     expect(bKeeper.times_out).toBe(0);
+
+    // "did not bat" is stored as an appearance, not an innings: no
+    // dismissal, and not not-out either
+    const dnb = batting.find((b) => b.player_id === "1003");
+    assert(dnb, "Expected appearance record for player 1003");
+    expect(dnb.did_bat).toBe(false);
+    expect(dnb.not_out).toBe(false);
+    expect(dnb.times_out).toBe(0);
+    expect(dnb.runs).toBe(0);
 
     // Check bowling (our team bowled in innings 1)
     const bowling = await ctx.db

@@ -60,8 +60,10 @@ async function seedBatting(
     fours?: number;
     sixes?: number;
     notOut?: boolean;
+    didBat?: boolean;
   } = {},
 ) {
+  const didBat = opts.didBat ?? true;
   await ctx.db
     .insertInto("match_performance_batting")
     .values({
@@ -76,7 +78,8 @@ async function seedBatting(
       balls: opts.balls ?? 40,
       fours: opts.fours ?? 5,
       sixes: opts.sixes ?? 2,
-      how_out: opts.notOut ? "not out" : "caught",
+      how_out: !didBat ? "did not bat" : opts.notOut ? "not out" : "caught",
+      did_bat: didBat,
       not_out: opts.notOut ?? false,
       competition_type: "League",
     })
@@ -392,6 +395,35 @@ describe("calculateFantasyScores (integration)", () => {
     expect(first?.total_points).toBe(second?.total_points);
   });
 
+  it("did-not-bat appearance earns the team win bonus but no batting points", async () => {
+    const matchId = `m-dnb-${crypto.randomUUID()}`;
+    const dnbId = `p-dnb-${crypto.randomUUID()}`;
+
+    await seedMatch(matchId); // our team wins
+    await seedBatting(matchId, dnbId, {
+      didBat: false,
+      runs: 0,
+      balls: 0,
+      fours: 0,
+      sixes: 0,
+    });
+
+    await calculateFantasyScores(ctx.db)(SEASON);
+
+    const score = await ctx.db
+      .selectFrom("fantasy_player_score")
+      .where("play_cricket_id", "=", dnbId)
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+
+    // In the XI of the winning team, so the win bonus applies - but no
+    // batting points and crucially no duck penalty for their 0 runs
+    expect(score.batting_points).toBe(0);
+    expect(score.team_points).toBe(SCORING.team.winBonus);
+    expect(score.total_points).toBe(SCORING.team.winBonus);
+  });
+
   it("retracts scores when the backing performance disappears", async () => {
     const matchId = `m-retract-${crypto.randomUUID()}`;
     const stayerId = `p-stay-${crypto.randomUUID()}`;
@@ -399,8 +431,8 @@ describe("calculateFantasyScores (integration)", () => {
 
     await seedMatch(matchId);
     await seedBatting(matchId, stayerId, { runs: 30 });
-    // Duck for a player whose row later turns out not to be an innings
-    // (e.g. the "did not bat" repair in the Play Cricket sync data fix)
+    // Duck for a player whose row is later removed entirely (e.g. a
+    // corrected Play Cricket scorecard after a mis-credited innings)
     await seedBatting(matchId, goneId, { runs: 0, fours: 0, sixes: 0 });
 
     await seedFantasyPlayer(stayerId);
