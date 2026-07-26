@@ -1,5 +1,11 @@
 import { Button } from "@/components/ui/button.js";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog.js";
 import { fmtDate } from "@/features/format.js";
 import { useDebouncedValue } from "@/hooks/use-debounced-value.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
@@ -12,7 +18,7 @@ import {
   UserPlusIcon,
   XIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 
 type PerDateData =
@@ -611,9 +617,10 @@ function AvailableList({
                 {p.dependent_id && <JuniorBadge />}
               </p>
               {p.note && (
-                <p className="text-text-secondary truncate text-xs">
-                  "{p.note}"
-                </p>
+                <PlayerNote
+                  note={p.note}
+                  playerName={p.member_name ?? "Player"}
+                />
               )}
               {p.overridden_by && (
                 <p className="text-warning text-[10px] font-semibold tracking-wide uppercase">
@@ -678,6 +685,68 @@ function AvailableList({
   );
 }
 
+/**
+ * A player's availability note, truncated to one line as before. When the
+ * text actually overflows (checked against the rendered element, so short
+ * notes don't grow a pointless control) a small "More" button opens the
+ * full note in a modal.
+ */
+function PlayerNote({
+  note,
+  playerName,
+}: {
+  note: string;
+  playerName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [truncated, setTruncated] = useState(false);
+  const noteRef = useRef<HTMLParagraphElement>(null);
+
+  useLayoutEffect(() => {
+    const el = noteRef.current;
+    if (!el) return;
+    const check = () => {
+      setTruncated(el.scrollWidth > el.clientWidth);
+    };
+    check();
+    // Re-check when the row resizes (rotation, desktop column reflow) -
+    // truncation can appear or disappear without the note changing.
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+    };
+  }, [note]);
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <p ref={noteRef} className="text-text-secondary min-w-0 truncate text-xs">
+        "{note}"
+      </p>
+      {truncated && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Read full note from ${playerName}`}
+          className="text-navy -mx-1 -my-1 shrink-0 rounded p-1 text-[11px] font-semibold underline dark:text-white"
+        >
+          More
+        </button>
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{playerName}'s note</DialogTitle>
+          </DialogHeader>
+          <p className="text-text-secondary mt-3 text-sm whitespace-pre-wrap">
+            "{note}"
+          </p>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function JuniorBadge() {
   return (
     <span className="bg-info-bg text-navy ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase dark:text-white">
@@ -714,7 +783,10 @@ function UnavailableList({
               {p.dependent_id && <JuniorBadge />}
             </p>
             {p.note && (
-              <p className="text-text-secondary truncate text-xs">"{p.note}"</p>
+              <PlayerNote
+                note={p.note}
+                playerName={p.member_name ?? "Player"}
+              />
             )}
             {p.overridden_by && (
               <p className="text-warning text-[10px] font-semibold tracking-wide uppercase">
