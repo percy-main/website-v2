@@ -22,13 +22,20 @@ function isJuniorTeam(teamName: string): boolean {
   return JUNIOR_PATTERNS.some((p) => p.test(teamName));
 }
 
+// Play Cricket sends how_out in a mixed format: abbreviations for
+// bowler-credited dismissals ("ct", "b", "lbw", "st") but full text for
+// everything else ("not out", "did not bat", "run out", "retired not out").
+// Both spellings are listed as insurance against the API switching format.
+// "retired out" and "run out" are deliberately absent: both count as
+// dismissals for batting-average purposes.
 const NOT_OUT_CODES = new Set([
   "no",
-  "dnb",
+  "not out",
   "rtd",
-  "ro",
-  "ret out",
+  "retired",
+  "retired hurt",
   "rtno",
+  "retired not out",
   "",
 ]);
 
@@ -36,6 +43,10 @@ function isNotOut(howOut: string | null | undefined): boolean {
   if (!howOut) return true;
   return NOT_OUT_CODES.has(howOut.toLowerCase().trim());
 }
+
+// Players listed on the scorecard who never took strike. Filtered out before
+// insert - a DNB row is not an innings and must never count as one.
+const DID_NOT_BAT_CODES = new Set(["dnb", "did not bat", "absent"]);
 
 // In Pairs (Women's Softball) every batter rotates after their allotted balls
 // without a per-player dismissal code, so `how_out` is null for everyone who
@@ -48,7 +59,7 @@ function didBat(bat: {
   times_out?: string | null;
 }): boolean {
   const code = (bat.how_out ?? "").toLowerCase().trim();
-  if (code === "dnb") return false;
+  if (DID_NOT_BAT_CODES.has(code)) return false;
   if (code !== "") return true;
   // Empty / null how_out: must have at least one quantitative signal that
   // this player took strike.
