@@ -47,6 +47,11 @@ overrides:
   # floor guards against dedupe re-resolving the vulnerable patch (#653).
   find-my-way@<9.7.0: ">=9.7.0"
   form-data@<4.0.6: ">=4.0.6"
+  # GHSA-52cp-r559-cp3m (merge-key quadratic CPU): @redocly/openapi-core 1.x
+  # hard-pins js-yaml (4.1.1, 4.2.0 at latest); only 2.x moves to js-yaml 5.
+  # Scoped to 4.x so a future 3.x consumer isn't force-broken. Drop once
+  # openapi-typescript depends on @redocly/openapi-core 2.x.
+  "js-yaml@>=4.0.0 <4.3.0": ">=4.3.0"
   # CVE-2026-14257 continued: glob@10 (runtime via google-gax -> rimraf)
   # pins minimatch ^9, which pins vulnerable brace-expansion ^2 with no
   # fixed 2.x release. minimatch 10 keeps the API surface glob@10 uses and
