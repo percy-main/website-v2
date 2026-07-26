@@ -2,20 +2,4 @@
 # to force a periodic re-review. Each entry must be justified in a comment.
 # See https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
 #
-# All three current entries are tracked in issue #653; remove them when the
-# dependency bumps land.
-
-# CVE-2026-15074 - @fastify/static route guard bypass via path. Enters via
-# @fastify/swagger-ui 6.1.0, which only serves its own bundled docs-UI assets;
-# fix requires @fastify/static 10.x via a swagger-ui bump (issue #653).
-CVE-2026-15074 exp:2026-08-16
-
-# CVE-2026-47219 - find-my-way DDoS with HTTP2. The API never enables
-# Fastify's http2 option (plain HTTP/1.1 behind CloudFront), so the vector is
-# unreachable today. Patch bump tracked in issue #653.
-CVE-2026-47219 exp:2026-08-16
-
-# CVE-2026-14257 - brace-expansion ReDoS. Runtime copy enters via
-# google-ads-api; no untrusted input reaches glob patterns there. Override or
-# upstream bump tracked in issue #653.
-CVE-2026-14257 exp:2026-08-16
+# (No active suppressions.)

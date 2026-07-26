@@ -29,10 +29,29 @@ overrides:
   # (check-ssr-sigv4a, #623). signature-v4a 3.5.5 needs >=5.6.9 while the
   # aws-sdk pins resolve 5.6.8; dedupe won't cross the split on its own.
   "@smithy/signature-v4@<5.6.9": ">=5.6.9"
+  # CVE-2026-15074: @fastify/swagger-ui 6.1.0 still pins @fastify/static
+  # ^9.x; no swagger-ui release depends on 10.x yet. Drop this once one
+  # does (#653).
+  "@fastify/static@<10.1.1": ">=10.1.1"
   axios@<1.18.0: ">=1.18.0"
+  # CVE-2026-14257 (ReDoS): scoped to the 5.x line only. brace-expansion 5
+  # dropped the default export (named `expand` only), so forcing it onto
+  # minimatch 5/9 breaks them at runtime; those lines have no fixed
+  # release. The runtime 2.x copy is eliminated by the minimatch override
+  # below instead; remaining 1.x/2.x copies are dev-only chains that never
+  # reach the API image (#653).
+  "brace-expansion@>=5.0.0 <5.0.8": ">=5.0.8"
   esbuild@<0.28.1: ">=0.28.1"
   fast-xml-parser@<5.7.0: ">=5.7.0"
+  # CVE-2026-47219: fastify's ^9.6.0 range already admits the fix; the
+  # floor guards against dedupe re-resolving the vulnerable patch (#653).
+  find-my-way@<9.7.0: ">=9.7.0"
   form-data@<4.0.6: ">=4.0.6"
+  # CVE-2026-14257 continued: glob@10 (runtime via google-gax -> rimraf)
+  # pins minimatch ^9, which pins vulnerable brace-expansion ^2 with no
+  # fixed 2.x release. minimatch 10 keeps the API surface glob@10 uses and
+  # moves to brace-expansion 5 (#653).
+  minimatch@9: ">=10.2.5"
   # @react-email/ui hard-pins next, so the floor must be forced past the
   # CVE-2026-64641/-64642/-64645/-64649 fixes; sharp rides in as next's
   # optional dep and needs its own floor (GHSA-f88m-g3jw-g9cj).
