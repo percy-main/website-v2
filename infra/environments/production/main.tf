@@ -159,7 +159,7 @@ module "ecs" {
   ecr_repository_url       = local.shared.ecr_repository_url
   acm_certificate_arn      = local.shared.acm_alb_certificate_arn
   vpc_id                   = module.vpc.vpc_id
-  private_subnet_ids       = module.vpc.public_subnet_ids
+  private_subnet_ids       = module.vpc.private_subnet_ids
   public_subnet_ids        = module.vpc.public_subnet_ids
   ecs_security_group_id    = module.vpc.ecs_security_group_id
   alb_security_group_id    = module.vpc.alb_security_group_id
