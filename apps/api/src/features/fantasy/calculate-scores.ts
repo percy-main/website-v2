@@ -4,7 +4,9 @@
  * Calculates and stores per-player and per-team fantasy scores
  * for each gameweek based on match performance data.
  *
- * Designed to be idempotent — safe to re-run at any time.
+ * Designed to be idempotent — safe to re-run at any time. Re-running also
+ * retracts score rows whose backing performance data has since disappeared
+ * (scorecard corrections, repaired sync data).
  *
  * Team scoring is slot-based: batting slots only earn batting+fielding+team,
  * bowling slots only earn bowling+fielding+team, and the all-rounder slot
@@ -360,6 +362,33 @@ export function calculateFantasyScores(db: Kysely<DB>) {
       });
     }
 
+    // Retract score rows whose backing performance no longer exists
+    // (scorecard corrections, repaired sync data). Upserts alone can't
+    // remove them, and the team scoring below reads player scores back
+    // from the DB, so stale rows would keep polluting team totals.
+    const computedScoreKeys = new Set(
+      playerScores.map((ps) => `${ps.gameweek}|${ps.playerId}|${ps.matchId}`),
+    );
+    const existingScoreRows = await db
+      .selectFrom("fantasy_player_score")
+      .where("season", "=", season)
+      .select(["id", "gameweek_id", "play_cricket_id", "match_id"])
+      .execute();
+    const staleScoreIds = existingScoreRows
+      .filter(
+        (row) =>
+          !computedScoreKeys.has(
+            `${row.gameweek_id}|${row.play_cricket_id}|${row.match_id}`,
+          ),
+      )
+      .map((row) => row.id);
+    if (staleScoreIds.length > 0) {
+      await db
+        .deleteFrom("fantasy_player_score")
+        .where("id", "in", staleScoreIds)
+        .execute();
+    }
+
     // Upsert player scores
     let playerScoresUpserted = 0;
     for (const ps of playerScores) {
@@ -447,6 +476,20 @@ export function calculateFantasyScores(db: Kysely<DB>) {
       .execute();
 
     const gameweeks = gameweeksResult.map((r) => r.gameweek_id);
+
+    // Retract team scores for gameweeks that no longer have any player
+    // scores (mirrors the player-score retraction above).
+    let staleTeamScores = db
+      .deleteFrom("fantasy_team_score")
+      .where("season", "=", season);
+    if (gameweeks.length > 0) {
+      staleTeamScores = staleTeamScores.where(
+        "gameweek_id",
+        "not in",
+        gameweeks,
+      );
+    }
+    await staleTeamScores.execute();
 
     // Fetch all player scores for the season
     const allPlayerScoresForTeams = await db

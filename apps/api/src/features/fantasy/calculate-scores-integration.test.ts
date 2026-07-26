@@ -392,6 +392,71 @@ describe("calculateFantasyScores (integration)", () => {
     expect(first?.total_points).toBe(second?.total_points);
   });
 
+  it("retracts scores when the backing performance disappears", async () => {
+    const matchId = `m-retract-${crypto.randomUUID()}`;
+    const stayerId = `p-stay-${crypto.randomUUID()}`;
+    const goneId = `p-gone-${crypto.randomUUID()}`;
+
+    await seedMatch(matchId);
+    await seedBatting(matchId, stayerId, { runs: 30 });
+    // Duck for a player whose row later turns out not to be an innings
+    // (e.g. the "did not bat" repair in the Play Cricket sync data fix)
+    await seedBatting(matchId, goneId, { runs: 0, fours: 0, sixes: 0 });
+
+    await seedFantasyPlayer(stayerId);
+    await seedFantasyPlayer(goneId);
+    const { userId } = await seedTestUser(ctx.db, {
+      email: `retract-${crypto.randomUUID()}@test.com`,
+    });
+    const teamId = await seedFantasyTeam(userId, [
+      { playerId: stayerId, slotType: "batting" },
+      { playerId: goneId, slotType: "batting" },
+    ]);
+
+    await calculateFantasyScores(ctx.db)(SEASON);
+
+    const before = await ctx.db
+      .selectFrom("fantasy_player_score")
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .execute();
+    expect(before).toHaveLength(2);
+
+    const teamBefore = await ctx.db
+      .selectFrom("fantasy_team_score")
+      .where("fantasy_team_id", "=", teamId)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+
+    await ctx.db
+      .deleteFrom("match_performance_batting")
+      .where("match_id", "=", matchId)
+      .where("player_id", "=", goneId)
+      .execute();
+
+    await calculateFantasyScores(ctx.db)(SEASON);
+
+    const after = await ctx.db
+      .selectFrom("fantasy_player_score")
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .execute();
+    expect(after).toHaveLength(1);
+    expect(after[0]?.play_cricket_id).toBe(stayerId);
+
+    // Team total must shed the retracted player's contribution: their duck
+    // penalty (-10) and win bonus (+10) cancelled out, so removing them
+    // changes the total by 0 here - assert the exact recomputed value.
+    // Stayer: 30 runs + 5 fours + 2*2 sixes + 10 win bonus = 49
+    const teamAfter = await ctx.db
+      .selectFrom("fantasy_team_score")
+      .where("fantasy_team_id", "=", teamId)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(teamAfter.total_points).toBe(49);
+    expect(teamBefore.total_points).toBe(49);
+  });
+
   it("calculates team scores with slot-based filtering", async () => {
     const matchId = `m-team-${crypto.randomUUID()}`;
     const batterId = `p-bat-${crypto.randomUUID()}`;
