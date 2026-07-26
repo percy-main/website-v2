@@ -2,8 +2,20 @@
 # to force a periodic re-review. Each entry must be justified in a comment.
 # See https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
 #
-# No active suppressions. The previous CVE-2026-33671 (picomatch) entry covered
-# a copy bundled inside the base image's npm; apps/api/Dockerfile now strips npm
-# and the pnpm store from the runtime image, so that copy no longer exists and
-# the suppression is unnecessary. Add new entries here with a justification and
-# an `exp:` date.
+# All three current entries are tracked in issue #653; remove them when the
+# dependency bumps land.
+
+# CVE-2026-15074 - @fastify/static route guard bypass via path. Enters via
+# @fastify/swagger-ui 6.1.0, which only serves its own bundled docs-UI assets;
+# fix requires @fastify/static 10.x via a swagger-ui bump (issue #653).
+CVE-2026-15074 exp:2026-08-16
+
+# CVE-2026-47219 - find-my-way DDoS with HTTP2. The API never enables
+# Fastify's http2 option (plain HTTP/1.1 behind CloudFront), so the vector is
+# unreachable today. Patch bump tracked in issue #653.
+CVE-2026-47219 exp:2026-08-16
+
+# CVE-2026-14257 - brace-expansion ReDoS. Runtime copy enters via
+# google-ads-api; no untrusted input reaches glob patterns there. Override or
+# upstream bump tracked in issue #653.
+CVE-2026-14257 exp:2026-08-16

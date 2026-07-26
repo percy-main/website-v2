@@ -60,8 +60,10 @@ async function seedBatting(
     fours?: number;
     sixes?: number;
     notOut?: boolean;
+    didBat?: boolean;
   } = {},
 ) {
+  const didBat = opts.didBat ?? true;
   await ctx.db
     .insertInto("match_performance_batting")
     .values({
@@ -76,7 +78,8 @@ async function seedBatting(
       balls: opts.balls ?? 40,
       fours: opts.fours ?? 5,
       sixes: opts.sixes ?? 2,
-      how_out: opts.notOut ? "not out" : "caught",
+      how_out: !didBat ? "did not bat" : opts.notOut ? "not out" : "caught",
+      did_bat: didBat,
       not_out: opts.notOut ?? false,
       competition_type: "League",
     })
@@ -390,6 +393,100 @@ describe("calculateFantasyScores (integration)", () => {
 
     expect(first?.batting_points).toBe(second?.batting_points);
     expect(first?.total_points).toBe(second?.total_points);
+  });
+
+  it("did-not-bat appearance earns the team win bonus but no batting points", async () => {
+    const matchId = `m-dnb-${crypto.randomUUID()}`;
+    const dnbId = `p-dnb-${crypto.randomUUID()}`;
+
+    await seedMatch(matchId); // our team wins
+    await seedBatting(matchId, dnbId, {
+      didBat: false,
+      runs: 0,
+      balls: 0,
+      fours: 0,
+      sixes: 0,
+    });
+
+    await calculateFantasyScores(ctx.db)(SEASON);
+
+    const score = await ctx.db
+      .selectFrom("fantasy_player_score")
+      .where("play_cricket_id", "=", dnbId)
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+
+    // In the XI of the winning team, so the win bonus applies - but no
+    // batting points and crucially no duck penalty for their 0 runs
+    expect(score.batting_points).toBe(0);
+    expect(score.team_points).toBe(SCORING.team.winBonus);
+    expect(score.total_points).toBe(SCORING.team.winBonus);
+  });
+
+  it("retracts scores when the backing performance disappears", async () => {
+    const matchId = `m-retract-${crypto.randomUUID()}`;
+    const stayerId = `p-stay-${crypto.randomUUID()}`;
+    const goneId = `p-gone-${crypto.randomUUID()}`;
+
+    await seedMatch(matchId);
+    await seedBatting(matchId, stayerId, { runs: 30 });
+    // Duck for a player whose row is later removed entirely (e.g. a
+    // corrected Play Cricket scorecard after a mis-credited innings)
+    await seedBatting(matchId, goneId, { runs: 0, fours: 0, sixes: 0 });
+
+    await seedFantasyPlayer(stayerId);
+    await seedFantasyPlayer(goneId);
+    const { userId } = await seedTestUser(ctx.db, {
+      email: `retract-${crypto.randomUUID()}@test.com`,
+    });
+    const teamId = await seedFantasyTeam(userId, [
+      { playerId: stayerId, slotType: "batting" },
+      { playerId: goneId, slotType: "batting" },
+    ]);
+
+    await calculateFantasyScores(ctx.db)(SEASON);
+
+    const before = await ctx.db
+      .selectFrom("fantasy_player_score")
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .execute();
+    expect(before).toHaveLength(2);
+
+    const teamBefore = await ctx.db
+      .selectFrom("fantasy_team_score")
+      .where("fantasy_team_id", "=", teamId)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+
+    await ctx.db
+      .deleteFrom("match_performance_batting")
+      .where("match_id", "=", matchId)
+      .where("player_id", "=", goneId)
+      .execute();
+
+    await calculateFantasyScores(ctx.db)(SEASON);
+
+    const after = await ctx.db
+      .selectFrom("fantasy_player_score")
+      .where("match_id", "=", matchId)
+      .selectAll()
+      .execute();
+    expect(after).toHaveLength(1);
+    expect(after[0]?.play_cricket_id).toBe(stayerId);
+
+    // Team total must shed the retracted player's contribution: their duck
+    // penalty (-10) and win bonus (+10) cancelled out, so removing them
+    // changes the total by 0 here - assert the exact recomputed value.
+    // Stayer: 30 runs + 5 fours + 2*2 sixes + 10 win bonus = 49
+    const teamAfter = await ctx.db
+      .selectFrom("fantasy_team_score")
+      .where("fantasy_team_id", "=", teamId)
+      .selectAll()
+      .executeTakeFirstOrThrow();
+    expect(teamAfter.total_points).toBe(49);
+    expect(teamBefore.total_points).toBe(49);
   });
 
   it("calculates team scores with slot-based filtering", async () => {

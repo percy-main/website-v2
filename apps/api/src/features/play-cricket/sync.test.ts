@@ -5,6 +5,7 @@ import { createNoopLogger } from "../../lib/worker-logger.ts";
 import type { PlayCricketApiClient } from "./api-client.ts";
 import {
   didBat,
+  hasScorecardEntry,
   isJuniorTeam,
   isNotOut,
   parseDismissalType,
@@ -43,28 +44,42 @@ describe("sync helpers", () => {
       expect(isNotOut(undefined)).toBe(true);
     });
 
-    it("returns true for not-out codes", () => {
+    it("returns true for not-out codes, both abbreviated and full text", () => {
       expect(isNotOut("no")).toBe(true);
-      expect(isNotOut("dnb")).toBe(true);
+      expect(isNotOut("not out")).toBe(true);
+      expect(isNotOut("Not Out")).toBe(true);
       expect(isNotOut("rtd")).toBe(true);
+      expect(isNotOut("retired hurt")).toBe(true);
+      expect(isNotOut("retired not out")).toBe(true);
       expect(isNotOut("")).toBe(true);
     });
 
-    it("returns false for dismissal codes", () => {
+    it("returns false for dismissal codes, both abbreviated and full text", () => {
+      expect(isNotOut("ct")).toBe(false);
       expect(isNotOut("caught")).toBe(false);
+      expect(isNotOut("b")).toBe(false);
       expect(isNotOut("bowled")).toBe(false);
       expect(isNotOut("lbw")).toBe(false);
+      expect(isNotOut("st")).toBe(false);
+      expect(isNotOut("hit wicket")).toBe(false);
+      expect(isNotOut("timed out")).toBe(false);
+      expect(isNotOut("obstructing the field")).toBe(false);
     });
 
-    // run out is considered "not out" for batting average purposes
-    it("returns true for run out", () => {
-      expect(isNotOut("ro")).toBe(true);
+    it("returns false for run out and retired out - both are dismissals", () => {
+      expect(isNotOut("ro")).toBe(false);
+      expect(isNotOut("run out")).toBe(false);
+      expect(isNotOut("retired out")).toBe(false);
+      expect(isNotOut("ret out")).toBe(false);
     });
   });
 
   describe("didBat", () => {
-    it("returns false when how_out is dnb regardless of stats", () => {
+    it("returns false when how_out says the player never batted", () => {
       expect(didBat({ how_out: "dnb" })).toBe(false);
+      expect(didBat({ how_out: "did not bat" })).toBe(false);
+      expect(didBat({ how_out: "Did Not Bat" })).toBe(false);
+      expect(didBat({ how_out: "absent" })).toBe(false);
       // Even if Play Cricket sends quantitative fields for a DNB row, "dnb"
       // is the explicit signal that they didn't take strike.
       expect(didBat({ how_out: "dnb", runs: "5", balls: "10" })).toBe(false);
@@ -99,6 +114,33 @@ describe("sync helpers", () => {
       ).toBe(true);
       expect(
         didBat({ how_out: null, runs: "0", balls: "0", times_out: "1" }),
+      ).toBe(true);
+    });
+  });
+
+  describe("hasScorecardEntry", () => {
+    it("returns true for explicit how_out, including did not bat", () => {
+      expect(hasScorecardEntry({ how_out: "ct" })).toBe(true);
+      expect(hasScorecardEntry({ how_out: "not out" })).toBe(true);
+      // DNB rows are stored (as did_bat = false appearances)
+      expect(hasScorecardEntry({ how_out: "did not bat" })).toBe(true);
+      expect(hasScorecardEntry({ how_out: "absent" })).toBe(true);
+    });
+
+    it("returns false for placeholder rows with no how_out and no stats", () => {
+      expect(hasScorecardEntry({ how_out: null })).toBe(false);
+      expect(hasScorecardEntry({ how_out: "" })).toBe(false);
+      expect(hasScorecardEntry({ how_out: "", runs: "0", balls: "0" })).toBe(
+        false,
+      );
+    });
+
+    it("returns true for softball batters (null how_out with stats)", () => {
+      expect(hasScorecardEntry({ how_out: null, runs: "5", balls: "8" })).toBe(
+        true,
+      );
+      expect(
+        hasScorecardEntry({ how_out: null, runs: "0", times_out: "1" }),
       ).toBe(true);
     });
   });

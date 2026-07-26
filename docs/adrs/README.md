@@ -34,3 +34,4 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 | [053](053-prerendering-fixtures-and-calendar.md)         | Prerendering fixtures and calendar months via hash-diffed manifest | 2026-07-04 | Accepted |
 | [054](054-typescript-7-native-with-v6-api-alias.md)      | TypeScript 7 native compiler, v6 JS API aliased for tooling        | 2026-07-08 | Accepted |
 | [055](055-content-assistant-edit-ops-and-sidebar.md)     | Content assistant edit-op protocol + persistent sidebar            | 2026-07-09 | Accepted |
+| [056](056-dnb-rows-stay-in-batting-table.md)             | "Did not bat" rows stay in the batting table with a did_bat flag   | 2026-07-26 | Accepted |

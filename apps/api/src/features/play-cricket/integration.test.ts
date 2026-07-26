@@ -499,7 +499,7 @@ function makeMatchDetail(matchId: number) {
                 position: "2",
                 batsman_name: "Y Batsman",
                 batsman_id: "2002",
-                how_out: "ro",
+                how_out: "run out",
                 fielder_name: "A Batsman",
                 fielder_id: "1001",
                 runs: "30",
@@ -544,7 +544,7 @@ function makeMatchDetail(matchId: number) {
                 position: "1",
                 batsman_name: "A Batsman",
                 batsman_id: "1001",
-                how_out: "caught",
+                how_out: "ct",
                 fielder_name: "X Bowler",
                 fielder_id: "2001",
                 bowler_name: "Z Bowler",
@@ -558,11 +558,21 @@ function makeMatchDetail(matchId: number) {
                 position: "2",
                 batsman_name: "B Keeper",
                 batsman_id: "1002",
-                how_out: "no",
+                how_out: "not out",
                 runs: "60",
                 fours: "7",
                 sixes: "1",
                 balls: "70",
+              },
+              {
+                position: "3",
+                batsman_name: "C Bowler",
+                batsman_id: "1003",
+                how_out: "did not bat",
+                runs: "0",
+                fours: "0",
+                sixes: "0",
+                balls: "0",
               },
             ],
             bowl: [],
@@ -821,16 +831,30 @@ describe("play-cricket sync (integration)", () => {
       .selectAll()
       .execute();
 
-    expect(batting).toHaveLength(2);
+    expect(batting).toHaveLength(3);
     const aBatsman = batting.find((b) => b.player_id === "1001");
     assert(aBatsman, "Expected batting record for player 1001");
     expect(aBatsman.runs).toBe(85);
+    expect(aBatsman.did_bat).toBe(true);
     expect(aBatsman.not_out).toBe(false);
+    expect(aBatsman.times_out).toBe(1);
 
+    // Play Cricket sends "not out" as full text, not "no"
     const bKeeper = batting.find((b) => b.player_id === "1002");
     assert(bKeeper, "Expected batting record for player 1002");
     expect(bKeeper.runs).toBe(60);
+    expect(bKeeper.did_bat).toBe(true);
     expect(bKeeper.not_out).toBe(true);
+    expect(bKeeper.times_out).toBe(0);
+
+    // "did not bat" is stored as an appearance, not an innings: no
+    // dismissal, and not not-out either
+    const dnb = batting.find((b) => b.player_id === "1003");
+    assert(dnb, "Expected appearance record for player 1003");
+    expect(dnb.did_bat).toBe(false);
+    expect(dnb.not_out).toBe(false);
+    expect(dnb.times_out).toBe(0);
+    expect(dnb.runs).toBe(0);
 
     // Check bowling (our team bowled in innings 1)
     const bowling = await ctx.db
