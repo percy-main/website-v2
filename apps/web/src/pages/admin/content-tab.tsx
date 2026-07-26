@@ -233,6 +233,7 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
           <TableBody>
             {items.map((item) => {
               const state = displayState(item);
+              const itemLiveUrl = liveUrl(kind, item);
               return (
                 <TableRow
                   key={item.id}
@@ -262,9 +263,9 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
                     {item.updatedByName ? ` · ${item.updatedByName}` : ""}
                   </TableCell>
                   <TableCell>
-                    {state === "live" && liveUrl(kind, item) && (
+                    {state === "live" && itemLiveUrl && (
                       <a
-                        href={liveUrl(kind, item) ?? ""}
+                        href={itemLiveUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Open live page for ${item.title}`}
