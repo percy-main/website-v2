@@ -49,8 +49,9 @@ export function ContentAiPanel({
   );
   // Belt-and-braces dedupe: onData should fire once per part, but applying a
   // block twice would corrupt the draft, so guard on the part id anyway.
-  // Lazy useState initialiser so the Set is built once, not per render.
-  const [seenPartIds] = useState(() => new Set<string>());
+  // Use a ref for mutable dedupe state that persists across renders without
+  // triggering re-renders.
+  const seenPartIds = useRef(new Set<string>());
 
   // Data parts apply to the editor as they stream in, in arrival order (one
   // handler covers both types so appends and edits stay ordered relative to
@@ -64,8 +65,8 @@ export function ContentAiPanel({
         return;
       }
       const key = dataPart.id;
-      if (!key || seenPartIds.has(key)) return;
-      seenPartIds.add(key);
+      if (!key || seenPartIds.current.has(key)) return;
+      seenPartIds.current.add(key);
       if (dataPart.type === "data-content-blocks") {
         const { blocks } = dataPart.data as { blocks?: ResolvedBlock[] };
         if (blocks && blocks.length > 0) onInsertBlocks(blocks);
