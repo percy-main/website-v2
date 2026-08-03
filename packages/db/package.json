@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@libsql/client": "^0.17.4",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "@types/pg": "^8.20.0",
     "@typescript/native": "npm:typescript@^7.0.2",
     "dotenv": "^17.4.2",
