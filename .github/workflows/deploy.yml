@@ -48,20 +48,32 @@ jobs:
         id: filter
         with:
           filters: |
+            # Dependency resolution changes (lockfile, overrides, pinned pnpm
+            # version) alter every built artifact, so they must deploy all
+            # apps; without them a lockfile-only security bump never ships.
             api:
               - 'apps/api/**'
               - 'packages/shared/**'
               - 'packages/db/**'
               - 'packages/email/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
               - '.github/workflows/deploy.yml'
             web:
               - 'apps/web/**'
               - 'packages/shared/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
               - '.github/workflows/deploy.yml'
             matchday:
               - 'apps/matchday/**'
               - 'apps/api/**'
               - 'packages/shared/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
               - '.github/workflows/deploy.yml'
 
   # ── Stage 2: Terraform ──────────────────────────────────────────────
