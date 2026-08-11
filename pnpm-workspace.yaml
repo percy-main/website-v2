@@ -34,14 +34,19 @@ overrides:
   # does (#653).
   "@fastify/static@<10.1.1": ">=10.1.1"
   axios@<1.18.0: ">=1.18.0"
-  # CVE-2026-14257 (ReDoS): scoped to the 5.x line only. brace-expansion 5
-  # dropped the default export (named `expand` only), so forcing it onto
-  # minimatch 5/9 breaks them at runtime; those lines have no fixed
-  # release. The runtime 2.x copy is eliminated by the minimatch override
-  # below instead; remaining 1.x/2.x copies are dev-only chains that never
-  # reach the API image (#653).
-  "brace-expansion@>=5.0.0 <5.0.8": ">=5.0.8"
+  # CVE-2026-14257 (ReDoS) + CVE-2026-69152 (DoS via unbounded intermediate
+  # arrays): scoped to the 5.x line only. brace-expansion 5 dropped the
+  # default export (named `expand` only), so forcing it onto minimatch 5/9
+  # breaks them at runtime. The runtime 2.x copy is eliminated by the
+  # minimatch override below instead; remaining 1.x/2.x copies are dev-only
+  # chains that never reach the API image (#653).
+  "brace-expansion@>=5.0.0 <5.0.9": ">=5.0.9"
   esbuild@<0.28.1: ">=0.28.1"
+  # CVE-2026-18446 (host confusion via backslash in URI authority): scoped
+  # to the 3.x line, the only one in the graph (ajv/fastify chain); caret,
+  # not >=, or the override itself would hoist to 4.x. The 4.x fix is 4.1.2
+  # if a consumer ever pulls that line in.
+  "fast-uri@>=3.0.0 <3.1.5": "^3.1.5"
   fast-xml-parser@<5.7.0: ">=5.7.0"
   # CVE-2026-47219: fastify's ^9.6.0 range already admits the fix; the
   # floor guards against dedupe re-resolving the vulnerable patch (#653).
@@ -57,6 +62,10 @@ overrides:
   # fixed 2.x release. minimatch 10 keeps the API surface glob@10 uses and
   # moves to brace-expansion 5 (#653).
   minimatch@9: ">=10.2.5"
+  # CVE-2026-67213 (DoS via infinite loop in ID generation): scoped to 3.x
+  # with a caret so the override cannot hoist past it; nanoid 4+ is
+  # ESM-only and would break CJS dependents if forced.
+  "nanoid@>=3.0.0 <3.3.17": "^3.3.17"
   # @react-email/ui hard-pins next, so the floor must be forced past the
   # CVE-2026-64641/-64642/-64645/-64649 fixes; sharp rides in as next's
   # optional dep and needs its own floor (GHSA-f88m-g3jw-g9cj).
