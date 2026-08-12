@@ -7,7 +7,7 @@ import sharp, { type OverlayOptions } from "sharp";
 import type { PlayCricketApiClient } from "../play-cricket/api-client.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const HERO_IMAGE_PATH = join(__dirname, "..", "..", "assets", "pitch.png");
+const HERO_IMAGE_PATH = join(__dirname, "..", "..", "assets", "pitch.jpg");
 
 // --- Types ---
 
