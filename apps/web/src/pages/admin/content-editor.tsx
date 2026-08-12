@@ -2076,6 +2076,8 @@ function TagsInput({
           setDraft(remainder);
         }}
         onKeyDown={(e) => {
+          // IME composition: Enter confirms the candidate, not the tag.
+          if (e.nativeEvent.isComposing) return;
           if (e.key === "Enter") {
             e.preventDefault();
             commit(draft);

@@ -342,11 +342,15 @@ function FactEditDialog({
               max={5}
               className="mt-1 w-24 rounded border border-stone-300 px-2 py-1 text-sm"
               value={confidence}
-              onChange={(e) =>
-                update({
-                  confidence: Math.max(1, Math.min(5, Number(e.target.value))),
-                })
-              }
+              onChange={(e) => {
+                // Number("") is 0 and partial input is NaN; keep the last
+                // valid value rather than storing either.
+                const v = e.target.value;
+                if (v === "") return;
+                const n = Number(v);
+                if (Number.isNaN(n)) return;
+                update({ confidence: Math.max(1, Math.min(5, n)) });
+              }}
             />
           </label>
           <label className="flex flex-col text-xs text-stone-600">

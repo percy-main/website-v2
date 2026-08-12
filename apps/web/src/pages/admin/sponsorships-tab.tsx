@@ -167,6 +167,8 @@ function InlineEdit({
           onChange={(e) => setDraft(e.target.value)}
           className="h-7 w-32 text-xs"
           onKeyDown={(e) => {
+            // IME composition: Enter confirms the candidate, not the edit.
+            if (e.nativeEvent.isComposing) return;
             if (e.key === "Enter") {
               onSave(draft.trim() || null);
               setEditing(false);

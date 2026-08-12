@@ -123,6 +123,7 @@ export function ScoutLauncher({ onLaunch }: ScoutLauncherProps) {
       >
         <input
           type="text"
+          aria-label="Describe the match (team, opposition, date)"
           value={freeText}
           onChange={(e) => setFreeText(e.target.value)}
           placeholder="Or describe the match (team, opposition, date)"
