@@ -293,7 +293,13 @@ function JuniorRegistrationInner() {
     dispatch({ type: "advanceIfValid", next: nextStep });
 
   const handleSubmit = async () => {
-    const result = await addDependentsMutation.mutateAsync(dependents);
+    let result;
+    try {
+      result = await addDependentsMutation.mutateAsync(dependents);
+    } catch {
+      // Surfaced via addDependentsMutation.error on the review step.
+      return;
+    }
     setStep("payment");
     payMutation.mutate([result.chargeId]);
   };

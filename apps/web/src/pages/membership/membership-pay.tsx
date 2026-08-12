@@ -11,8 +11,9 @@ type MembershipType =
 
 function PayMembershipInner() {
   const [searchParams] = useSearchParams();
-  const emailParam = searchParams.get("email");
-  const email = emailParam ? decodeURIComponent(emailParam) : undefined;
+  // useSearchParams already percent-decodes; decoding again would throw
+  // URIError on emails containing a literal "%".
+  const email = searchParams.get("email") ?? undefined;
 
   const [membership, setMembership] = useState<MembershipType>();
   const [schedule, setSchedule] = useState<"annually" | "monthly">();

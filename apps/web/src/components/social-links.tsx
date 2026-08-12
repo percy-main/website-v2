@@ -42,8 +42,8 @@ const links = [
 export const SocialLinks: FC<Props> = ({ variant = "light" }) => {
   const linkClass =
     variant === "dark"
-      ? "inline-flex size-11 items-center justify-center rounded-full bg-white/20 text-center transition-all duration-200 hover:bg-cta [&_svg]:fill-white [&>svg]:text-xl"
-      : "inline-flex size-11 items-center justify-center rounded-full bg-white text-center transition-all duration-200 hover:bg-primary [&_svg]:fill-dark [&_path]:transition-all [&_path]:duration-200 hover:[&_svg]:fill-white [&>svg]:text-xl";
+      ? "inline-flex size-11 items-center justify-center rounded-full bg-white/20 text-center transition-colors duration-200 hover:bg-cta [&_svg]:fill-white [&>svg]:text-xl"
+      : "inline-flex size-11 items-center justify-center rounded-full bg-white text-center transition-colors duration-200 hover:bg-primary [&_svg]:fill-dark [&_path]:transition-colors [&_path]:duration-200 hover:[&_svg]:fill-white [&>svg]:text-xl";
 
   return (
     <ul className="mt-4 flex gap-2 lg:mt-6">

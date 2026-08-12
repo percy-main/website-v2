@@ -26,10 +26,13 @@ import {
   showsRuleConfig,
 } from "./fantasy-tab.reducer";
 
-const CURRENT_SEASON =
-  new Date().getMonth() >= 3
-    ? new Date().getFullYear()
-    : new Date().getFullYear() - 1;
+// Season rolls over in April (month index 3): before then we're still in
+// last year's season. Evaluated per call so a long-lived tab doesn't pin
+// the season computed at module load.
+function getCurrentSeason(): number {
+  const now = new Date();
+  return now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+}
 
 const RULE_TYPE_LABELS: Record<string, string> = {
   no_transfers: "No Transfers",
@@ -134,7 +137,7 @@ function PlayerManagementSection() {
     mutationFn: () =>
       callApi(
         api.POST("/api/fantasy/admin/calculate-costs", {
-          body: { season: String(CURRENT_SEASON) },
+          body: { season: String(getCurrentSeason()) },
         }),
       ),
     onSuccess: (result) => {
@@ -297,12 +300,13 @@ function ChaosWeeksSection() {
   const { gameweekId, ruleType, name, description, ruleConfig, sendEmail } =
     form;
 
+  const season = getCurrentSeason();
   const { data } = useQuery({
-    queryKey: ["admin", "chaosWeeks", CURRENT_SEASON],
+    queryKey: ["admin", "chaosWeeks", season],
     queryFn: () =>
       callApi(
         api.GET("/api/fantasy/admin/chaos-weeks", {
-          params: { query: { season: String(CURRENT_SEASON) } },
+          params: { query: { season: String(season) } },
         }),
       ),
   });
