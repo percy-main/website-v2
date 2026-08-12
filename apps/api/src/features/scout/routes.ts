@@ -1003,7 +1003,24 @@ export const scoutRoutes: FastifyPluginAsyncZod = async (app) => {
         }
       }
 
-      pipeUIMessageStreamToResponse({ stream, response: reply.raw });
+      // Stream-content failures surface via the stream's onError; the
+      // returned promise only rejects on socket-level pipe errors (e.g.
+      // client disconnect mid-stream). Log and close the turn span
+      // (idempotent) rather than leave a floating rejection.
+      pipeUIMessageStreamToResponse({ stream, response: reply.raw }).catch(
+        (error: unknown) => {
+          request.log.error(
+            {
+              err:
+                error instanceof Error
+                  ? { name: error.name, message: error.message }
+                  : error,
+            },
+            "scout UI stream pipe error",
+          );
+          endTurnSpan(error);
+        },
+      );
 
       // Return the raw reply so Fastify doesn't double-write a body.
       return reply;

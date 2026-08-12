@@ -22,13 +22,13 @@
     "@percy-main/shared": "workspace:*",
     "date-fns": "^4.4.0",
     "kysely": "^0.29.4",
-    "pg": "^8.22.0",
+    "pg": "^8.23.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@libsql/client": "^0.17.4",
     "@types/node": "^26.1.1",
-    "@types/pg": "^8.20.0",
+    "@types/pg": "^8.21.0",
     "@typescript/native": "npm:typescript@^7.0.2",
     "dotenv": "^17.4.2",
     "kysely-codegen": "^0.20.0",
