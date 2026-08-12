@@ -52,11 +52,13 @@ overrides:
   # floor guards against dedupe re-resolving the vulnerable patch (#653).
   find-my-way@<9.7.0: ">=9.7.0"
   form-data@<4.0.6: ">=4.0.6"
-  # GHSA-52cp-r559-cp3m (merge-key quadratic CPU): @redocly/openapi-core 1.x
+  # GHSA-52cp-r559-cp3m (merge-key quadratic CPU) + GHSA-5p4m-2wfm-xmqj
+  # (!!omap quadratic CPU, fixed in 4.3.1): @redocly/openapi-core 1.x
   # hard-pins js-yaml (4.1.1, 4.2.0 at latest); only 2.x moves to js-yaml 5.
-  # Scoped to 4.x so a future 3.x consumer isn't force-broken. Drop once
-  # openapi-typescript depends on @redocly/openapi-core 2.x.
-  "js-yaml@>=4.0.0 <4.3.0": ">=4.3.0"
+  # Caret, not >=: js-yaml 5.x is out now, and a bare floor would hoist past
+  # the 4.x line openapi-core pins. Drop once openapi-typescript depends on
+  # @redocly/openapi-core 2.x.
+  "js-yaml@>=4.0.0 <4.3.1": "^4.3.1"
   # CVE-2026-14257 continued: glob@10 (runtime via google-gax -> rimraf)
   # pins minimatch ^9, which pins vulnerable brace-expansion ^2 with no
   # fixed 2.x release. minimatch 10 keeps the API surface glob@10 uses and
@@ -70,7 +72,10 @@ overrides:
   # CVE-2026-64641/-64642/-64645/-64649 fixes; sharp rides in as next's
   # optional dep and needs its own floor (GHSA-f88m-g3jw-g9cj).
   next@<16.2.11: ">=16.2.11"
-  postcss@<8.5.10: ">=8.5.10"
+  # CVE-2026-69153: 8.5.23 completes the sourceMappingURL fix that 8.5.10
+  # (GHSA-6g55-p6wh-862q) only partially shipped; the vulnerable copy rides
+  # in via @newrelic/rrweb-snapshot.
+  postcss@<8.5.23: ">=8.5.23"
   sharp@<0.35.0: ">=0.35.0"
   ws@<8.21.0: ">=8.21.0"
   yaml@<2.8.3: ">=2.8.3"
