@@ -186,7 +186,22 @@ export const contentAuthorRoutes: FastifyPluginAsyncZod = async (app) => {
         }
       }
 
-      pipeUIMessageStreamToResponse({ stream, response: reply.raw });
+      // Stream-content failures surface via onError above; the returned
+      // promise only rejects on socket-level pipe errors (e.g. client
+      // disconnect mid-stream), which we log rather than crash on.
+      pipeUIMessageStreamToResponse({ stream, response: reply.raw }).catch(
+        (error: unknown) => {
+          request.log.error(
+            {
+              err:
+                error instanceof Error
+                  ? { name: error.name, message: error.message }
+                  : error,
+            },
+            "content-author UI stream pipe error",
+          );
+        },
+      );
 
       return reply;
     },
