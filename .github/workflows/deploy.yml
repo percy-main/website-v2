@@ -44,24 +44,36 @@ jobs:
       matchday: ${{ steps.filter.outputs.matchday }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
+            # Dependency resolution changes (lockfile, overrides, pinned pnpm
+            # version) alter every built artifact, so they must deploy all
+            # apps; without them a lockfile-only security bump never ships.
             api:
               - 'apps/api/**'
               - 'packages/shared/**'
               - 'packages/db/**'
               - 'packages/email/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
               - '.github/workflows/deploy.yml'
             web:
               - 'apps/web/**'
               - 'packages/shared/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
               - '.github/workflows/deploy.yml'
             matchday:
               - 'apps/matchday/**'
               - 'apps/api/**'
               - 'packages/shared/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
               - '.github/workflows/deploy.yml'
 
   # ── Stage 2: Terraform ──────────────────────────────────────────────
