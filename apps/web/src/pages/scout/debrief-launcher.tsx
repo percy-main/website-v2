@@ -119,6 +119,7 @@ export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
       >
         <input
           type="text"
+          aria-label="Play Cricket scorecard URL"
           value={freeText}
           onChange={(e) => setFreeText(e.target.value)}
           placeholder="Or paste a Play Cricket scorecard URL"

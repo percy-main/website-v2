@@ -53,7 +53,7 @@ function InputOTPSlot({
     <div
       ref={ref}
       className={cn(
-        "border-border relative flex size-10 items-center justify-center border-y border-r text-sm transition-all first:rounded-l-md first:border-l last:rounded-r-md",
+        "border-border relative flex size-10 items-center justify-center border-y border-r text-sm transition-shadow first:rounded-l-md first:border-l last:rounded-r-md",
         isActive && "ring-offset-surface z-10 ring-2 ring-stone-400",
         className,
       )}
@@ -62,7 +62,9 @@ function InputOTPSlot({
       {char}
       {hasFakeCaret && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="animate-caret-blink bg-dark h-4 w-px duration-1000" />
+          {/* Blink duration comes from --animate-caret-blink in app.css;
+              duration-* here would set transition-duration, not animation. */}
+          <div className="animate-caret-blink bg-dark h-4 w-px" />
         </div>
       )}
     </div>

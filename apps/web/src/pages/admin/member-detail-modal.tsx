@@ -1059,6 +1059,7 @@ function ArchiveSection({
       ) : (
         <div className="space-y-2">
           <textarea
+            aria-label="Reason for archiving"
             className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2 focus-visible:outline-none"
             placeholder="Reason for archiving…"
             rows={3}

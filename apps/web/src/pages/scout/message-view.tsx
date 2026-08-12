@@ -1042,6 +1042,7 @@ function QuestionCard({
         >
           <input
             type="text"
+            aria-label="Type an answer"
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
             disabled={!isInteractive}

@@ -83,6 +83,7 @@ export function useAttachmentUpload({
     const contentType = file.type as AcceptedContentType;
     const kind: "image" | "pdf" =
       contentType === "application/pdf" ? "pdf" : "image";
+    // eslint-disable-next-line react-doctor/no-create-object-url-without-revoke -- lifetime spans React state: revoked below on the cap-exceeded path, in remove(), and in clearAll()
     const previewUrl = kind === "image" ? URL.createObjectURL(file) : null;
 
     const pending: PendingAttachment = {

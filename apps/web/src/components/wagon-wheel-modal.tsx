@@ -738,12 +738,13 @@ function Wheel({ activeBalls, allBalls, hoveredKey, onHover }: WheelProps) {
 
   return (
     <div className="relative mx-auto aspect-square w-full max-w-[600px]">
+      {/* No role="img": that would strip the focusable shot markers below
+          from the accessibility tree. <title> still provides the name. */}
       <svg
         viewBox={`-${VIEW} -${VIEW} ${VIEW * 2} ${VIEW * 2}`}
         className="block h-full w-full touch-none"
-        role="img"
-        aria-label="Wagon wheel — shot directions plotted from the wicket"
       >
+        <title>Wagon wheel — shot directions plotted from the wicket</title>
         <defs>
           <radialGradient id="ww-grass" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="#244a2b" />
@@ -828,6 +829,7 @@ function Wheel({ activeBalls, allBalls, hoveredKey, onHover }: WheelProps) {
               onFocus={() => handleEnter(b)}
               onBlur={handleLeave}
               tabIndex={0}
+              aria-label={`Over ${b.over}: ${b.runsBat} ${b.runsBat === 1 ? "run" : "runs"}${b.dismissed ? ", wicket" : ""}`}
               style={{ cursor: "pointer" }}
             >
               <line
