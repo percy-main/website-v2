@@ -22,7 +22,7 @@
     "@ai-sdk/provider": "^4.0.7",
     "@ai-sdk/provider-utils": "^5.0.25",
     "@arizeai/openinference-semantic-conventions": "^2.7.0",
-    "@arizeai/openinference-vercel": "^2.7.8",
+    "@arizeai/openinference-vercel": "^3.1.4",
     "@aws-sdk/client-ecs": "^3.1106.0",
     "@aws-sdk/client-lambda": "^3.1106.0",
     "@aws-sdk/client-rekognition": "^3.1106.0",
