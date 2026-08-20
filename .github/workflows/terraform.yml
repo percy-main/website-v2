@@ -50,12 +50,16 @@ jobs:
         # the GitHub OIDC `:pull_request` subject - that subject means
         # "any unreviewed PR run". Credentialed plans go through the
         # reviewer-gated terraform-plan environment subject instead.
+        # Deliberately matched across ALL file types (tf, tf.json,
+        # tftpl, ...) since trust policies can be authored in any of
+        # them; the leading colon keeps prose mentions of pull
+        # requests from tripping it.
         run: |
-          if grep -rn --include='*.tf' 'pull_request' infra/; then
-            echo "::error::infra/ references the OIDC 'pull_request' subject (matches above). Unreviewed PR runs must not be trusted with cloud credentials - use the reviewer-gated terraform-plan environment subject (ADR 057)."
+          if grep -rn ':pull_request' infra/; then
+            echo "::error::infra/ references the OIDC ':pull_request' subject (matches above). Unreviewed PR runs must not be trusted with cloud credentials - use the reviewer-gated terraform-plan environment subject (ADR 057)."
             exit 1
           fi
-          echo "OK: no pull_request OIDC subjects in infra/"
+          echo "OK: no ':pull_request' OIDC subjects in infra/"
 
   validate:
     # Uncredentialed `terraform validate` per environment. See the
