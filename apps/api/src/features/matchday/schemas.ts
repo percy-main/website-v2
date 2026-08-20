@@ -72,6 +72,15 @@ export const createMatchdaySchema = z.object({
   opposition: z.string().min(1),
   competitionType: z.string().optional(),
   playCricketMatchId: z.string().optional(),
+  // Custom (non-Play-Cricket) fixtures have no upstream record to
+  // derive home/away or start time from, so the create form supplies
+  // them. Play-Cricket-backed matchdays omit both and keep deriving
+  // them from the matches-summary lookup.
+  isHome: z.boolean().optional(),
+  matchTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Must be HH:MM (24-hour) format")
+    .optional(),
 });
 
 export const addPlayerSchema = z.object({
@@ -105,11 +114,15 @@ export const searchMembersSchema = z.object({
 
 // ── Team news image schemas ──
 
-// Both are pure overrides. When absent, the route derives them from
-// the joined play-cricket fixture (home_club_id / match_time).
+// Both are pure overrides. When absent, the route falls back to the
+// matchday's stored is_home/match_time (set for custom fixtures), then
+// to the joined play-cricket fixture (home_club_id / match_time).
 export const teamNewsImageQuerySchema = z.object({
+  // Enum, not bare string: anything else used to coerce silently to
+  // `false` (= away), which is exactly the wrong-venue image bug this
+  // override exists to prevent.
   isHome: z
-    .string()
+    .enum(["true", "false"])
     .optional()
     .transform((v) => (v === undefined ? undefined : v === "true")),
   matchTime: z.string().optional(),
@@ -168,6 +181,8 @@ const matchdayItemSchema = z.object({
   opposition: z.string(),
   competition_type: z.string().nullable(),
   play_cricket_match_id: z.string().nullable(),
+  is_home: z.boolean().nullable(),
+  match_time: z.string().nullable(),
   status: z.string(),
   created_by: z.string(),
   created_at: z.string(),
@@ -324,6 +339,25 @@ const teamSchema = z.object({
 });
 
 export const listTeamsResponseSchema = z.array(teamSchema);
+
+// Custom fixtures — matchdays with no Play-Cricket match behind them
+// (friendlies and other club-arranged games). Served to every signed-in
+// member so the matchday app's fixtures list can union them into the
+// Play-Cricket feed; the shape mirrors what that list renders.
+const customFixtureSchema = z.object({
+  matchdayId: z.string(),
+  matchDate: z.string(),
+  matchTime: z.string().nullable(),
+  opposition: z.string(),
+  teamId: z.string(),
+  teamName: z.string().nullable(),
+  isHome: z.boolean().nullable(),
+  competitionType: z.string().nullable(),
+  status: z.string(),
+  resultType: z.string().nullable(),
+});
+
+export const customFixturesResponseSchema = z.array(customFixtureSchema);
 
 const upcomingMatchSchema = z.object({
   matchId: z.string(),

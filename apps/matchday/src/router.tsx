@@ -42,6 +42,13 @@ const routes: RouteObject[] = [
               () => import("./pages/fixture-detail.js"),
             ),
           },
+          // Static segment — registered alongside matchday/:matchdayId;
+          // the router ranks "new" above the param route so team-sheet
+          // never swallows it.
+          {
+            path: "matchday/new",
+            Component: lazyWithReload(() => import("./pages/matchday-new.js")),
+          },
           {
             path: "matchday/:matchdayId",
             Component: lazyWithReload(() => import("./pages/team-sheet.js")),

@@ -13,6 +13,7 @@ import {
   cancelMatchdaySchema,
   createMatchdayResponseSchema,
   createMatchdaySchema,
+  customFixturesResponseSchema,
   expenseIdParamSchema,
   finishMatchResponseSchema,
   finishMatchSchema,
@@ -62,6 +63,7 @@ import {
   getPastUnfinishedMatchdays,
   getTeamNewsData,
   getUpcomingMatches,
+  listCustomFixtures,
   listMatches,
   listPendingExpenses,
   listTeams,
@@ -186,6 +188,23 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
         request.params.matchdayPlayerId,
         request.log,
       );
+    },
+  );
+
+  // Custom (non-Play-Cricket) fixtures for the PWA fixtures list.
+  // Signed-in members only — same audience as /matchday/:matchId/public,
+  // which is where the list links to.
+  const customFixtures = listCustomFixtures(app.db);
+  app.get(
+    "/matchday/custom-fixtures",
+    {
+      preHandler: [requireAuth],
+      schema: {
+        response: { 200: customFixturesResponseSchema },
+      },
+    },
+    async () => {
+      return await customFixtures();
     },
   );
 
