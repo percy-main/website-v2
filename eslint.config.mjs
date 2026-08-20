@@ -172,6 +172,29 @@ export default tseslint.config(
       "react-doctor/button-has-type": "off", // 20 sites
       "react-doctor/prefer-tag-over-role": "off",
       "react-doctor/prefer-html-dialog": "off",
+
+      // -------------------------------------------------------------------
+      // Rules newly surfaced by the eslint-plugin-react-doctor 0.9.2 -> 0.9.12
+      // bump (#691). Unlike the #419 deferrals above, these are off
+      // permanently - no re-enablement follow-up is planned.
+      // -------------------------------------------------------------------
+
+      // Inline-prop memoization rules - obsoleted by React Compiler
+      // (babel-plugin-react-compiler in apps/web), which auto-memoizes, so a
+      // new function/object/array/JSX prop per render no longer re-renders
+      // the child. ~1,020 sites between them at the time of the bump.
+      "react-doctor/jsx-no-new-function-as-prop": "off",
+      "react-doctor/jsx-no-new-object-as-prop": "off",
+      "react-doctor/jsx-no-new-array-as-prop": "off",
+      "react-doctor/jsx-no-jsx-as-prop": "off",
+      // Depth limit of 2 is incompatible with shadcn-style composition;
+      // 255 sites in established working code.
+      "react-doctor/jsx-max-depth": "off",
+      // Same Vite SPA rationale as the rendering-hydration rules above -
+      // no hydrated server markup, so `typeof window` branches cannot
+      // mismatch. The one flagged site (consent-banner) branches on the
+      // browser global deliberately.
+      "react-doctor/no-hydration-branch-on-browser-global": "off",
     },
   },
   // no-locale-format-in-render (new in the 0.5.8 -> 0.8.1 bump, #646) guards
