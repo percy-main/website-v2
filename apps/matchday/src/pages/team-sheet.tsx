@@ -4,7 +4,11 @@ import { fmtDate } from "@/features/format.js";
 import { CrownIcon, GloveIcon } from "@/features/icons/cricket-icons.js";
 import { shareOrDownloadTeamNewsImage } from "@/features/team-news-image.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
-import { canViewMatchdayAdmin, useSession } from "@/lib/auth-client.js";
+import {
+  canManageMatchday,
+  canViewMatchdayAdmin,
+  useSession,
+} from "@/lib/auth-client.js";
 import { cn } from "@/lib/utils.js";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon, ImageIcon, ShareIcon } from "lucide-react";
@@ -31,6 +35,11 @@ export default function TeamSheet() {
   const { data: session } = useSession();
   const myUserId = session?.user.id;
   const isOfficial = canViewMatchdayAdmin(session?.user);
+  // Custom (non-Play-Cricket) fixtures link here from the fixtures
+  // list, so this page is an official's entry point to managing them —
+  // PC fixtures get the same links via /fixture/:id, which custom
+  // matchdays don't have.
+  const canManage = canManageMatchday(session?.user);
   const {
     data: md,
     isLoading,
@@ -123,6 +132,21 @@ export default function TeamSheet() {
           </div>
         )}
       </header>
+
+      {/* No status gate: mirrors /fixture/:id, where Manage squad/game
+          stay available after finishing (wrap-up keeps mark-paid). The
+          public endpoint 404s cancelled matchdays, so no cancelled
+          state reaches this render. */}
+      {canManage && (
+        <div className="flex gap-2 px-4 pb-4">
+          <Button asChild tone="outline" size="sm" className="flex-1">
+            <Link to={`/matchday/${md.id}/edit`}>Manage squad</Link>
+          </Button>
+          <Button asChild tone="outline" size="sm" className="flex-1">
+            <Link to={`/matchday/${md.id}/wrap`}>Manage game</Link>
+          </Button>
+        </div>
+      )}
 
       <h2 className="bg-surface-raised text-text-secondary px-4 py-1.5 text-[11px] font-semibold tracking-[0.06em] uppercase">
         Squad · {md.squad.length}

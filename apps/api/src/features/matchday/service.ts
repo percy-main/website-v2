@@ -291,6 +291,8 @@ export function getMatchPublic(db: Kysely<DB>) {
         "matchday.competition_type",
         "matchday.status",
         "matchday.result_type",
+        "matchday.is_home",
+        "matchday.match_time",
         "play_cricket_team.name as team_name",
       ])
       .executeTakeFirst();
@@ -355,17 +357,20 @@ export function getMatchPublic(db: Kysely<DB>) {
     return {
       id: match.id,
       matchDate: match.match_date,
-      // Home/away, ground, match time, and score summary live on the
-      // joined play_cricket_match record, which this service doesn't
-      // load yet. Phase 2.1 cleanup if we need them. For now: null —
-      // the schema is `.nullable()` so callers know to render the
-      // field as "—" or hide it rather than treat `false` as truth.
-      startTime: null as string | null,
+      // Start time and home/away come from the matchday's own columns,
+      // which are only populated for custom (non-Play-Cricket)
+      // fixtures. For PC-backed matchdays they stay null - deriving
+      // them means joining the play_cricket_match record, which this
+      // service doesn't load yet (Phase 2.1 cleanup if we need it).
+      // Ground and score summary likewise. The schema is `.nullable()`
+      // so callers render "—" or hide the field rather than treat
+      // `false` as truth.
+      startTime: match.match_time,
       teamName: match.team_name,
       opposition: match.opposition,
       ground: null as string | null,
       competition: match.competition_type,
-      away: null as boolean | null,
+      away: match.is_home === null ? null : !match.is_home,
       status: match.status as "pending" | "confirmed" | "finished",
       result: match.result_type,
       scoreSummary: null as string | null,
@@ -914,6 +919,62 @@ export function getUpcomingMatches(
 }
 
 /**
+ * Custom fixtures — matchdays created by officials with no
+ * Play-Cricket match behind them (friendlies and other club-arranged
+ * games). The matchday app's fixtures tab unions these into the
+ * Play-Cricket feed, so they're visible to any signed-in member —
+ * mirroring the team-sheet route, which is already member-visible.
+ * The trailing window keeps recently played games listed alongside
+ * Play-Cricket results rather than vanishing at midnight.
+ */
+export function listCustomFixtures(db: Kysely<DB>) {
+  return async () => {
+    const windowStart = formatDate(
+      subDays(startOfDay(new Date()), 30),
+      "yyyy-MM-dd",
+    );
+
+    const rows = await db
+      .selectFrom("matchday")
+      .leftJoin(
+        "play_cricket_team",
+        "play_cricket_team.id",
+        "matchday.play_cricket_team_id",
+      )
+      .where("matchday.play_cricket_match_id", "is", null)
+      .where("matchday.status", "!=", "cancelled")
+      .where("matchday.match_date", ">=", windowStart)
+      .select([
+        "matchday.id",
+        "matchday.match_date",
+        "matchday.match_time",
+        "matchday.opposition",
+        "matchday.is_home",
+        "matchday.competition_type",
+        "matchday.status",
+        "matchday.result_type",
+        "matchday.play_cricket_team_id",
+        "play_cricket_team.name as team_name",
+      ])
+      .orderBy("matchday.match_date", "asc")
+      .execute();
+
+    return rows.map((r) => ({
+      matchdayId: r.id,
+      matchDate: r.match_date,
+      matchTime: r.match_time,
+      opposition: r.opposition,
+      teamId: r.play_cricket_team_id,
+      teamName: r.team_name,
+      isHome: r.is_home,
+      competitionType: r.competition_type,
+      status: r.status,
+      resultType: r.result_type,
+    }));
+  };
+}
+
+/**
  * Past unfinished matchdays for a team — matchdays whose match_date is
  * before today and whose status is still pending or confirmed. Lets
  * officials find and finish/cancel matchdays they started but never
@@ -1038,6 +1099,8 @@ export function createMatchday(db: Kysely<DB>) {
           opposition: data.opposition,
           competition_type: data.competitionType ?? null,
           play_cricket_match_id: data.playCricketMatchId ?? null,
+          is_home: data.isHome ?? null,
+          match_time: data.matchTime ?? null,
           status: "pending",
           created_by: userId,
         })
@@ -2783,13 +2846,17 @@ export function getTeamNewsData(db: Kysely<DB>, ctx: TeamNewsImageContext) {
       }
     }
 
-    // Resolve isHome + matchTime. Honour explicit caller overrides;
-    // otherwise look the fixture up via the play-cricket matches-summary
-    // endpoint (the match-detail endpoint's schema drops match_time -
-    // both fields live on the summary row). If play-cricket is wired
-    // and the lookup fails, propagate the error: a wrong home/away
-    // image is exactly the bug we're trying to stop shipping.
+    // Resolve isHome + matchTime. Honour explicit caller overrides,
+    // then the matchday's own columns (populated for custom fixtures
+    // created without a Play-Cricket match); otherwise look the fixture
+    // up via the play-cricket matches-summary endpoint (the
+    // match-detail endpoint's schema drops match_time - both fields
+    // live on the summary row). If play-cricket is wired and the
+    // lookup fails, propagate the error: a wrong home/away image is
+    // exactly the bug we're trying to stop shipping.
     let { isHome, matchTime } = overrides;
+    isHome ??= match.is_home ?? undefined;
+    matchTime ??= match.match_time ?? undefined;
     if (
       (isHome === undefined || matchTime === undefined) &&
       match.play_cricket_match_id &&

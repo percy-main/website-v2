@@ -1,43 +1,61 @@
 import { DateSquare } from "@/components/primitives/date-square.js";
 import { StatusPill } from "@/components/primitives/status-pill.js";
+import { Button } from "@/components/ui/button.js";
 import {
   gameIsoDate,
   oppositionName,
   played,
   type Game,
 } from "@/features/games.js";
-import { api, callApi } from "@/lib/api-client.js";
+import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
+import { canManageMatchday, useSession } from "@/lib/auth-client.js";
 import { cn } from "@/lib/utils.js";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PlusIcon } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 
+type CustomFixture = ApiResponse<"/api/matchday/custom-fixtures">[number];
+
+/**
+ * One row in the fixtures list — either a Play-Cricket game or a custom
+ * matchday (a club-arranged game with no Play-Cricket record). The
+ * shared fields drive filtering/bucketing; `item` keeps the full
+ * payload for rendering and links each kind to its own detail page.
+ */
+interface Entry {
+  key: string;
+  iso: string | null;
+  teamName: string;
+  isPlayed: boolean;
+  item: { kind: "pc"; game: Game } | { kind: "custom"; fixture: CustomFixture };
+}
+
 const FILTERS = [
-  { key: "all", label: "All", pred: (_: Game) => true },
+  { key: "all", label: "All", pred: (_: string) => true },
   {
     key: "1st",
     label: "1st XI",
-    pred: (g: Game) => g.team.name.toLowerCase().includes("1st"),
+    pred: (name: string) => name.toLowerCase().includes("1st"),
   },
   {
     key: "2nd",
     label: "2nd XI",
-    pred: (g: Game) => g.team.name.toLowerCase().includes("2nd"),
+    pred: (name: string) => name.toLowerCase().includes("2nd"),
   },
   {
     key: "mid",
     label: "Midweek XI",
-    pred: (g: Game) => /midweek/i.test(g.team.name),
+    pred: (name: string) => /midweek/i.test(name),
   },
   {
     key: "womens",
     label: "Women's Softball",
-    pred: (g: Game) => /women/i.test(g.team.name),
+    pred: (name: string) => /women/i.test(name),
   },
   {
     key: "juniors",
     label: "Juniors",
-    pred: (g: Game) => /under|junior|colts|\bU\d{2}\b/i.test(g.team.name),
+    pred: (name: string) => /under|junior|colts|\bU\d{2}\b/i.test(name),
   },
 ] as const;
 
@@ -57,6 +75,8 @@ export default function Fixtures() {
   const filter: FilterKey =
     FILTERS.find((f) => f.key === filterParam)?.key ?? "all";
   const openSet = parseOpen(searchParams.get("open"));
+  const { data: session } = useSession();
+  const canCreate = canManageMatchday(session?.user);
 
   const setFilter = (next: FilterKey) => {
     setSearchParams(
@@ -85,13 +105,36 @@ export default function Fixtures() {
     );
   };
 
-  const { data, isLoading, isError } = useQuery({
+  const gamesQuery = useQuery({
     queryKey: ["games"],
     queryFn: () => callApi(api.GET("/api/games")),
   });
-  const games = data ?? [];
+  const customQuery = useQuery({
+    queryKey: ["matchday", "custom-fixtures"],
+    queryFn: () => callApi(api.GET("/api/matchday/custom-fixtures")),
+  });
+  const isLoading = gamesQuery.isLoading || customQuery.isLoading;
+  // One feed failing shouldn't blank the other — only report an error
+  // when there's nothing at all to show.
+  const isError = gamesQuery.isError && customQuery.isError;
+  const entries: Entry[] = [
+    ...(gamesQuery.data ?? []).map((g) => ({
+      key: `pc-${g.id}`,
+      iso: gameIsoDate(g),
+      teamName: g.team.name,
+      isPlayed: played(g),
+      item: { kind: "pc" as const, game: g },
+    })),
+    ...(customQuery.data ?? []).map((f) => ({
+      key: `md-${f.matchdayId}`,
+      iso: f.matchDate,
+      teamName: f.teamName ?? "",
+      isPlayed: f.resultType !== null,
+      item: { kind: "custom" as const, fixture: f },
+    })),
+  ];
   const selected = FILTERS.find((f) => f.key === filter) ?? FILTERS[0];
-  const filtered = games.filter(selected.pred);
+  const filtered = entries.filter((e) => selected.pred(e.teamName));
   const groups = groupByBucket(filtered);
   return (
     <div className="mx-auto w-full max-w-2xl pb-6">
@@ -115,6 +158,15 @@ export default function Fixtures() {
           </button>
         ))}
       </div>
+      {canCreate && (
+        <div className="flex justify-end px-4 pb-2">
+          <Button asChild tone="outline" size="sm">
+            <Link to="/matchday/new">
+              <PlusIcon /> New match
+            </Link>
+          </Button>
+        </div>
+      )}
       {isLoading && <FixtureSkeleton />}
       {isError && (
         <p className="text-text-secondary px-4 py-6 text-sm">
@@ -154,7 +206,13 @@ export default function Fixtures() {
                   />
                 </button>
                 {isOpen &&
-                  items.map((g) => <FixtureItem key={g.id} game={g} />)}
+                  items.map((e) =>
+                    e.item.kind === "pc" ? (
+                      <FixtureItem key={e.key} game={e.item.game} />
+                    ) : (
+                      <CustomFixtureItem key={e.key} fixture={e.item.fixture} />
+                    ),
+                  )}
               </section>
             );
           })}
@@ -185,7 +243,9 @@ function FixtureItem({ game }: { game: Game }) {
         </div>
       </div>
       {played(game) ? (
-        <FixtureResultPill game={game} />
+        <StatusPill tone={resultTone(game.outcome)} size="lg">
+          {game.scoreDescription ?? game.outcome ?? "—"}
+        </StatusPill>
       ) : (
         <StatusPill tone="neutral">{game.matchTime ?? "TBC"}</StatusPill>
       )}
@@ -193,22 +253,45 @@ function FixtureItem({ game }: { game: Game }) {
   );
 }
 
-function FixtureResultPill({ game }: { game: Game }) {
-  const o = game.outcome;
-  const tone =
-    o === "W"
-      ? ("success" as const)
-      : o === "L"
-        ? ("danger" as const)
-        : o === "D" || o === "T"
-          ? ("warning" as const)
-          : ("neutral" as const);
-  const label = game.scoreDescription ?? o ?? "—";
+/**
+ * A custom matchday row. No Play-Cricket game page exists for these, so
+ * it links to the team sheet — which carries manage links for officials.
+ */
+function CustomFixtureItem({ fixture }: { fixture: CustomFixture }) {
   return (
-    <StatusPill tone={tone} size="lg">
-      {label}
-    </StatusPill>
+    <Link
+      to={`/matchday/${fixture.matchdayId}`}
+      className="border-border-light bg-surface grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t px-4 py-3 first:border-t-0"
+    >
+      <DateSquare iso={fixture.matchDate} dayLabel="month" />
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium">{fixture.opposition}</div>
+        <div className="text-text-secondary mt-0.5 text-xs">
+          {[
+            fixture.teamName,
+            fixture.isHome === null ? null : fixture.isHome ? "Home" : "Away",
+            fixture.competitionType,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      </div>
+      {fixture.resultType !== null ? (
+        <StatusPill tone={resultTone(fixture.resultType)} size="lg">
+          {fixture.resultType}
+        </StatusPill>
+      ) : (
+        <StatusPill tone="neutral">{fixture.matchTime ?? "TBC"}</StatusPill>
+      )}
+    </Link>
   );
+}
+
+function resultTone(o: string | null) {
+  if (o === "W") return "success" as const;
+  if (o === "L") return "danger" as const;
+  if (o === "D" || o === "T") return "warning" as const;
+  return "neutral" as const;
 }
 
 function FixtureSkeleton() {
@@ -248,46 +331,43 @@ function sameSet<T>(a: Set<T>, b: ReadonlySet<T>): boolean {
   return true;
 }
 
-function groupByBucket(games: Game[]): Record<BucketKey, Game[]> {
+function groupByBucket(entries: Entry[]): Record<BucketKey, Entry[]> {
   // All comparisons happen on the ISO-normalised date — Play-Cricket
   // gives us DD/MM/YYYY which `new Date(...)` parses inconsistently
-  // across browsers and breaks string-sort.
+  // across browsers and breaks string-sort. Custom fixtures are ISO
+  // already.
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const nextWeekEnd = new Date(today);
   nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
 
-  const byIso = new Map<string, string | null>();
-  for (const g of games) byIso.set(g.id, gameIsoDate(g));
-  const isoFor = (g: Game) => byIso.get(g.id) ?? null;
-  const compare = (a: Game, b: Game) =>
-    (isoFor(a) ?? "").localeCompare(isoFor(b) ?? "");
+  const compare = (a: Entry, b: Entry) =>
+    (a.iso ?? "").localeCompare(b.iso ?? "");
 
-  const dateOf = (g: Game) => {
-    const iso = isoFor(g);
-    if (!iso) return null;
-    const d = new Date(iso);
+  const dateOf = (e: Entry) => {
+    if (!e.iso) return null;
+    const d = new Date(e.iso);
     if (isNaN(d.getTime())) return null;
     d.setHours(0, 0, 0, 0);
     return d;
   };
 
-  const out: Record<BucketKey, Game[]> = {
+  const out: Record<BucketKey, Entry[]> = {
     recent: [],
     next: [],
     future: [],
   };
-  for (const g of games) {
-    const d = dateOf(g);
+  for (const e of entries) {
+    const d = dateOf(e);
     // Anything in the past or already played belongs in Recent -
     // including past-date matches whose result hasn't been entered
     // yet, which previously leaked into "This week".
-    if (played(g) || (d && d < today)) {
-      out.recent.push(g);
+    if (e.isPlayed || (d && d < today)) {
+      out.recent.push(e);
       continue;
     }
-    if (!d || d < nextWeekEnd) out.next.push(g);
-    else out.future.push(g);
+    if (!d || d < nextWeekEnd) out.next.push(e);
+    else out.future.push(e);
   }
   out.next.sort(compare);
   out.future.sort(compare);

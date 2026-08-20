@@ -17,9 +17,12 @@ import {
   deleteExpense,
   finishMatch,
   getMatch,
+  getMatchPublic,
   getMyRecentMilestones,
   getMyUpcomingMatches,
   getPastUnfinishedMatchdays,
+  getTeamNewsData,
+  listCustomFixtures,
   listMatches,
   listPendingExpenses,
   listTeams,
@@ -369,6 +372,156 @@ describe("matchday service (integration)", () => {
     });
   });
 
+  // Assertions are membership-based (toContain / not.toContain) rather
+  // than exact-array: the container DB is shared across this file, and
+  // other tests seed matchdays without a PC match id, which are custom
+  // fixtures by definition.
+  describe("listCustomFixtures", () => {
+    it("returns custom matchdays and hides PC-backed, cancelled, and stale ones", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `customfix-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+
+      const customId = await seedMatchday({ teamId, createdBy: userId });
+      const pcBackedId = await seedMatchday({
+        teamId: await seedTeam(),
+        createdBy: userId,
+      });
+      await ctx.db
+        .updateTable("matchday")
+        .set({ play_cricket_match_id: `pcm-${crypto.randomUUID()}` })
+        .where("id", "=", pcBackedId)
+        .execute();
+      const cancelledId = await seedMatchday({
+        teamId: await seedTeam(),
+        createdBy: userId,
+        status: "cancelled",
+      });
+      const staleId = await seedMatchday({
+        teamId: await seedTeam(),
+        createdBy: userId,
+        matchDate: format(subDays(new Date(), 60), "yyyy-MM-dd"),
+      });
+
+      const result = await listCustomFixtures(ctx.db)();
+      const ids = result.map((r) => r.matchdayId);
+
+      expect(ids).toContain(customId);
+      expect(ids).not.toContain(pcBackedId);
+      expect(ids).not.toContain(cancelledId);
+      expect(ids).not.toContain(staleId);
+
+      const row = result.find((r) => r.matchdayId === customId);
+      expect(row?.opposition).toBe("Opposition CC");
+      expect(row?.teamId).toBe(teamId);
+      expect(row?.teamName).toMatch(/^Team /);
+      expect(row?.status).toBe("pending");
+      expect(row?.resultType).toBeNull();
+    });
+
+    it("keeps recently played custom matchdays inside the window", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `recentfix-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const recentId = await seedMatchday({
+        teamId,
+        createdBy: userId,
+        matchDate: format(subDays(new Date(), 7), "yyyy-MM-dd"),
+        status: "finished",
+      });
+
+      const result = await listCustomFixtures(ctx.db)();
+      expect(result.map((r) => r.matchdayId)).toContain(recentId);
+    });
+  });
+
+  describe("getMatchPublic", () => {
+    it("projects stored start time and home/away for custom fixtures", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `pubproj-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+      await ctx.db
+        .updateTable("matchday")
+        .set({ is_home: false, match_time: "18:30" })
+        .where("id", "=", matchdayId)
+        .execute();
+
+      const result = await getMatchPublic(ctx.db)(matchdayId);
+      expect(result.away).toBe(true);
+      expect(result.startTime).toBe("18:30");
+    });
+
+    it("keeps start time and home/away null when not stored", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `pubnull-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+
+      const result = await getMatchPublic(ctx.db)(matchdayId);
+      expect(result.away).toBeNull();
+      expect(result.startTime).toBeNull();
+    });
+  });
+
+  describe("getTeamNewsData", () => {
+    async function seedCustomWithPlayer() {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `teamnews-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+      const matchdayId = await seedMatchday({ teamId, createdBy: userId });
+      await ctx.db
+        .updateTable("matchday")
+        .set({ is_home: false, match_time: "13:30" })
+        .where("id", "=", matchdayId)
+        .execute();
+      await ctx.db
+        .insertInto("matchday_player")
+        .values({
+          id: `mdp-${crypto.randomUUID()}`,
+          matchday_id: matchdayId,
+          player_name: "A Player",
+          status: "selected",
+        })
+        .execute();
+      return { userId, matchdayId };
+    }
+
+    it("falls back to stored home/away and time when there is no PC match", async () => {
+      const { userId, matchdayId } = await seedCustomWithPlayer();
+
+      const data = await getTeamNewsData(ctx.db, {
+        apiClient: null,
+        siteId: null,
+      })(userId, "admin", matchdayId, {});
+
+      expect(data.isHome).toBe(false);
+      expect(data.matchTime).toBe("13:30");
+    });
+
+    it("lets explicit overrides win over stored values", async () => {
+      const { userId, matchdayId } = await seedCustomWithPlayer();
+
+      const data = await getTeamNewsData(ctx.db, {
+        apiClient: null,
+        siteId: null,
+      })(userId, "admin", matchdayId, { isHome: true, matchTime: "12:00" });
+
+      expect(data.isHome).toBe(true);
+      expect(data.matchTime).toBe("12:00");
+    });
+  });
+
   describe("createMatchday", () => {
     it("creates a matchday for an accessible team", async () => {
       const { userId } = await seedTestUser(ctx.db, {
@@ -393,6 +546,33 @@ describe("matchday service (integration)", () => {
         .executeTakeFirst();
       expect(row?.opposition).toBe("Rival CC");
       expect(row?.status).toBe("pending");
+    });
+
+    it("persists home/away and start time for custom fixtures", async () => {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `custom-md-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+      const teamId = await seedTeam();
+
+      const result = await createMatchday(ctx.db)(userId, "admin", {
+        teamId,
+        matchDate: "2026-09-01",
+        opposition: "Friendly CC",
+        competitionType: "Friendly",
+        isHome: false,
+        matchTime: "18:00",
+      });
+
+      const row = await ctx.db
+        .selectFrom("matchday")
+        .where("id", "=", result.id)
+        .selectAll()
+        .executeTakeFirst();
+      expect(row?.play_cricket_match_id).toBeNull();
+      expect(row?.is_home).toBe(false);
+      expect(row?.match_time).toBe("18:00");
+      expect(row?.competition_type).toBe("Friendly");
     });
 
     it("rejects duplicate matchday for same team and date", async () => {

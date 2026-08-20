@@ -556,7 +556,9 @@ export interface Matchday {
   finished_at: string | null;
   finished_by: string | null;
   id: string;
+  is_home: boolean | null;
   match_date: string;
+  match_time: string | null;
   opposition: string;
   play_cricket_match_id: string | null;
   play_cricket_team_id: string;

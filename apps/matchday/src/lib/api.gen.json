@@ -7505,6 +7505,75 @@
         }
       }
     },
+    "/api/matchday/custom-fixtures": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "matchdayId": {
+                        "type": "string"
+                      },
+                      "matchDate": {
+                        "type": "string"
+                      },
+                      "matchTime": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "opposition": {
+                        "type": "string"
+                      },
+                      "teamId": {
+                        "type": "string"
+                      },
+                      "teamName": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "isHome": {
+                        "nullable": true,
+                        "type": "boolean"
+                      },
+                      "competitionType": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "resultType": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "matchdayId",
+                      "matchDate",
+                      "matchTime",
+                      "opposition",
+                      "teamId",
+                      "teamName",
+                      "isHome",
+                      "competitionType",
+                      "status",
+                      "resultType"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/matchday": {
       "get": {
         "parameters": [
@@ -7588,6 +7657,14 @@
                             "nullable": true,
                             "type": "string"
                           },
+                          "is_home": {
+                            "nullable": true,
+                            "type": "boolean"
+                          },
+                          "match_time": {
+                            "nullable": true,
+                            "type": "string"
+                          },
                           "status": {
                             "type": "string"
                           },
@@ -7657,6 +7734,8 @@
                           "opposition",
                           "competition_type",
                           "play_cricket_match_id",
+                          "is_home",
+                          "match_time",
                           "status",
                           "created_by",
                           "created_at",
@@ -7712,6 +7791,13 @@
                   },
                   "playCricketMatchId": {
                     "type": "string"
+                  },
+                  "isHome": {
+                    "type": "boolean"
+                  },
+                  "matchTime": {
+                    "type": "string",
+                    "pattern": "^\\d{2}:\\d{2}$"
                   }
                 },
                 "required": [
@@ -7795,6 +7881,14 @@
                           "nullable": true,
                           "type": "string"
                         },
+                        "is_home": {
+                          "nullable": true,
+                          "type": "boolean"
+                        },
+                        "match_time": {
+                          "nullable": true,
+                          "type": "string"
+                        },
                         "status": {
                           "type": "string"
                         },
@@ -7864,6 +7958,8 @@
                         "opposition",
                         "competition_type",
                         "play_cricket_match_id",
+                        "is_home",
+                        "match_time",
                         "status",
                         "created_by",
                         "created_at",

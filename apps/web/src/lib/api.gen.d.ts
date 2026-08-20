@@ -4322,6 +4322,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/matchday/custom-fixtures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Default Response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            matchdayId: string;
+                            matchDate: string;
+                            matchTime: string | null;
+                            opposition: string;
+                            teamId: string;
+                            teamName: string | null;
+                            isHome: boolean | null;
+                            competitionType: string | null;
+                            status: string;
+                            resultType: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/matchday": {
         parameters: {
             query?: never;
@@ -4357,6 +4403,8 @@ export interface paths {
                                 opposition: string;
                                 competition_type: string | null;
                                 play_cricket_match_id: string | null;
+                                is_home: boolean | null;
+                                match_time: string | null;
                                 status: string;
                                 created_by: string;
                                 created_at: string;
@@ -4395,6 +4443,8 @@ export interface paths {
                         opposition: string;
                         competitionType?: string;
                         playCricketMatchId?: string;
+                        isHome?: boolean;
+                        matchTime?: string;
                     };
                 };
             };
@@ -4451,6 +4501,8 @@ export interface paths {
                                 opposition: string;
                                 competition_type: string | null;
                                 play_cricket_match_id: string | null;
+                                is_home: boolean | null;
+                                match_time: string | null;
                                 status: string;
                                 created_by: string;
                                 created_at: string;
