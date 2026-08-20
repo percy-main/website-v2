@@ -135,6 +135,11 @@ module "rds" {
   #     for one-off auditor / vendor access).
   # Until cutover the list is empty and the secret keeps its existing
   # IAM-only access.
+  #
+  # The two Terraform roles are only assumable from gated contexts
+  # (reviewer-approved terraform-plan environment runs, main, or the
+  # production environment - ADR 057), so this exemption is not
+  # reachable from unreviewed PR code.
   master_secret_break_glass_principal_arns = var.app_rw_active ? concat(
     [
       local.shared.db_break_glass_role_arn,

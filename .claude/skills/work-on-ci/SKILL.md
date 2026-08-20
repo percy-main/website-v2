@@ -23,7 +23,11 @@ Use this skill when adding, modifying, or debugging anything under `.github/work
     │                                # then Terraform shared/production, then build/push images, deploy.
     ├── _lint-test-build.yml         # Reusable. format-check / lint / typecheck / unit-tests /
     │                                # integration-tests / build / openapi-drift, plus publish-test-results.
-    ├── terraform.yml                # PR plan-only for infra/ changes (no apply).
+    ├── terraform.yml                # PR checks for infra/ changes (no apply): uncredentialed
+    │                                # fmt/validate + OIDC-subject guard run automatically; the
+    │                                # credentialed plan waits for approval on the terraform-plan
+    │                                # environment (ADR 057) and is the ONLY PR-triggered job
+    │                                # allowed cloud credentials or secrets.
     ├── terraform-drift.yml          # Scheduled drift detection.
     ├── deploy-api-manual.yml        # Manual API redeploy (workflow_dispatch).
     ├── deploy-web-manual.yml        # Manual web redeploy.

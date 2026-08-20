@@ -1740,10 +1740,15 @@ function BeTheKeeper() {
     checkOrientation();
 
     window.addEventListener("resize", checkOrientation);
-    const onOrientationChange = () => setTimeout(checkOrientation, 200);
+    let orientationTimer: number | undefined;
+    const onOrientationChange = () => {
+      clearTimeout(orientationTimer);
+      orientationTimer = window.setTimeout(checkOrientation, 200);
+    };
     window.addEventListener("orientationchange", onOrientationChange);
 
     return () => {
+      clearTimeout(orientationTimer);
       window.removeEventListener("resize", checkOrientation);
       window.removeEventListener("orientationchange", onOrientationChange);
     };
