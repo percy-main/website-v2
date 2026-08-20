@@ -70,7 +70,17 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+    env:
+      # Placeholder, NOT the real secret: the newrelic provider block in
+      # shared marks api_key required, and validate checks provider
+      # config schemas. Validate never configures providers or calls
+      # any API, so any non-empty value satisfies the schema while
+      # keeping this job secret-free.
+      NEW_RELIC_API_KEY: "validate-only-placeholder"
     strategy:
+      # Report both environments independently; a shared-only failure
+      # cancelling production (or vice versa) hides signal.
+      fail-fast: false
       matrix:
         environment: [shared, production]
     steps:
