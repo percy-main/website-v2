@@ -70,3 +70,15 @@ on the missing `NEW_RELIC_API_KEY` secret, so the practical loss is nil.
 - **No PR plans (option 3):** rejected because plan output on the PR is the
   primary review artefact for infra changes; losing it trades a critical but
   fixable exposure for permanently worse change review.
+
+## Limitations
+
+The trust policy proves only that the run targets an environment _named_
+`terraform-plan`. The protection rules on that environment (required
+reviewers) live in GitHub repo settings, not in Terraform - deleting and
+recreating the environment without protection rules, or removing the
+reviewers, silently removes the human gate while the trust policy keeps
+working. Changing those settings requires repo admin, which in this repo is
+the same person doing the reviewing, so the residual risk is accepted. If
+the admin surface ever widens, manage the environment declaratively via the
+`github` Terraform provider so protection-rule drift shows up in plans.
