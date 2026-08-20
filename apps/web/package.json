@@ -62,12 +62,12 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@aws-sdk/client-cloudfront": "^3.1106.0",
-    "@aws-sdk/client-cloudfront-keyvaluestore": "^3.1106.0",
+    "@aws-sdk/client-cloudfront": "^3.1112.0",
+    "@aws-sdk/client-cloudfront-keyvaluestore": "^3.1112.0",
     "@aws-sdk/client-s3": "^3.1112.0",
-    "@aws-sdk/signature-v4-multi-region": "^3.996.41",
+    "@aws-sdk/signature-v4-multi-region": "^3.996.45",
     "@rolldown/plugin-babel": "^0.2.3",
-    "@smithy/signature-v4a": "^3.5.8",
+    "@smithy/signature-v4a": "^3.6.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/google.maps": "^3.65.5",
     "@types/node": "^26.2.0",
