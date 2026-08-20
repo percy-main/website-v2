@@ -221,8 +221,9 @@ resource "aws_iam_role_policy_attachment" "terraform_admin" {
 }
 
 # -----------------------------------------------------------------------------
-# IAM Role: Terraform Plan (GitHub Actions - PRs, read-only)
-# Used during pull requests for plan-only operations.
+# IAM Role: Terraform Plan (GitHub Actions - reviewer-gated PR plans + drift)
+# Used for plan-only operations: PR plans approved via the terraform-plan
+# GitHub environment, and main-branch drift detection.
 # -----------------------------------------------------------------------------
 
 data "aws_iam_policy_document" "terraform_plan_assume" {
@@ -238,12 +239,18 @@ data "aws_iam_policy_document" "terraform_plan_assume" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      # Accept both PR runs (terraform-plan job) and main-branch
-      # scheduled / workflow_dispatch runs (terraform-drift workflow).
-      # The role grants ReadOnlyAccess + state-lock + secrets-read
-      # only - appropriate for both plan and drift.
+      # Only human-gated or protected-ref subjects (ADR 057, #626):
+      #   - environment:terraform-plan - PR plan runs, released only
+      #     after a required reviewer approves the run via the GitHub
+      #     environment gate. The bare `pull_request` subject was
+      #     removed: a real plan reads Terraform state, and state
+      #     contains secret values, so a credentialed plan of
+      #     unreviewed PR code can exfiltrate secrets no matter how
+      #     tightly this role's permission policy is scoped.
+      #   - ref:refs/heads/main - scheduled / workflow_dispatch drift
+      #     detection (terraform-drift workflow).
       values = [
-        "repo:${var.github_repo}:pull_request",
+        "repo:${var.github_repo}:environment:terraform-plan",
         "repo:${var.github_repo}:ref:refs/heads/main",
       ]
     }
