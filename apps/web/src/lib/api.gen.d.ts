@@ -4649,7 +4649,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    isHome?: string;
+                    isHome?: "true" | "false";
                     matchTime?: string;
                 };
                 header?: never;

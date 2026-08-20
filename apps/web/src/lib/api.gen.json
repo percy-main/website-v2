@@ -7797,7 +7797,7 @@
                   },
                   "matchTime": {
                     "type": "string",
-                    "pattern": "^\\d{2}:\\d{2}$"
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
                   }
                 },
                 "required": [
@@ -8348,7 +8348,11 @@
         "parameters": [
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
             },
             "in": "query",
             "name": "isHome",

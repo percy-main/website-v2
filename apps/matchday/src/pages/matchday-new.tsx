@@ -27,9 +27,12 @@ export default function MatchdayNew() {
   const canCreate = canManageMatchday(session?.user);
 
   const [teamId, setTeamId] = useState("");
-  const [matchDate, setMatchDate] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  // Local calendar date, not toISOString(): UTC-based slicing defaults
+  // the form to yesterday when opened between midnight and 1am BST.
+  const [matchDate, setMatchDate] = useState(() => {
+    const now = new Date();
+    return `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  });
   const [opposition, setOpposition] = useState("");
   const [isHome, setIsHome] = useState(true);
   const [matchTime, setMatchTime] = useState("");
@@ -231,6 +234,7 @@ function Chip({
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={onClick}
       className={cn(
         "rounded-full border px-3 py-1.5 text-xs font-medium",

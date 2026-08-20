@@ -79,7 +79,7 @@ export const createMatchdaySchema = z.object({
   isHome: z.boolean().optional(),
   matchTime: z
     .string()
-    .regex(/^\d{2}:\d{2}$/, "Must be HH:MM format")
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Must be HH:MM (24-hour) format")
     .optional(),
 });
 
@@ -118,8 +118,11 @@ export const searchMembersSchema = z.object({
 // matchday's stored is_home/match_time (set for custom fixtures), then
 // to the joined play-cricket fixture (home_club_id / match_time).
 export const teamNewsImageQuerySchema = z.object({
+  // Enum, not bare string: anything else used to coerce silently to
+  // `false` (= away), which is exactly the wrong-venue image bug this
+  // override exists to prevent.
   isHome: z
-    .string()
+    .enum(["true", "false"])
     .optional()
     .transform((v) => (v === undefined ? undefined : v === "true")),
   matchTime: z.string().optional(),
