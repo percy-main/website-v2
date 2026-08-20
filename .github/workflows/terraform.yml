@@ -61,6 +61,16 @@ jobs:
           fi
           echo "OK: no ':pull_request' OIDC subjects in infra/"
 
+      - name: Verify OIDC trust policies (semantic)
+        # Companion to the grep tripwire above (CodeRabbit, #698): parses
+        # every IAM trust policy in infra/ and fails on any OIDC subject
+        # outside an exact allowlist (catches wildcards and hardcoded
+        # repos, not just the :pull_request text), on any
+        # AssumeRoleWithWebIdentity grant missing a :sub or :aud
+        # condition, and on widening of the plan role's Secrets Manager
+        # resource scope.
+        run: node .github/scripts/check-oidc-trust.mjs
+
   validate:
     # Uncredentialed `terraform validate` per environment. See the
     # workflow-level permissions comment: this job executes
