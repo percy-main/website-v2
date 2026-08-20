@@ -5,10 +5,13 @@ on:
     paths:
       - "infra/**"
 
+# Baseline for all jobs. The credentialed plan job widens this for
+# itself; the validate / static-check jobs run PR-controlled Terraform
+# (a PR can point required_providers at an arbitrary plugin binary, and
+# `terraform validate` executes provider plugins), so they must never
+# see an OIDC token, AWS credentials, or secrets (#626 / ADR 057).
 permissions:
-  id-token: write
   contents: read
-  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,13 +24,86 @@ defaults:
 env:
   AWS_REGION: eu-west-2
   TF_VERSION: "1.7"
-  # NR provider — newrelic_cloud_aws_link_account in shared (#201).
-  NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-  TF_VAR_newrelic_account_id: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
 
 jobs:
+  static-checks:
+    # Uncredentialed fast feedback: runs automatically on every infra
+    # PR with no cloud credentials and no secrets.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform fmt
+        run: terraform fmt -check -diff -recursive infra/
+
+      - name: Forbid OIDC trust for pull_request subjects
+        # Guardrail for #626 / ADR 057: nothing in infra/ may reference
+        # the GitHub OIDC `:pull_request` subject - that subject means
+        # "any unreviewed PR run". Credentialed plans go through the
+        # reviewer-gated terraform-plan environment subject instead.
+        run: |
+          if grep -rn --include='*.tf' 'pull_request' infra/; then
+            echo "::error::infra/ references the OIDC 'pull_request' subject (matches above). Unreviewed PR runs must not be trusted with cloud credentials - use the reviewer-gated terraform-plan environment subject (ADR 057)."
+            exit 1
+          fi
+          echo "OK: no pull_request OIDC subjects in infra/"
+
+  validate:
+    # Uncredentialed `terraform validate` per environment. See the
+    # workflow-level permissions comment: this job executes
+    # PR-controlled provider plugins, so it deliberately has no
+    # id-token, no AWS credentials, and no secrets in env.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        environment: [shared, production]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init (no backend)
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: infra/environments/${{ matrix.environment }}
+        run: terraform validate
+
   plan:
     runs-on: ubuntu-latest
+    # Reviewer gate (#626 / ADR 057): plan evaluates PR-controlled
+    # configuration with credentials that can read state and secrets,
+    # so every run waits for approval on the terraform-plan environment
+    # and the plan role's OIDC trust only accepts the environment
+    # subject. Read the infra diff before approving.
+    environment: terraform-plan
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    env:
+      # NR provider - newrelic_cloud_aws_link_account in shared (#201).
+      # Job-scoped rather than workflow-level so the uncredentialed
+      # jobs above never see the secret.
+      NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+      TF_VAR_newrelic_account_id: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
     # Bound execution well under the 1h OIDC credential lifetime. The
     # 2026-06-15 stale lock came from a dependabot plan (shared) that hung
     # and ran to the 6h default limit; by then its creds had expired, so
@@ -47,6 +123,8 @@ jobs:
         environment: [shared, production]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
