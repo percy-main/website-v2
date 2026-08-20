@@ -76,10 +76,46 @@ jobs:
           directory: apps/web
           blocking: warning
 
+  changes:
+    # Path filter for image-scan. Lives in its own job so image-scan can
+    # be skipped at the job level: a job skipped via `if:` reports
+    # conclusion "skipped", which branch protection counts as passing for
+    # the required `image-scan` check. (A workflow-level `paths:` filter
+    # would leave the check stuck at "Expected" and block merge instead.)
+    runs-on: ubuntu-latest
+    permissions:
+      # paths-filter lists PR files via the API on pull_request events,
+      # so no checkout is needed - but it does need PR read access.
+      pull-requests: read
+    outputs:
+      image: ${{ steps.filter.outputs.image }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            # Everything that can change what Trivy finds in the API
+            # image: the base image / build steps (Dockerfile), the
+            # installed dep tree (pnpm-lock.yaml is the source of truth
+            # under --frozen-lockfile; overrides live in
+            # pnpm-workspace.yaml; root package.json for packageManager /
+            # engines), the suppression list, and this workflow itself.
+            image:
+              - "apps/api/Dockerfile"
+              - "pnpm-lock.yaml"
+              - "pnpm-workspace.yaml"
+              - "package.json"
+              - ".trivyignore"
+              - ".github/workflows/ci.yml"
+
   image-scan:
     # Build the API container the same way deploy.yml does and run Trivy
-    # against it. Keeps CVEs in transitive deps + the base image visible at
-    # PR time, instead of surfacing only when the deploy gate runs on main.
+    # against it - but only when the PR touches something that can change
+    # the scan result (see the `changes` filter above). Feature PRs no
+    # longer go red for CVEs published against deps they didn't touch;
+    # newly-introduced vulnerable deps are still caught here (lockfile
+    # PRs) and by dependency-review below, and the deploy.yml gate on
+    # main remains the unconditional backstop before anything ships.
     # No push — image stays local to the runner.
     #
     # Buildx + GHA registry-side cache: turborepo's docker-equivalent.
@@ -88,6 +124,8 @@ jobs:
     # whose RUN/COPY inputs match the prior cache; `cache-to: mode=max`
     # exports all intermediate layers, not just the final one, so the
     # build stage's `pnpm install` survives across PRs. See #339.
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
