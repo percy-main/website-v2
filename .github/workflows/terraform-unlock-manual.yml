@@ -17,7 +17,8 @@ name: Terraform unlock (manual)
 # locks are rare, so this path is deliberately slow and deliberately
 # manual rather than something CI does on a hunch.
 #
-# Two phases on purpose:
+# Two phases on purpose, each waiting for approval on the reviewer-gated
+# terraform-plan environment:
 #   1. Dispatch with `lock_id` EMPTY. The run prints the current lock
 #      holder, its age and the raw lock Info, and changes nothing.
 #   2. Satisfy yourself from the Actions history that no live run owns
@@ -56,7 +57,11 @@ permissions:
 # -lock-timeout; sharing that group would make this workflow wait for
 # the very run it exists to unblock.
 concurrency:
-  group: terraform-unlock-manual-${{ inputs.environment }}
+  # github.event.inputs, not inputs: both are documented as available to
+  # this key, but the event form is the one that has always resolved
+  # here for workflow_dispatch. An unresolved expression would silently
+  # collapse shared and production into one queue.
+  group: terraform-unlock-manual-${{ github.event.inputs.environment }}
   cancel-in-progress: false
 
 defaults:
@@ -76,16 +81,29 @@ jobs:
   unlock:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Reviewer gate. NOT the same thing as the `environment` INPUT above
+    # (which picks whose state lock to look at): this is the GitHub
+    # environment whose required reviewers must approve the run before
+    # any step executes, so deleting a state lock is never one
+    # collaborator's unilateral action. Both phases go through it - the
+    # inspection needs the same credentials as the release, and a job
+    # holding plan-role credentials without approval is the thing ADR
+    # 057 exists to prevent. `terraform-plan` specifically, because the
+    # plan role's trust policy accepts
+    # `repo:<repo>:environment:terraform-plan` and does NOT accept
+    # `:environment:production`.
+    environment: terraform-plan
     steps:
       - name: Require dispatch from main
-        # The plan role's OIDC trust accepts
-        # `repo:<repo>:ref:refs/heads/main` and the reviewer-gated
-        # terraform-plan environment subject, nothing else (ADR 057).
-        # Dispatching from a feature branch would fail later with an
-        # opaque STS error, so say why up front.
+        # The environment gate stamps this job's OIDC subject as
+        # `repo:<repo>:environment:terraform-plan`, which the plan role
+        # trusts from ANY ref - so approval alone would let a dispatch
+        # off an arbitrary branch run THAT branch's copy of this
+        # workflow with plan-role credentials. Pin the entry point to
+        # main; reviewer approval is the second gate, not the only one.
         if: github.ref != 'refs/heads/main'
         run: |
-          echo "::error::Dispatch this workflow from main. The Terraform plan role only trusts the main-branch OIDC subject (ADR 057)."
+          echo "::error::Dispatch this workflow from main. A branch dispatch would run that branch's copy of this workflow with the Terraform plan role's credentials (ADR 057)."
           exit 1
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
