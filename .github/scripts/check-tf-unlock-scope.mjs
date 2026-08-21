@@ -21,8 +21,15 @@
 // report a *missing required input* - but it has no way to assert that a
 // supplied input holds a particular value. So the presence half of this
 // invariant is expressible in actionlint (by marking the input
-// required); the value half is not. This companion check covers both,
-// in the spirit of check-oidc-trust.mjs.
+// required); the value half is not. This companion check covers the
+// value half, in the spirit of check-oidc-trust.mjs.
+//
+// WHAT IT DELIBERATELY DOES NOT DO: require the input to be present. A
+// call site that omits it inherits the action's declared default, and
+// that default is reviewed on the action itself, in one place, rather
+// than restated at ten call sites. What must never happen - and what
+// this guard makes impossible to merge - is a call site explicitly
+// opting OUT of the scoping.
 //
 // WHY NOT A GREP: a grep can tell you the string `only-current-runner`
 // appears somewhere in a file. It cannot tie an input to the step that
