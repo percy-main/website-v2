@@ -13,6 +13,8 @@ import {
   ANONYMOUS_USER_KEY,
   AUTHED_KEY_NAMESPACE,
   authedQueryKey,
+  formatKeyForTelemetry,
+  REDACTED_USER_KEY,
   useAuthedQuery,
   useAuthedQueryKey,
 } from "./authed-query.js";
@@ -41,6 +43,29 @@ describe("authedQueryKey", () => {
     expect(authedQueryKey("user-a", ["fantasy", "my-team"])).not.toEqual(
       authedQueryKey("user-b", ["fantasy", "my-team"]),
     );
+  });
+});
+
+describe("formatKeyForTelemetry", () => {
+  it("drops the account id from a user-scoped key", () => {
+    const formatted = formatKeyForTelemetry(
+      authedQueryKey("user-a", ["fantasy", "my-team"]),
+    );
+
+    expect(formatted).toBe(
+      `${AUTHED_KEY_NAMESPACE}:${REDACTED_USER_KEY}:fantasy:my-team`,
+    );
+    expect(formatted).not.toContain("user-a");
+  });
+
+  it("leaves a public key untouched", () => {
+    expect(formatKeyForTelemetry(["content", "page", "/club/history"])).toBe(
+      "content:page:/club/history",
+    );
+  });
+
+  it("keeps skipping non-string segments", () => {
+    expect(formatKeyForTelemetry(["games", 2026, null])).toBe("games");
   });
 });
 

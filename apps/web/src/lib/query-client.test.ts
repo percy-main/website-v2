@@ -1,6 +1,38 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
-import { resetAuthCaches } from "./query-client.js";
+import {
+  AUTHED_KEY_NAMESPACE,
+  authedQueryKey,
+  REDACTED_USER_KEY,
+} from "./authed-query.js";
+import { createAppQueryClient, resetAuthCaches } from "./query-client.js";
+
+describe("createAppQueryClient", () => {
+  it("keeps the account id out of query-error telemetry", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const client = createAppQueryClient();
+
+    await client
+      .fetchQuery({
+        queryKey: authedQueryKey("user-a", ["fantasy", "my-team"]),
+        queryFn: () => Promise.reject(new Error("boom")),
+        retry: false,
+      })
+      .catch(() => undefined);
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "react-query (NR not loaded):",
+      "boom",
+      {
+        kind: "query",
+        queryKey: `${AUTHED_KEY_NAMESPACE}:${REDACTED_USER_KEY}:fantasy:my-team`,
+      },
+    );
+    consoleError.mockRestore();
+  });
+});
 
 describe("resetAuthCaches", () => {
   it("cancels before clearing", async () => {

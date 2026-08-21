@@ -43,6 +43,9 @@ export const AUTHED_KEY_NAMESPACE = "user-scoped";
  */
 export const ANONYMOUS_USER_KEY = "anonymous";
 
+/** Stands in for the account id when a key is rendered for observability. */
+export const REDACTED_USER_KEY = "<user>";
+
 /**
  * Prefix a user-scoped key with the owning account. Exported so that
  * invalidation call sites build the key exactly the way `useAuthedQuery`
@@ -53,6 +56,23 @@ export function authedQueryKey(
   queryKey: readonly unknown[],
 ): QueryKey {
   return [AUTHED_KEY_NAMESPACE, userId, ...queryKey];
+}
+
+/**
+ * Render a query key as a telemetry string with the account id removed.
+ *
+ * Cache identity keeps the full key; only what leaves the browser is
+ * redacted, so a New Relic error attribute (or the console fallback)
+ * never carries a user id.
+ */
+export function formatKeyForTelemetry(queryKey: readonly unknown[]): string {
+  const parts =
+    queryKey[0] === AUTHED_KEY_NAMESPACE
+      ? [AUTHED_KEY_NAMESPACE, REDACTED_USER_KEY, ...queryKey.slice(2)]
+      : queryKey;
+  return parts
+    .flatMap((part) => (typeof part === "string" ? [part] : []))
+    .join(":");
 }
 
 /** The signed-in user's id, or `ANONYMOUS_USER_KEY` when there is no session. */

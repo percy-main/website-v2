@@ -1,3 +1,4 @@
+import { formatKeyForTelemetry } from "@/lib/authed-query.js";
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
 /**
@@ -49,19 +50,18 @@ export function createAppQueryClient(): QueryClient {
       onError: (err, query) =>
         noticeQueryError(err, {
           kind: "query",
-          queryKey: query.queryKey
-            .flatMap((part) => (typeof part === "string" ? [part] : []))
-            .join(":"),
+          // User-scoped keys carry the account id (#628); the telemetry
+          // string drops it while the cache keeps addressing the full key.
+          queryKey: formatKeyForTelemetry(query.queryKey),
         }),
     }),
     mutationCache: new MutationCache({
       onError: (err, _vars, _ctx, mutation) =>
         noticeQueryError(err, {
           kind: "mutation",
-          mutationKey:
-            mutation.options.mutationKey
-              ?.flatMap((part) => (typeof part === "string" ? [part] : []))
-              .join(":") ?? "unknown",
+          mutationKey: mutation.options.mutationKey
+            ? formatKeyForTelemetry(mutation.options.mutationKey)
+            : "unknown",
         }),
     }),
   });
