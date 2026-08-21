@@ -9,8 +9,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import { campaigns } from "@percy-main/shared/marketing";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useReducer, useRef, useState } from "react";
 import {
   initialLeadsFilterState,
@@ -51,6 +52,7 @@ export function LeadsTab() {
   const [memberLinkLeadId, setMemberLinkLeadId] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -66,7 +68,7 @@ export function LeadsTab() {
     ? (campaigns[campaignId as keyof typeof campaigns]?.segments ?? [])
     : [];
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError } = useAuthedQuery({
     queryKey: [
       "admin",
       "leads",
@@ -111,9 +113,11 @@ export function LeadsTab() {
         }),
       ),
     onSuccess: (_data, vars) => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "leads"] });
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "lead-events", vars.leadId],
+        queryKey: authedKey(["admin", "leads"]),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "lead-events", vars.leadId]),
       });
     },
   });
@@ -365,7 +369,7 @@ export function LeadsTab() {
 }
 
 function LeadEventTimeline({ leadId }: { leadId: string }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["admin", "lead-events", leadId],
     queryFn: () =>
       callApi(

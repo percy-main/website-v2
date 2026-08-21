@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { StatusPill } from "./status-pill";
 
@@ -30,12 +31,13 @@ type MemberRecord = MergePreviewResponse["keep"]["member"];
 
 export function DuplicatesTab() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [previewGroup, setPreviewGroup] = useState<{
     keepId: string;
     removeId: string;
   } | null>(null);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError } = useAuthedQuery({
     queryKey: ["admin", "duplicateMembers"],
     queryFn: () => callApi(api.GET("/api/admin/duplicates")),
   });
@@ -83,10 +85,10 @@ export function DuplicatesTab() {
           onMerged={() => {
             setPreviewGroup(null);
             void queryClient.invalidateQueries({
-              queryKey: ["admin", "duplicateMembers"],
+              queryKey: authedKey(["admin", "duplicateMembers"]),
             });
             void queryClient.invalidateQueries({
-              queryKey: ["admin", "listUsers"],
+              queryKey: authedKey(["admin", "listUsers"]),
             });
           }}
         />
@@ -196,9 +198,10 @@ function MergePreviewModal({
   onMerged: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [confirmText, setConfirmText] = useState("");
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError } = useAuthedQuery({
     queryKey: ["admin", "mergePreview", keepMemberId, removeMemberId],
     queryFn: () =>
       callApi(
@@ -219,9 +222,11 @@ function MergePreviewModal({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "duplicateMembers"],
+        queryKey: authedKey(["admin", "duplicateMembers"]),
       });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "listUsers"]),
+      });
       onMerged();
     },
   });

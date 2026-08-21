@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 import { formatDate } from "./status-pill";
 
@@ -134,7 +135,7 @@ export function IncidentsTab() {
     data: reportsData,
     isLoading: reportsLoading,
     isError: reportsError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["admin", "incidentReports", page, PAGE_SIZE, statusFilter],
     queryFn: () =>
       callApi(
@@ -329,7 +330,7 @@ function IncidentDetailBody({
     data: detailData,
     isLoading: detailLoading,
     isError: detailError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["admin", "incidentReport", id],
     queryFn: () => loadIncidentDetail(id),
   });
@@ -354,6 +355,7 @@ function IncidentEditForm({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
   // All state seeded from `initial` on mount. The parent passes
   // `key={id}` so opening a different incident remounts this form
@@ -433,10 +435,10 @@ function IncidentEditForm({
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["admin", "incidentReports"],
+        queryKey: authedKey(["admin", "incidentReports"]),
       });
       await queryClient.invalidateQueries({
-        queryKey: ["admin", "incidentReport", id],
+        queryKey: authedKey(["admin", "incidentReport", id]),
       });
       onClose();
     },

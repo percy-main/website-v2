@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useReducer } from "react";
 
 /**
@@ -62,7 +63,7 @@ export function FactsAdminView() {
     data: factsData,
     isLoading: factsLoading,
     error: factsError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["scout", "facts", { scope, q, tag }],
     queryFn: () =>
       callApi(
@@ -247,6 +248,7 @@ function FactEditDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   // Single shallow-merge reducer keeps the field setters as data-flow
   // through one `update({ ... })` call. The form mounts fresh per-fact via
   // `key={fact.id}` on the parent, so the initial values pin to mount.
@@ -289,7 +291,7 @@ function FactEditDialog({
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["scout", "facts"],
+        queryKey: authedKey(["scout", "facts"]),
       });
       onClose();
     },
@@ -416,6 +418,7 @@ function FactDeleteDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const mutation = useMutation({
     mutationFn: () => {
       if (!fact) throw new Error("no fact");
@@ -427,7 +430,7 @@ function FactDeleteDialog({
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["scout", "facts"],
+        queryKey: authedKey(["scout", "facts"]),
       });
       onClose();
     },

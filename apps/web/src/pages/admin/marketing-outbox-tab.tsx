@@ -8,7 +8,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatDate } from "./status-pill";
 
@@ -26,8 +27,9 @@ export function MarketingOutboxTab() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<string>("");
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["admin", "marketing-outbox", page, status] as const,
     queryFn: () =>
       callApi(
@@ -52,7 +54,7 @@ export function MarketingOutboxTab() {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "marketing-outbox"],
+        queryKey: authedKey(["admin", "marketing-outbox"]),
       });
     },
   });

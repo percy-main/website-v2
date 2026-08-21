@@ -25,6 +25,24 @@ function noticeQueryError(
  * React mounts or the first commit wipes the prerendered DOM with
  * spinners.
  */
+/**
+ * Drop every cached query and mutation at an account transition (sign in,
+ * sign out, 2FA/recovery completion).
+ *
+ * `invalidateQueries()` is not enough: it only marks entries stale, so
+ * inactive queries keep the previous account's data and active ones keep
+ * rendering it while the refetch is in flight. That is the leak in #628 -
+ * user B could see (and re-save) user A's fantasy squad.
+ *
+ * Cancellation comes first on purpose. A fetch issued under the old
+ * identity that is still in flight would otherwise resolve after `clear()`
+ * and write the old account's response into the fresh cache.
+ */
+export async function resetAuthCaches(queryClient: QueryClient): Promise<void> {
+  await queryClient.cancelQueries();
+  queryClient.clear();
+}
+
 export function createAppQueryClient(): QueryClient {
   return new QueryClient({
     queryCache: new QueryCache({

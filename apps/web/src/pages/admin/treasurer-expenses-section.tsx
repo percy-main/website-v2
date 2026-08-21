@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatDate, formatPence } from "./status-pill";
 
@@ -70,12 +71,13 @@ export function TreasurerExpensesSection({
   dateTo,
 }: TreasurerExpensesSectionProps) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
-  const { data: expensesSummary } = useQuery({
+  const { data: expensesSummary } = useAuthedQuery({
     queryKey: ["treasurer", "matchday-expenses-summary", dateFrom, dateTo],
     queryFn: () =>
       callApi(
@@ -85,8 +87,8 @@ export function TreasurerExpensesSection({
       ),
   });
 
-  const { data: expensesDetail, isLoading: isExpensesDetailLoading } = useQuery(
-    {
+  const { data: expensesDetail, isLoading: isExpensesDetailLoading } =
+    useAuthedQuery({
       queryKey: ["treasurer", "expenses-with-receipts", dateFrom, dateTo],
       queryFn: () =>
         callApi(
@@ -94,15 +96,14 @@ export function TreasurerExpensesSection({
             params: { query: { dateFrom, dateTo } },
           }),
         ),
-    },
-  );
+    });
 
   const invalidateExpenses = () => {
     void queryClient.invalidateQueries({
-      queryKey: ["treasurer", "expenses-with-receipts"],
+      queryKey: authedKey(["treasurer", "expenses-with-receipts"]),
     });
     void queryClient.invalidateQueries({
-      queryKey: ["treasurer", "matchday-expenses-summary"],
+      queryKey: authedKey(["treasurer", "matchday-expenses-summary"]),
     });
   };
 

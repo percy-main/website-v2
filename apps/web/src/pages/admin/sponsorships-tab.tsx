@@ -24,9 +24,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import { resizeLogo } from "@/lib/logo-resize";
 import { usePeopleList } from "@/lib/use-people";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useRef, useState } from "react";
 import {
   buildGameSponsorshipPayload,
@@ -407,6 +408,7 @@ function CreateGameSponsorshipDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [form, dispatch] = useReducer(
     gameSponsorshipFormReducer,
     initialGameSponsorshipFormState,
@@ -421,7 +423,7 @@ function CreateGameSponsorshipDialog({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "gameSponsorships"],
+        queryKey: authedKey(["admin", "gameSponsorships"]),
       });
       dispatch({ type: "reset" });
       onOpenChange(false);
@@ -653,17 +655,19 @@ function CreatePlayerSponsorshipDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [form, dispatch] = useReducer(
     playerSponsorshipFormReducer,
     initialPlayerSponsorshipFormState,
   );
 
-  const { data: takenSlugsData, isLoading: isTakenSlugsLoading } = useQuery({
-    queryKey: ["admin", "playerSponsorships", "takenSlugs"],
-    queryFn: () =>
-      callApi(api.GET("/api/sponsorship/admin/player/taken-slugs", {})),
-    enabled: open,
-  });
+  const { data: takenSlugsData, isLoading: isTakenSlugsLoading } =
+    useAuthedQuery({
+      queryKey: ["admin", "playerSponsorships", "takenSlugs"],
+      queryFn: () =>
+        callApi(api.GET("/api/sponsorship/admin/player/taken-slugs", {})),
+      enabled: open,
+    });
 
   const takenSlugs = new Set(takenSlugsData?.slugs ?? []);
 
@@ -676,7 +680,7 @@ function CreatePlayerSponsorshipDialog({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "playerSponsorships"],
+        queryKey: authedKey(["admin", "playerSponsorships"]),
       });
       dispatch({ type: "reset" });
       onOpenChange(false);
@@ -919,8 +923,9 @@ function CreatePlayerSponsorshipDialog({
 function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["admin", "gameSponsorships", page, filter],
     queryFn: () =>
       callApi(
@@ -945,7 +950,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "gameSponsorships"],
+        queryKey: authedKey(["admin", "gameSponsorships"]),
       });
     },
   });
@@ -959,7 +964,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "gameSponsorships"],
+        queryKey: authedKey(["admin", "gameSponsorships"]),
       });
     },
   });
@@ -984,7 +989,7 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "gameSponsorships"],
+        queryKey: authedKey(["admin", "gameSponsorships"]),
       });
     },
   });
@@ -1162,8 +1167,9 @@ function GameSponsorshipsTable({ filter }: { filter: FilterValue }) {
 function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["admin", "playerSponsorships", page, filter],
     queryFn: () =>
       callApi(
@@ -1188,7 +1194,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "playerSponsorships"],
+        queryKey: authedKey(["admin", "playerSponsorships"]),
       });
     },
   });
@@ -1202,7 +1208,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "playerSponsorships"],
+        queryKey: authedKey(["admin", "playerSponsorships"]),
       });
     },
   });
@@ -1227,7 +1233,7 @@ function PlayerSponsorshipsTable({ filter }: { filter: FilterValue }) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "playerSponsorships"],
+        queryKey: authedKey(["admin", "playerSponsorships"]),
       });
     },
   });

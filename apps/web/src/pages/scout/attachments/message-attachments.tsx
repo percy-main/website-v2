@@ -1,5 +1,5 @@
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 
 interface MessageAttachmentsProps {
   threadId: string;
@@ -37,7 +37,7 @@ function AttachmentChip({
   threadId: string;
   attachmentId: string;
 }) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useAuthedQuery({
     queryKey: ["scout", "attachment", threadId, attachmentId],
     queryFn: () =>
       callApi(

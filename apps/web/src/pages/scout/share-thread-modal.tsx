@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 interface ShareActor {
@@ -33,6 +34,7 @@ export function ShareThreadModal({
   onOpenChange,
 }: Props) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [filter, setFilter] = useState("");
   // Multi-select staging: officials ticked but not yet committed. The
   // commit lands on "Share" — keeps the modal feel transactional rather
@@ -43,7 +45,7 @@ export function ShareThreadModal({
   // Officials picker. Only enabled while the modal is open so we don't
   // hit the API every page render. Stale-time short — list rarely changes
   // mid-session but a new official COULD appear via the admin UI.
-  const { data: officials, isLoading: officialsLoading } = useQuery({
+  const { data: officials, isLoading: officialsLoading } = useAuthedQuery({
     queryKey: ["scout", "officials"],
     queryFn: () => callApi(api.GET("/api/scout/officials")),
     enabled: open,
@@ -53,7 +55,7 @@ export function ShareThreadModal({
   // Current sharees for this thread. Owner-only endpoint; we surface a
   // friendly empty state (rather than a generic error) when it 403s,
   // since the modal is owner-only by construction anyway.
-  const { data: sharees } = useQuery({
+  const { data: sharees } = useAuthedQuery({
     queryKey: ["scout", "thread-shares", threadId],
     queryFn: () =>
       callApi(
@@ -90,9 +92,11 @@ export function ShareThreadModal({
       setSelectedToAdd(new Set());
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["scout", "thread-shares", threadId],
+          queryKey: authedKey(["scout", "thread-shares", threadId]),
         }),
-        queryClient.invalidateQueries({ queryKey: ["scout", "threads"] }),
+        queryClient.invalidateQueries({
+          queryKey: authedKey(["scout", "threads"]),
+        }),
       ]);
     },
   });
@@ -107,9 +111,11 @@ export function ShareThreadModal({
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["scout", "thread-shares", threadId],
+          queryKey: authedKey(["scout", "thread-shares", threadId]),
         }),
-        queryClient.invalidateQueries({ queryKey: ["scout", "threads"] }),
+        queryClient.invalidateQueries({
+          queryKey: authedKey(["scout", "threads"]),
+        }),
       ]);
     },
   });

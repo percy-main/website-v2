@@ -1,7 +1,7 @@
 import { ImbuzaiMascot } from "@/components/imbuzai-mascot.js";
 import { Button } from "@/components/ui/button";
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { format, parseISO } from "date-fns";
 import { useState } from "react";
 
@@ -27,7 +27,7 @@ export function ScoutLauncher({ onLaunch }: ScoutLauncherProps) {
     data: upcoming,
     isLoading: upcomingLoading,
     error: upcomingError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["scout", "scout", "upcoming-matches"],
     queryFn: () => callApi(api.GET("/api/scout/upcoming-matches")),
   });

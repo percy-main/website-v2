@@ -21,6 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import {
   CONTACT_PREFERENCES,
   CONTACT_PREFERENCE_LABELS,
@@ -39,7 +40,7 @@ import {
   type ReasonCategory,
   type VolunteerOption,
 } from "@percy-main/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useReducer, type ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -97,13 +98,14 @@ export function Component() {
   );
 
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
-  const { data: eligibleData, isLoading: eligibleLoading } = useQuery({
+  const { data: eligibleData, isLoading: eligibleLoading } = useAuthedQuery({
     queryKey: ["financial-relief", "eligible-members"],
     queryFn: () => callApi(api.GET("/api/financial-relief/eligible-members")),
   });
 
-  const { data: myStatusData } = useQuery({
+  const { data: myStatusData } = useAuthedQuery({
     queryKey: ["financial-relief", "me"],
     queryFn: () => callApi(api.GET("/api/financial-relief/me")),
   });
@@ -151,7 +153,9 @@ export function Component() {
         }),
       ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["financial-relief"] });
+      await queryClient.invalidateQueries({
+        queryKey: authedKey(["financial-relief"]),
+      });
     },
   });
 

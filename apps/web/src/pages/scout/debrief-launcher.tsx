@@ -1,7 +1,7 @@
 import { ImbuzaiMascot } from "@/components/imbuzai-mascot.js";
 import { Button } from "@/components/ui/button";
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { format, parseISO } from "date-fns";
 import { useState } from "react";
 
@@ -28,7 +28,7 @@ export function DebriefLauncher({ onLaunch }: DebriefLauncherProps) {
     data: recent,
     isLoading: recentLoading,
     error: recentError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["scout", "debrief", "recent-matches"],
     queryFn: () => callApi(api.GET("/api/scout/debrief/recent-matches")),
   });

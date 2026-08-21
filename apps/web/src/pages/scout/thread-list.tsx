@@ -15,8 +15,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import { checkPermission } from "@percy-main/shared/auth/permissions";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -94,6 +95,7 @@ export function ThreadList({
   const activeThreadId = params.threadId;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [pendingDelete, setPendingDelete] = useState<ThreadSummary | null>(
     null,
   );
@@ -102,7 +104,7 @@ export function ThreadList({
     data: threadsData,
     isLoading: threadsLoading,
     error: threadsError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["scout", "threads"],
     queryFn: () => callApi(api.GET("/api/scout/threads")),
   });
@@ -116,7 +118,7 @@ export function ThreadList({
       ),
     onSuccess: async (_, threadId) => {
       await queryClient.invalidateQueries({
-        queryKey: ["scout", "threads"],
+        queryKey: authedKey(["scout", "threads"]),
       });
       setPendingDelete(null);
       if (threadId === activeThreadId) void navigate("/scout");
@@ -310,6 +312,7 @@ export function NewThreadButton({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   // Filter the dropdown to modes the user can actually use. If the user
   // somehow lacks every mode permission, render nothing — the empty button
   // would be a dead-end.
@@ -331,7 +334,7 @@ export function NewThreadButton({
       ),
     onSuccess: async (thread) => {
       await queryClient.invalidateQueries({
-        queryKey: ["scout", "threads"],
+        queryKey: authedKey(["scout", "threads"]),
       });
       void navigate(`/scout/${thread.id}`);
       onCreated?.();

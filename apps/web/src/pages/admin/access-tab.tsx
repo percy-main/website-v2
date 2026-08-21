@@ -16,8 +16,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import { parseRoles, type RoleName } from "@percy-main/shared/auth/permissions";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { getRoleLabels } from "./member-detail-modal.lib";
 import { StatusPill } from "./status-pill";
@@ -30,7 +31,7 @@ interface Item {
 }
 
 export function AccessTab() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useAuthedQuery({
     queryKey: ["admin", "access", "list"],
     queryFn: () => callApi(api.GET("/api/admin/access/users")),
   });
@@ -211,7 +212,7 @@ function EditRolesDialog({
   user: Item;
   onClose: () => void;
 }) {
-  const { data: detail, isLoading: detailLoading } = useQuery({
+  const { data: detail, isLoading: detailLoading } = useAuthedQuery({
     queryKey: ["admin", "userDetail", user.id],
     queryFn: () =>
       callApi(
@@ -220,11 +221,12 @@ function EditRolesDialog({
         }),
       ),
   });
-  const { data: juniorTeamsData, isLoading: juniorTeamsLoading } = useQuery({
-    queryKey: ["admin", "juniorTeams"],
-    queryFn: () => callApi(api.GET("/api/admin/junior-teams")),
-  });
-  const { data: pcTeamsData, isLoading: pcTeamsLoading } = useQuery({
+  const { data: juniorTeamsData, isLoading: juniorTeamsLoading } =
+    useAuthedQuery({
+      queryKey: ["admin", "juniorTeams"],
+      queryFn: () => callApi(api.GET("/api/admin/junior-teams")),
+    });
+  const { data: pcTeamsData, isLoading: pcTeamsLoading } = useAuthedQuery({
     queryKey: ["admin", "playCricketTeams"],
     queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
   });
@@ -272,6 +274,7 @@ function EditRolesBody({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [selectedRoles, setSelectedRoles] = useState<Set<RoleName>>(
     () => new Set(parseRoles(user.role)),
   );
@@ -335,11 +338,13 @@ function EditRolesBody({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "access", "list"],
+        queryKey: authedKey(["admin", "access", "list"]),
       });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", user.id],
+        queryKey: authedKey(["admin", "listUsers"]),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "userDetail", user.id]),
       });
       onClose();
     },
@@ -684,7 +689,7 @@ function AddUserDialog({
     };
   }, [search]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["admin", "access", "search", debounced],
     queryFn: () =>
       callApi(

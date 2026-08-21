@@ -9,8 +9,9 @@ import {
 } from "@/components/ui/dialog";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import { noticedFetch } from "@/lib/newrelic";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 import {
   initialUploadFormState,
@@ -60,12 +61,13 @@ export function KnowledgeAdminView() {
   const [search, setSearch] = useState("");
   const [pendingDelete, setPendingDelete] = useState<KbDocument | null>(null);
   const qc = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
   const {
     data: docsData,
     isLoading: docsLoading,
     error: docsError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["scout", "knowledge", { search }],
     queryFn: () =>
       callApi(
@@ -91,7 +93,8 @@ export function KnowledgeAdminView() {
           params: { path: { id } },
         }),
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["scout", "knowledge"] }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: authedKey(["scout", "knowledge"]) }),
   });
 
   const remove = useMutation({
@@ -103,7 +106,9 @@ export function KnowledgeAdminView() {
       ),
     onSuccess: () => {
       setPendingDelete(null);
-      void qc.invalidateQueries({ queryKey: ["scout", "knowledge"] });
+      void qc.invalidateQueries({
+        queryKey: authedKey(["scout", "knowledge"]),
+      });
     },
   });
 
@@ -123,7 +128,9 @@ export function KnowledgeAdminView() {
       <div className="border-b border-stone-200 px-4 py-3">
         <UploadForm
           onUploaded={() => {
-            void qc.invalidateQueries({ queryKey: ["scout", "knowledge"] });
+            void qc.invalidateQueries({
+              queryKey: authedKey(["scout", "knowledge"]),
+            });
           }}
         />
       </div>

@@ -1,6 +1,7 @@
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import type { ReportData } from "@percy-main/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 const POLL_INTERVAL_MS = 5_000;
 
@@ -17,7 +18,7 @@ const reportDetailKey = (reportId: string) =>
  * a fresh chat turn.
  */
 export function useReportDetail(reportId: string) {
-  return useQuery({
+  return useAuthedQuery({
     queryKey: reportDetailKey(reportId),
     queryFn: () =>
       callApi(
@@ -39,6 +40,7 @@ export function useReportDetail(reportId: string) {
 
 export function useCancelReport(reportId: string) {
   const qc = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   return useMutation({
     mutationFn: () =>
       callApi(
@@ -50,7 +52,9 @@ export function useCancelReport(reportId: string) {
       // The next poll (≤5s) will see status='failed' once the worker's
       // flush picks up the cancel flag. Trigger a refetch immediately so
       // the FE doesn't sit on stale "generating" state for up to 5s.
-      void qc.invalidateQueries({ queryKey: reportDetailKey(reportId) });
+      void qc.invalidateQueries({
+        queryKey: authedKey(reportDetailKey(reportId)),
+      });
     },
   });
 }

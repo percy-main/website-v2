@@ -1,5 +1,5 @@
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { formatDate, isPast, parseISO } from "date-fns";
 import { Link } from "react-router";
 import { match } from "ts-pattern";
@@ -9,12 +9,12 @@ export function Membership() {
     data: membershipData,
     isLoading,
     isError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["membership"],
     queryFn: () => callApi(api.GET("/api/members/me/membership")),
   });
 
-  const { data: dependentsData } = useQuery({
+  const { data: dependentsData } = useAuthedQuery({
     queryKey: ["dependents"],
     queryFn: () => callApi(api.GET("/api/junior/dependents")),
   });

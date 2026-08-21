@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useHasPermission } from "@/hooks/use-has-permission";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
 import { lazy, Suspense } from "react";
 import {
@@ -57,6 +58,7 @@ function siblingGroups(roots: PageTreeNode[]): Map<string, PageTreeItem[]> {
 export function PagesTab() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const { allowed: canManage } = useHasPermission("content", "manage");
 
   const itemParam = searchParams.get("item");
@@ -88,7 +90,7 @@ export function PagesTab() {
     setSearchParams(params, { replace: options.replace ?? false });
   };
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useAuthedQuery({
     // Rooted under ["admin", "content"] so the editor's existing save/
     // publish invalidations cover the tree without knowing about it.
     queryKey: ["admin", "content", "page-tree"],
@@ -122,7 +124,9 @@ export function PagesTab() {
       );
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "content"]),
+      });
       // menuOrder drives the public nav ordering; drop ["content", ...]
       // (which includes ["content", "nav"]) so the live menu reorders too.
       void queryClient.invalidateQueries({ queryKey: ["content"] });

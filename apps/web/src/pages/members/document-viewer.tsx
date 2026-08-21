@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 
@@ -11,9 +12,10 @@ export function Component() {
   useDocumentMeta("Review Document");
   const { documentId = "" } = useParams<{ documentId: string }>();
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [agreed, setAgreed] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useAuthedQuery({
     queryKey: ["document", documentId],
     queryFn: () =>
       callApi(
@@ -33,9 +35,11 @@ export function Component() {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["document", documentId],
+        queryKey: authedKey(["document", documentId]),
       });
-      void queryClient.invalidateQueries({ queryKey: ["myDocuments"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["myDocuments"]),
+      });
     },
   });
 

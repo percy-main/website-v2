@@ -19,7 +19,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "date-fns";
 import { useMemo, useState } from "react";
 
@@ -35,7 +36,7 @@ type ChargeRow = NonNullable<
 >["charges"][number];
 
 function useChargesQuery() {
-  return useQuery({
+  return useAuthedQuery({
     queryKey: ["myCharges"],
     queryFn: () => callApi(api.GET("/api/charges")),
   });
@@ -43,6 +44,7 @@ function useChargesQuery() {
 
 export function Charges() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [paymentData, setPaymentData] = useState<{
     clientSecret: string;
@@ -100,7 +102,9 @@ export function Charges() {
           paymentIntentId: piId,
         });
       }
-      void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["myCharges"]),
+      });
     },
     onError: () => {
       setPaymentError("Failed to create payment. Please try again.");
@@ -137,7 +141,9 @@ export function Charges() {
             })
             .finally(() => {
               setPaymentData(null);
-              void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
+              void queryClient.invalidateQueries({
+                queryKey: authedKey(["myCharges"]),
+              });
             });
         }}
         onCancel={() => setPaymentData(null)}

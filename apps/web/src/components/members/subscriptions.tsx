@@ -1,9 +1,9 @@
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { formatDate } from "date-fns";
 
 export function Subscriptions() {
-  const { data } = useQuery({
+  const { data } = useAuthedQuery({
     queryKey: ["subscriptions"],
     queryFn: () => callApi(api.GET("/api/members/me/subscriptions")),
   });

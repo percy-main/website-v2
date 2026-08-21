@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import type { ReportData } from "@percy-main/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ReportCard } from "./report-card.tsx";
 
@@ -25,7 +26,7 @@ export function ReportsView() {
     data: reportsData,
     isLoading,
     error,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: REPORTS_QUERY_KEY,
     queryFn: () => callApi(api.GET("/api/scout/reports")),
     // Listing-level poll catches new reports queued from other tabs and
@@ -129,6 +130,7 @@ function ReportFooter({ report }: { report: ReportRow }) {
 
 function DeleteReportButton({ reportId }: { reportId: string }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const deleteMutation = useMutation({
     mutationFn: () =>
       callApi(
@@ -137,7 +139,9 @@ function DeleteReportButton({ reportId }: { reportId: string }) {
         }),
       ),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: REPORTS_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(REPORTS_QUERY_KEY),
+      });
     },
   });
   return (
