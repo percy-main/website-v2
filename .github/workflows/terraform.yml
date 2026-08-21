@@ -184,16 +184,23 @@ jobs:
         # cancel-in-progress above SIGKILLs an in-flight terraform when
         # a new commit lands, leaving the DynamoDB lock orphaned. On
         # plan SUCCESS terraform releases the lock itself, so we only
-        # need to clean up on the non-success paths — gating on
-        # outcome != success also avoids clobbering an active lock
-        # acquired by a concurrent run after this job started (the
-        # TOCTOU concern that the previous timestamp guard tried to
-        # address, less reliably).
+        # need to clean up on the non-success paths.
+        #
+        # only-current-runner is load-bearing here (#631): this job
+        # serializes on terraform-plan-<env> while deploys serialize on
+        # deploy-production, so a PR plan can be in flight while a
+        # deploy applies. Without the scope, a plan that failed BECAUSE
+        # that live apply holds the lock (or one that ran out its
+        # -lock-timeout) would force-unlock the apply mid-write. Scoped,
+        # this only ever clears a lock this runner orphaned; a lock left
+        # behind by a runner that died outright is recovered by the
+        # operator-driven terraform-unlock-manual.yml.
         if: always() && steps.plan.outcome != 'success'
         uses: ./.github/actions/tf-unlock
         with:
           environment: ${{ matrix.environment }}
           role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
+          only-current-runner: "true"
 
       - name: Plan summary
         if: always()

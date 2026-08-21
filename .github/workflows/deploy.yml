@@ -149,11 +149,19 @@ jobs:
         # still die from runner OOM / GH outage / 6h timeout / manual
         # cancellation. On success terraform releases the lock itself
         # - this only runs on the failure paths.
+        #
+        # only-current-runner (#631): deploys serialize on
+        # deploy-production, PR plans on terraform-plan-<env>, so a PR
+        # plan can hold this backend's lock while this job runs. A
+        # -lock-timeout expiry here must not force-unlock that live
+        # plan; scoped to this runner, the cleanup only clears what
+        # this job itself orphaned.
         if: always() && steps.plan.outcome != 'success'
         uses: ./.github/actions/tf-unlock
         with:
           environment: shared
           role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          only-current-runner: "true"
 
       - name: Plan summary
         if: always()
@@ -175,11 +183,13 @@ jobs:
           exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if apply didn't release its own
+        # See the plan cleanup above for why this is scoped (#631).
         if: always() && steps.apply.outcome != 'success'
         uses: ./.github/actions/tf-unlock
         with:
           environment: shared
           role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          only-current-runner: "true"
 
       - name: Apply summary
         if: always()
@@ -267,11 +277,13 @@ jobs:
           exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if plan didn't release its own
+        # Scoped to this runner's own lock - see terraform-shared (#631).
         if: always() && steps.plan.outcome != 'success'
         uses: ./.github/actions/tf-unlock
         with:
           environment: production
           role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          only-current-runner: "true"
 
       - name: Plan summary
         if: always()
@@ -293,11 +305,13 @@ jobs:
           exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if apply didn't release its own
+        # Scoped to this runner's own lock - see terraform-shared (#631).
         if: always() && steps.apply.outcome != 'success'
         uses: ./.github/actions/tf-unlock
         with:
           environment: production
           role-to-assume: ${{ vars.TERRAFORM_ROLE_ARN }}
+          only-current-runner: "true"
 
       - name: Apply summary
         if: always()
