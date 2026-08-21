@@ -177,7 +177,7 @@ jobs:
         # rather than failing immediately on lock contention.
         run: |
           terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
-          exit ${PIPESTATUS[0]}
+          exit "${PIPESTATUS[0]}"
         continue-on-error: true
 
       - name: Release stale state lock if plan didn't release its own

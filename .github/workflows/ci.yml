@@ -46,6 +46,67 @@ jobs:
       - uses: ./.github/actions/setup-deps
       - run: node .github/scripts/check-unsafe-ddl.mjs "origin/${{ github.base_ref }}"
 
+  actionlint:
+    # Lints every workflow file (#700): misspelled or unknown keys, bad
+    # `needs` / `if` expressions, contexts that cannot resolve where they
+    # are used, missing inputs on the local composite actions under
+    # .github/actions/, and shellcheck over every `run:` block. PR-only:
+    # a workflow that does not lint should never reach main, and there is
+    # nothing here worth re-running on the deploy path.
+    #
+    # Runs the official image published from the actionlint repo, pinned
+    # by digest. A tag is mutable, a digest is not - the same reasoning
+    # behind the SHA pin on every `uses:` in this repo - and the image
+    # bundles the shellcheck build actionlint expects, so a local
+    # `docker run` of this digest reproduces CI exactly rather than
+    # grading against whatever shellcheck happens to be installed.
+    #
+    # Dependabot does NOT track this pin: its github-actions ecosystem
+    # reads `uses:` refs, not image references inside a `run:` step. To
+    # bump, pick a release from github.com/rhysd/actionlint/releases,
+    # run `docker pull rhysd/actionlint:<version>`, and update the tag
+    # and the digest below together.
+    #
+    # Findings are fixed in the workflow files themselves. The only
+    # suppressions are inline `# shellcheck disable=<code>` directives
+    # carrying a reason, which is why there is no .github/actionlint.yaml
+    # blanket-disabling rules.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint workflow files
+        env:
+          ACTIONLINT_IMAGE: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+        run: |
+          docker run --rm \
+            --volume "$PWD:/repo" \
+            --workdir /repo \
+            "$ACTIONLINT_IMAGE" \
+            -color
+
+  tf-unlock-scope-check:
+    # Guardrail for the Terraform state-lock invariant (#631): no
+    # automatic unlock may release a lock it did not create. The
+    # invariant, and the concurrency-group overlap that makes it matter,
+    # are defined and explained on the `only-current-runner` input in
+    # .github/actions/tf-unlock/action.yml - this job only enforces it.
+    #
+    # It is a script rather than an actionlint rule because actionlint
+    # has no custom-rule mechanism: it can require that a local action's
+    # input is *present*, but not that it holds a particular value. The
+    # script header spells that out in full.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # setup-deps installs the workspace, which is where the script gets
+      # the root `yaml` devDep it parses the workflow files with.
+      - uses: ./.github/actions/setup-deps
+      - run: node .github/scripts/check-tf-unlock-scope.mjs
+
   react-doctor:
     # Diff-only scan of apps/web on the PR. Any PR-introduced finding
     # (warning or error) blocks merge — matches the project-wide

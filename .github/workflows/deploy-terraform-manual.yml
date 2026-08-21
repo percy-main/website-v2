@@ -102,7 +102,7 @@ jobs:
         # See ADR 035 — apply-time plan recorded for audit.
         run: |
           terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
-          exit ${PIPESTATUS[0]}
+          exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if plan didn't release its own
         if: always() && steps.plan.outcome != 'success'
@@ -133,7 +133,7 @@ jobs:
         working-directory: infra/environments/shared
         run: |
           terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
-          exit ${PIPESTATUS[0]}
+          exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if apply didn't release its own
         if: always() && steps.apply.outcome != 'success'
@@ -247,7 +247,7 @@ jobs:
         working-directory: infra/environments/production
         run: |
           terraform plan -no-color -out=tfplan 2>&1 | tee plan.txt
-          exit ${PIPESTATUS[0]}
+          exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if plan didn't release its own
         if: always() && steps.plan.outcome != 'success'
@@ -276,7 +276,7 @@ jobs:
         working-directory: infra/environments/production
         run: |
           terraform apply -auto-approve -no-color tfplan 2>&1 | tee apply.log
-          exit ${PIPESTATUS[0]}
+          exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if apply didn't release its own
         if: always() && steps.apply.outcome != 'success'

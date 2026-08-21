@@ -141,7 +141,7 @@ jobs:
         # PR plan rather than failing instantly on lock contention.
         run: |
           terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
-          exit ${PIPESTATUS[0]}
+          exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if plan didn't release its own
         # Belt-and-braces against a runner being killed mid-plan.
@@ -172,7 +172,7 @@ jobs:
         working-directory: infra/environments/shared
         run: |
           terraform apply -auto-approve -lock-timeout=2m -no-color tfplan 2>&1 | tee apply.log
-          exit ${PIPESTATUS[0]}
+          exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if apply didn't release its own
         if: always() && steps.apply.outcome != 'success'
@@ -264,7 +264,7 @@ jobs:
         working-directory: infra/environments/production
         run: |
           terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
-          exit ${PIPESTATUS[0]}
+          exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if plan didn't release its own
         if: always() && steps.plan.outcome != 'success'
@@ -290,7 +290,7 @@ jobs:
         working-directory: infra/environments/production
         run: |
           terraform apply -auto-approve -lock-timeout=2m -no-color tfplan 2>&1 | tee apply.log
-          exit ${PIPESTATUS[0]}
+          exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if apply didn't release its own
         if: always() && steps.apply.outcome != 'success'
@@ -383,7 +383,7 @@ jobs:
           IMAGE=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker build \
             --push \
-            -t $IMAGE \
+            -t "$IMAGE" \
             -f apps/api/Dockerfile \
             .
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
@@ -472,8 +472,8 @@ jobs:
         id: migrate
         run: |
           NETWORK_CONFIG=$(aws ecs describe-services \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
             --query 'services[0].networkConfiguration' \
             --output json)
 
@@ -481,7 +481,7 @@ jobs:
           # `node apps/api/dist/migrate.js` command baked in. No
           # containerOverrides needed.
           TASK_ARN=$(aws ecs run-task \
-            --cluster $ECS_CLUSTER \
+            --cluster "$ECS_CLUSTER" \
             --task-definition ${{ steps.task-def.outputs.migration-task-definition-arn }} \
             --launch-type FARGATE \
             --network-configuration "$NETWORK_CONFIG" \
@@ -490,11 +490,11 @@ jobs:
 
           echo "Migration task: $TASK_ARN"
           echo "task_arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
-          aws ecs wait tasks-stopped --cluster $ECS_CLUSTER --tasks $TASK_ARN
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
 
           EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster $ECS_CLUSTER \
-            --tasks $TASK_ARN \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
             --query 'tasks[0].containers[0].exitCode' \
             --output text)
           echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
@@ -555,15 +555,15 @@ jobs:
       - name: Update ECS service
         run: |
           aws ecs update-service \
-            --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
             --task-definition ${{ steps.task-def.outputs.task-definition-arn }} \
             --force-new-deployment
 
           echo "Waiting for deployment to stabilize..."
           aws ecs wait services-stable \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE"
 
       - name: Verify deployed task definition matches the one we registered
         # `aws ecs wait services-stable` only checks runningCount ==
@@ -576,6 +576,10 @@ jobs:
         env:
           REGISTERED: ${{ steps.task-def.outputs.task-definition-arn }}
         run: |
+          # SC2016: the backticks are JMESPath literal syntax inside a
+          # --query string, not shell command substitution. The single
+          # quotes are exactly what keeps the shell out of them.
+          # shellcheck disable=SC2016
           ACTIVE=$(aws ecs describe-services \
             --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
             --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition' \
@@ -600,6 +604,10 @@ jobs:
             --desired-status STOPPED --query 'taskArns[]' --output text)
           MATCHED=""
           if [ -n "$STOPPED_TASK" ]; then
+            # SC2086: STOPPED_TASK is a tab-separated list of ARNs from
+            # `--output text`, and --tasks takes them as separate args.
+            # Quoting it would pass the whole list as one bogus ARN.
+            # shellcheck disable=SC2086
             MATCHED=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks $STOPPED_TASK \
               --query "sort_by(tasks[?taskDefinitionArn=='$REGISTERED'], &stoppedAt)[-1].taskArn" \
               --output text)
