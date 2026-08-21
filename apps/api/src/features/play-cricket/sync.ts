@@ -3,7 +3,12 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 
 import type { z } from "zod";
+import { createSlackNotifier, type SlackNotifier } from "../../lib/slack.ts";
 import { calculateFantasyScores } from "../fantasy/calculate-scores.ts";
+import {
+  detectPlayerIdChanges,
+  formatPlayerIdChangeAlert,
+} from "../fantasy/service.ts";
 import {
   GetMatchDetailResponse,
   MatchDetailBat,
@@ -725,6 +730,44 @@ async function syncMatches(
   return { matchesProcessed, errors };
 }
 
+/**
+ * Check whether Play Cricket has retired a member ID that fantasy still
+ * depends on, and shout about it in Slack (#596).
+ *
+ * Deliberately swallows everything. Nothing here lands in `result.errors`:
+ * that list decides the sync-runner's exit code, and a missing webhook or a
+ * Slack outage must not turn a good data sync into a failed ECS task. The
+ * hit is logged before the Slack attempt so a detection still reaches New
+ * Relic when the webhook is unset or down.
+ */
+async function alertOnPlayerIdChanges(
+  db: Kysely<DB>,
+  api: PlayCricketApiClient,
+  log: FastifyBaseLogger,
+  notifySlack: SlackNotifier,
+): Promise<void> {
+  try {
+    const { players } = await api.getPlayers();
+    const changes = await detectPlayerIdChanges(db)(players);
+    if (changes.length === 0) return;
+
+    log.warn(
+      { count: changes.length, changes },
+      "fantasy_player_id_change_suspected",
+    );
+
+    const delivered = await notifySlack(formatPlayerIdChangeAlert(changes));
+    if (!delivered) {
+      log.warn(
+        { count: changes.length },
+        "fantasy_player_id_change_slack_unconfigured",
+      );
+    }
+  } catch (err) {
+    log.error({ err }, "fantasy_player_id_change_detection_failed");
+  }
+}
+
 // --- Public API ---
 
 /**
@@ -738,6 +781,7 @@ export function runSync(
   api: PlayCricketApiClient,
   rv: RvClient | null = null,
   log: FastifyBaseLogger,
+  notifySlack: SlackNotifier = createSlackNotifier(),
 ) {
   return async (config: SyncConfig): Promise<SyncResult> => {
     const logId = crypto.randomUUID();
@@ -783,6 +827,8 @@ export function runSync(
           }`,
         );
       }
+
+      await alertOnPlayerIdChanges(db, api, log, notifySlack);
 
       return result;
     } catch (err) {

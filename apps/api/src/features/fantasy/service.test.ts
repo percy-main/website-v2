@@ -70,6 +70,8 @@ import {
 } from "./gameweek.ts";
 import type { PlayerInput } from "./schemas.ts";
 import {
+  detectPlayerIdChanges,
+  formatPlayerIdChangeAlert,
   getEligiblePlayers,
   populatePlayers,
   saveTeam,
@@ -339,5 +341,237 @@ describe("fantasy service", () => {
       expect(result.total).toBe(3);
       expect(result.inserted).toBe(2);
     });
+  });
+
+  describe("detectPlayerIdChanges", () => {
+    // Two queries in order: every fantasy_player row, then pick counts per
+    // play_cricket_id. The second is skipped when nothing has vanished.
+    function mockDb(
+      players: Array<{
+        play_cricket_id: string;
+        player_name: string;
+        eligible: boolean;
+      }>,
+      picks: Array<{ play_cricket_id: string; pick_count: string }> = [],
+    ) {
+      mockExecute.mockResolvedValueOnce(players).mockResolvedValueOnce(picks);
+    }
+
+    it("flags a vanished ID and pairs it with the new exact-name match", async () => {
+      // The 2026 incident: Play Cricket reissued Mashal's member ID.
+      mockDb(
+        [
+          {
+            play_cricket_id: "6324643",
+            player_name: "Mashal Ahmed",
+            eligible: true,
+          },
+          {
+            play_cricket_id: "111",
+            player_name: "Alice Smith",
+            eligible: true,
+          },
+        ],
+        // Postgres count() arrives as a bigint string.
+        [{ play_cricket_id: "6324643", pick_count: "2" }],
+      );
+
+      const changes = await detectPlayerIdChanges(db)([
+        { member_id: 7161990, name: "Mashal Ahmed" },
+        { member_id: 111, name: "Alice Smith" },
+      ]);
+
+      expect(changes).toEqual([
+        {
+          oldPlayCricketId: "6324643",
+          playerName: "Mashal Ahmed",
+          eligible: true,
+          pickCount: 2,
+          candidates: [
+            { playCricketId: "7161990", playerName: "Mashal Ahmed" },
+          ],
+        },
+      ]);
+    });
+
+    it("matches names that differ only in case and whitespace", async () => {
+      mockDb([
+        {
+          play_cricket_id: "6324643",
+          player_name: "  Mashal   Ahmed ",
+          eligible: true,
+        },
+      ]);
+
+      const changes = await detectPlayerIdChanges(db)([
+        { member_id: 7161990, name: "mashal ahmed" },
+      ]);
+
+      expect(changes[0].candidates).toEqual([
+        { playCricketId: "7161990", playerName: "mashal ahmed" },
+      ]);
+    });
+
+    it("still flags a vanished ID with no name match, with no candidates", async () => {
+      mockDb(
+        [{ play_cricket_id: "555", player_name: "Bob Jones", eligible: true }],
+        [],
+      );
+
+      const changes = await detectPlayerIdChanges(db)([
+        { member_id: 999, name: "Someone Else" },
+      ]);
+
+      expect(changes).toHaveLength(1);
+      expect(changes[0].oldPlayCricketId).toBe("555");
+      expect(changes[0].candidates).toEqual([]);
+    });
+
+    it("ignores a vanished ID that is neither eligible nor picked", async () => {
+      // Ordinary churn: opposition players and long-retired members the
+      // populate step inserted but nobody ever picked.
+      mockDb(
+        [
+          {
+            play_cricket_id: "555",
+            player_name: "Old Member",
+            eligible: false,
+          },
+        ],
+        [],
+      );
+
+      const changes = await detectPlayerIdChanges(db)([
+        { member_id: 999, name: "Someone Else" },
+      ]);
+
+      expect(changes).toEqual([]);
+    });
+
+    it("flags a vanished ineligible player who is still picked", async () => {
+      mockDb(
+        [
+          {
+            play_cricket_id: "555",
+            player_name: "Dropped Player",
+            eligible: false,
+          },
+        ],
+        [{ play_cricket_id: "555", pick_count: "1" }],
+      );
+
+      const changes = await detectPlayerIdChanges(db)([
+        { member_id: 999, name: "Someone Else" },
+      ]);
+
+      expect(changes).toHaveLength(1);
+      expect(changes[0].pickCount).toBe(1);
+      expect(changes[0].eligible).toBe(false);
+    });
+
+    it("does not flag two distinct players who share a name when neither vanished", async () => {
+      mockDb([
+        { play_cricket_id: "111", player_name: "John Smith", eligible: true },
+        { play_cricket_id: "222", player_name: "John Smith", eligible: true },
+      ]);
+
+      const changes = await detectPlayerIdChanges(db)([
+        { member_id: 111, name: "John Smith" },
+        { member_id: 222, name: "John Smith" },
+      ]);
+
+      expect(changes).toEqual([]);
+    });
+
+    it("returns nothing when every known ID is still present", async () => {
+      mockDb([
+        { play_cricket_id: "111", player_name: "Alice Smith", eligible: true },
+      ]);
+
+      const changes = await detectPlayerIdChanges(db)([
+        { member_id: 111, name: "Alice Smith" },
+      ]);
+
+      expect(changes).toEqual([]);
+    });
+
+    it("returns nothing when the API sends an empty members list", async () => {
+      // An empty list is indistinguishable from Play Cricket dropping every
+      // member, so it must not flag the whole squad.
+      const changes = await detectPlayerIdChanges(db)([]);
+
+      expect(changes).toEqual([]);
+      expect(mockExecute).not.toHaveBeenCalled();
+    });
+
+    it("lists every same-name candidate and sorts by pick count", async () => {
+      mockDb(
+        [
+          {
+            play_cricket_id: "111",
+            player_name: "Alice Smith",
+            eligible: true,
+          },
+          { play_cricket_id: "222", player_name: "Bob Jones", eligible: true },
+        ],
+        [{ play_cricket_id: "222", pick_count: "3" }],
+      );
+
+      const changes = await detectPlayerIdChanges(db)([
+        { member_id: 900, name: "Alice Smith" },
+        { member_id: 901, name: "Alice Smith" },
+        { member_id: 902, name: "Bob Jones" },
+      ]);
+
+      expect(changes.map((c) => c.oldPlayCricketId)).toEqual(["222", "111"]);
+      expect(changes[1].candidates.map((c) => c.playCricketId)).toEqual([
+        "900",
+        "901",
+      ]);
+    });
+  });
+});
+
+describe("formatPlayerIdChangeAlert", () => {
+  const change = {
+    oldPlayCricketId: "6324643",
+    playerName: "Mashal Ahmed",
+    eligible: true,
+    pickCount: 2,
+    candidates: [{ playCricketId: "7161990", playerName: "Mashal Ahmed" }],
+  };
+
+  it("names the player, both IDs, and the pick count", () => {
+    const text = formatPlayerIdChangeAlert([change]);
+
+    expect(text).toContain("Mashal Ahmed");
+    expect(text).toContain("old ID 6324643");
+    expect(text).toContain("possible new ID 7161990");
+    expect(text).toContain("2 picks");
+    expect(text).toContain("issue #596");
+  });
+
+  it("says so when there is no candidate ID", () => {
+    const text = formatPlayerIdChangeAlert([
+      { ...change, candidates: [], pickCount: 1 },
+    ]);
+
+    expect(text).toContain("no new ID with a matching name");
+    expect(text).toContain("1 pick");
+    expect(text).not.toContain("1 picks");
+  });
+
+  it("truncates a run that flags more than ten players", () => {
+    const many = Array.from({ length: 14 }, (_, i) => ({
+      ...change,
+      oldPlayCricketId: String(i),
+      playerName: `Player ${i}`,
+    }));
+
+    const text = formatPlayerIdChangeAlert(many);
+
+    expect(text).toContain("... and 4 more");
+    expect(text).toContain("Player 9");
+    expect(text).not.toContain("Player 10");
   });
 });

@@ -624,6 +624,165 @@ export function populatePlayers(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Play Cricket ID-change detection (#596)
+// ---------------------------------------------------------------------------
+
+/** A member ID Play Cricket has started returning that fantasy has never seen. */
+export interface PlayerIdChangeCandidate {
+  playCricketId: string;
+  playerName: string;
+}
+
+export interface SuspectedPlayerIdChange {
+  /** The fantasy_player row Play Cricket has stopped returning. */
+  oldPlayCricketId: string;
+  playerName: string;
+  eligible: boolean;
+  /** fantasy_team_player rows still pointing at the vanished ID. */
+  pickCount: number;
+  /**
+   * New member IDs whose normalised name matches this player's exactly.
+   * Empty means the ID vanished with no obvious replacement, which is still
+   * worth flagging - it just needs more digging than a rename.
+   */
+  candidates: PlayerIdChangeCandidate[];
+}
+
+/** Trim, case-fold, collapse internal runs of whitespace. */
+function normaliseName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Spot Play Cricket reassigning a player's member ID mid-season.
+ *
+ * Play Cricket occasionally issues a member a fresh ID and drops the old
+ * one. The player sync happily inserts the new ID as a second
+ * fantasy_player row while every existing pick keeps pointing at the dead
+ * one, which then scores nothing for the rest of the season. In 2026 that
+ * went unnoticed for weeks and cost two teams a player each.
+ *
+ * Matching is exact-on-normalised-name only. Fuzzy matching would turn a
+ * rare, high-signal alert into a recurring stream of near-miss noise, and a
+ * human reconciles these by hand anyway.
+ */
+export function detectPlayerIdChanges(db: Kysely<DB>) {
+  return async (
+    // `member_id` is typed number by the players endpoint, but Play Cricket
+    // returns IDs as strings elsewhere (see GetTeamsResponse), so accept both
+    // and compare as strings - the column is text.
+    apiPlayers: Array<{ member_id: number | string; name: string }>,
+  ): Promise<SuspectedPlayerIdChange[]> => {
+    // An empty members list is indistinguishable from Play Cricket dropping
+    // every member at once, and would flag the entire squad. No data means
+    // no conclusions.
+    if (apiPlayers.length === 0) return [];
+
+    const apiIds = new Set(apiPlayers.map((p) => String(p.member_id)));
+
+    const knownPlayers = await db
+      .selectFrom("fantasy_player")
+      .select(["play_cricket_id", "player_name", "eligible"])
+      .execute();
+
+    const vanished = knownPlayers.filter((p) => !apiIds.has(p.play_cricket_id));
+    if (vanished.length === 0) return [];
+
+    const pickRows = await db
+      .selectFrom("fantasy_team_player")
+      .select(["play_cricket_id", sql<string>`count(*)`.as("pick_count")])
+      .groupBy("play_cricket_id")
+      .execute();
+    const pickCounts = new Map(
+      pickRows.map((r) => [r.play_cricket_id, Number(r.pick_count)]),
+    );
+
+    // Group the IDs new to fantasy_player by name: the pool a reassigned ID
+    // could have moved to.
+    const knownIds = new Set(knownPlayers.map((p) => p.play_cricket_id));
+    const newIdsByName = new Map<string, PlayerIdChangeCandidate[]>();
+    for (const p of apiPlayers) {
+      const id = String(p.member_id);
+      if (knownIds.has(id)) continue;
+      const key = normaliseName(p.name);
+      const existing = newIdsByName.get(key);
+      const candidate = { playCricketId: id, playerName: p.name };
+      if (existing) {
+        existing.push(candidate);
+      } else {
+        newIdsByName.set(key, [candidate]);
+      }
+    }
+
+    const changes: SuspectedPlayerIdChange[] = [];
+    for (const player of vanished) {
+      const pickCount = pickCounts.get(player.play_cricket_id) ?? 0;
+      // Only players who can still cost somebody points are worth an alert.
+      // Everyone else is ordinary churn: opposition players, retired members,
+      // and the long tail the populate step inserts but nobody ever picks.
+      if (!player.eligible && pickCount === 0) continue;
+
+      changes.push({
+        oldPlayCricketId: player.play_cricket_id,
+        playerName: player.player_name,
+        eligible: player.eligible,
+        pickCount,
+        candidates: newIdsByName.get(normaliseName(player.player_name)) ?? [],
+      });
+    }
+
+    // Most-affected first, then stable by ID so repeat runs read identically.
+    return changes.sort(
+      (a, b) =>
+        b.pickCount - a.pickCount ||
+        a.oldPlayCricketId.localeCompare(b.oldPlayCricketId),
+    );
+  };
+}
+
+/** Cap the alert body; a run that flags dozens is a bug, not a rename. */
+const MAX_ALERT_LINES = 10;
+
+/**
+ * Club-readable Slack text for a set of suspected ID changes. Slack mrkdwn,
+ * so `*bold*` rather than markdown headings.
+ */
+export function formatPlayerIdChangeAlert(
+  changes: SuspectedPlayerIdChange[],
+): string {
+  const lines = changes.slice(0, MAX_ALERT_LINES).map((change) => {
+    const ids = change.candidates.map((c) => c.playCricketId);
+    const candidateText =
+      ids.length === 0
+        ? "no new ID with a matching name"
+        : ids.length === 1
+          ? `possible new ID ${ids[0]}`
+          : `possible new IDs ${ids.join(", ")}`;
+    const picks =
+      change.pickCount === 1 ? "1 pick" : `${change.pickCount} picks`;
+    const eligible = change.eligible ? ", eligible" : "";
+    return `- ${change.playerName} (old ID ${change.oldPlayCricketId}) - ${picks}${eligible} - ${candidateText}`;
+  });
+
+  const overflow = changes.length - lines.length;
+  if (overflow > 0) {
+    lines.push(`- ... and ${overflow} more`);
+  }
+
+  const subject =
+    changes.length === 1
+      ? "1 player ID it still relies on"
+      : `${changes.length} player IDs it still relies on`;
+
+  return [
+    "*Fantasy: possible Play Cricket player ID change*",
+    `Play Cricket has stopped returning ${subject}. Any pick left on a retired ID scores zero for the rest of the season, and nothing else will say so.`,
+    ...lines,
+    "Reconcile by hand: point the affected rows at the new ID, then recalculate the season's scores. Background and steps are on issue #596.",
+  ].join("\n");
+}
+
 export function calculateSandwichCosts(db: Kysely<DB>) {
   return async (season?: string) => {
     const s = season ?? getCurrentSeason();

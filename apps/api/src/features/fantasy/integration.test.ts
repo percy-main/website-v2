@@ -18,6 +18,7 @@ import { BUDGET, getCurrentSeason } from "./gameweek.ts";
 import type { PlayerInput } from "./schemas.ts";
 import { SLOT_COUNTS } from "./scoring.ts";
 import {
+  detectPlayerIdChanges,
   getEligiblePlayers,
   getMyTeam,
   getRecentTransfers,
@@ -743,6 +744,121 @@ describe("fantasy service (integration)", () => {
 
       const capped = await getRecentTransfers(ctx.db)(season, 2);
       expect(capped.entries.length).toBeLessThanOrEqual(2);
+    });
+  });
+
+  describe("detectPlayerIdChanges", () => {
+    /**
+     * Detection scans the whole fantasy_player table, which this file shares
+     * across tests. Echo every existing row back as a current member so only
+     * the IDs a test deliberately omits look retired.
+     */
+    async function currentMembers(
+      omit: string[],
+      extra: Array<{ member_id: string; name: string }> = [],
+    ) {
+      const rows = await ctx.db
+        .selectFrom("fantasy_player")
+        .select(["play_cricket_id", "player_name"])
+        .execute();
+
+      return [
+        ...rows
+          .filter((r) => !omit.includes(r.play_cricket_id))
+          .map((r) => ({ member_id: r.play_cricket_id, name: r.player_name })),
+        ...extra,
+      ];
+    }
+
+    /** Put `playCricketId` in a real squad so it has a pick against it. */
+    async function seedPick(playCricketId: string) {
+      const { userId } = await seedTestUser(ctx.db, {
+        email: `idchange-${crypto.randomUUID()}@test.com`,
+      });
+      const team = await ctx.db
+        .insertInto("fantasy_team")
+        .values({ season: getCurrentSeason(), user_id: userId })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+
+      await ctx.db
+        .insertInto("fantasy_team_player")
+        .values({
+          fantasy_team_id: team.id,
+          play_cricket_id: playCricketId,
+          gameweek_added: 1,
+          slot_type: "batting",
+        })
+        .execute();
+    }
+
+    it("pairs a retired ID with its replacement and counts the live picks", async () => {
+      // The 2026 incident in miniature: the member ID changes, the pick
+      // stays behind on the dead one.
+      const name = `Mashal ${crypto.randomUUID().slice(0, 8)}`;
+      const oldId = `old-${crypto.randomUUID()}`;
+      const newId = `new-${crypto.randomUUID()}`;
+      await seedFantasyPlayer({
+        playCricketId: oldId,
+        playerName: name,
+        eligible: true,
+      });
+      await seedPick(oldId);
+
+      const changes = await detectPlayerIdChanges(ctx.db)(
+        await currentMembers([oldId], [{ member_id: newId, name }]),
+      );
+
+      const found = changes.find((c) => c.oldPlayCricketId === oldId);
+      expect(found?.playerName).toBe(name);
+      // count(*) comes back as a bigint string; this is the conversion.
+      expect(found?.pickCount).toBe(1);
+      expect(found?.candidates).toEqual([
+        { playCricketId: newId, playerName: name },
+      ]);
+    });
+
+    it("ignores a retired ID that is neither eligible nor picked", async () => {
+      const goneId = `gone-${crypto.randomUUID()}`;
+      await seedFantasyPlayer({
+        playCricketId: goneId,
+        playerName: `Retired ${crypto.randomUUID().slice(0, 8)}`,
+        eligible: false,
+      });
+
+      const changes = await detectPlayerIdChanges(ctx.db)(
+        await currentMembers([goneId]),
+      );
+
+      expect(changes.map((c) => c.oldPlayCricketId)).not.toContain(goneId);
+    });
+
+    it("flags a retired ID with no name match and no candidates", async () => {
+      const goneId = `nomatch-${crypto.randomUUID()}`;
+      await seedFantasyPlayer({
+        playCricketId: goneId,
+        playerName: `Unmatched ${crypto.randomUUID().slice(0, 8)}`,
+        eligible: true,
+      });
+
+      const changes = await detectPlayerIdChanges(ctx.db)(
+        await currentMembers([goneId]),
+      );
+
+      const found = changes.find((c) => c.oldPlayCricketId === goneId);
+      expect(found).toBeDefined();
+      expect(found?.candidates).toEqual([]);
+      expect(found?.pickCount).toBe(0);
+    });
+
+    it("reports nothing when every known ID is still a member", async () => {
+      await seedFantasyPlayer({ eligible: true });
+
+      const changes = await detectPlayerIdChanges(ctx.db)(
+        await currentMembers([]),
+      );
+
+      expect(changes).toEqual([]);
     });
   });
 });

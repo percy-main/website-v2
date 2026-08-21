@@ -1,7 +1,21 @@
 import type { DB } from "@percy-main/db";
 import type { Kysely } from "kysely";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SlackNotifier } from "../../lib/slack.ts";
 import { createNoopLogger } from "../../lib/worker-logger.ts";
+
+// Detection itself is covered in fantasy/service.test.ts; stubbing it here
+// keeps these tests about the wiring - that the sync runs it, alerts on a
+// hit, and shrugs off failures.
+const { mockDetectPlayerIdChanges } = vi.hoisted(() => ({
+  mockDetectPlayerIdChanges: vi.fn(),
+}));
+
+vi.mock("../fantasy/service.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../fantasy/service.ts")>()),
+  detectPlayerIdChanges: () => mockDetectPlayerIdChanges,
+}));
+
 import type { PlayCricketApiClient } from "./api-client.ts";
 import {
   didBat,
@@ -239,6 +253,7 @@ describe("runSync", () => {
     vi.clearAllMocks();
     mockDb = createMockDb();
     mockApi = createMockApi();
+    mockDetectPlayerIdChanges.mockResolvedValue([]);
   });
 
   it("returns zero matches when no matches exist", async () => {
@@ -375,5 +390,93 @@ describe("runSync", () => {
 
     // Should have called insertInto for the sync log
     expect(mockDb.insertInto).toHaveBeenCalledWith("play_cricket_sync_log");
+  });
+
+  // --- Play Cricket ID-change alerting (#596) ---
+
+  const suspectedChange = {
+    oldPlayCricketId: "6324643",
+    playerName: "Mashal Ahmed",
+    eligible: true,
+    pickCount: 2,
+    candidates: [{ playCricketId: "7161990", playerName: "Mashal Ahmed" }],
+  };
+
+  it("runs ID-change detection against the current members list", async () => {
+    mockApi = createMockApi({
+      getPlayers: vi
+        .fn()
+        .mockResolvedValue({ players: [{ member_id: 111, name: "Alice" }] }),
+    });
+
+    const sync = runSync(mockDb, mockApi, null, log);
+    await sync({ siteId: "134" });
+
+    expect(mockApi.getPlayers).toHaveBeenCalled();
+    expect(mockDetectPlayerIdChanges).toHaveBeenCalledWith([
+      { member_id: 111, name: "Alice" },
+    ]);
+  });
+
+  it("sends a Slack alert naming both IDs when a change is suspected", async () => {
+    mockDetectPlayerIdChanges.mockResolvedValue([suspectedChange]);
+    const notifySlack = vi.fn<SlackNotifier>().mockResolvedValue(true);
+
+    const sync = runSync(mockDb, mockApi, null, log, notifySlack);
+    const result = await sync({ siteId: "134" });
+
+    expect(notifySlack).toHaveBeenCalledTimes(1);
+    const text: string = notifySlack.mock.calls[0][0];
+    expect(text).toContain("Mashal Ahmed");
+    expect(text).toContain("6324643");
+    expect(text).toContain("7161990");
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("stays quiet when nothing is suspected", async () => {
+    const notifySlack = vi.fn<SlackNotifier>().mockResolvedValue(true);
+
+    const sync = runSync(mockDb, mockApi, null, log, notifySlack);
+    await sync({ siteId: "134" });
+
+    expect(notifySlack).not.toHaveBeenCalled();
+  });
+
+  it("completes the sync when Slack delivery fails", async () => {
+    mockDetectPlayerIdChanges.mockResolvedValue([suspectedChange]);
+    const notifySlack = vi
+      .fn<SlackNotifier>()
+      .mockRejectedValue(new Error("slack is down"));
+
+    const sync = runSync(mockDb, mockApi, null, log, notifySlack);
+    const result = await sync({ siteId: "134" });
+
+    // Alerting is best-effort: nothing lands in errors, so the runner still
+    // exits 0 and the data half of the sync is not reported as failed.
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("completes the sync when detection itself fails", async () => {
+    mockDetectPlayerIdChanges.mockRejectedValue(new Error("db is down"));
+    const notifySlack = vi.fn<SlackNotifier>().mockResolvedValue(true);
+
+    const sync = runSync(mockDb, mockApi, null, log, notifySlack);
+    const result = await sync({ siteId: "134" });
+
+    expect(result.errors).toHaveLength(0);
+    expect(notifySlack).not.toHaveBeenCalled();
+  });
+
+  it("completes the sync when the members fetch fails", async () => {
+    mockApi = createMockApi({
+      getPlayers: vi.fn().mockRejectedValue(new Error("Unauthorized")),
+    });
+    const notifySlack = vi.fn<SlackNotifier>().mockResolvedValue(true);
+
+    const sync = runSync(mockDb, mockApi, null, log, notifySlack);
+    const result = await sync({ siteId: "134" });
+
+    expect(result.errors).toHaveLength(0);
+    expect(notifySlack).not.toHaveBeenCalled();
   });
 });

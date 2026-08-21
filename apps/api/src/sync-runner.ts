@@ -12,6 +12,7 @@ import { createApiClient } from "./features/play-cricket/api-client.ts";
 import { createRvClient } from "./features/play-cricket/rv-client.ts";
 import { runSync } from "./features/play-cricket/sync.ts";
 import { invokePrerenderReconcile } from "./lib/prerender-trigger.ts";
+import { createSlackNotifier } from "./lib/slack.ts";
 import { withSpan } from "./lib/tracing.ts";
 import { createWorkerLogger } from "./lib/worker-logger.ts";
 
@@ -25,6 +26,10 @@ const PLAY_CRICKET_SITE_ID = process.env.PLAY_CRICKET_SITE_ID;
 // sync still runs end-to-end. See BALL_BY_BALL_FETCHING.md (gitignored)
 // for how to obtain / rotate this.
 const RV_SHARED_SECRET = process.env.RV_SHARED_SECRET;
+// Shared with the contact / incident / lead notifiers. Optional: when unset
+// the sync still runs and a suspected player ID change (#596) is logged
+// rather than posted.
+const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 
 if (!DATABASE_URL) throw new Error("Missing required env var: DATABASE_URL");
 if (!PLAY_CRICKET_API_TOKEN)
@@ -66,9 +71,18 @@ const rv = RV_SHARED_SECRET
   : null;
 
 try {
-  logger.info({ withRv: Boolean(rv) }, "play_cricket_sync_started");
+  logger.info(
+    { withRv: Boolean(rv), withSlack: Boolean(SLACK_WEBHOOK_URL) },
+    "play_cricket_sync_started",
+  );
 
-  const sync = runSync(client, api, rv, logger);
+  const sync = runSync(
+    client,
+    api,
+    rv,
+    logger,
+    createSlackNotifier(SLACK_WEBHOOK_URL),
+  );
   // Throw out of withSpan if the sync returned a non-empty errors
   // list — withSpan only marks ERROR on a thrown error, so a
   // completed-with-errors run would otherwise look successful in
