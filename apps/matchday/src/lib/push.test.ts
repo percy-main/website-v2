@@ -377,6 +377,25 @@ describe("push subscriptions on a shared device", () => {
     expect(backend.calls).toEqual([]);
   });
 
+  it("drops the subscription when an account switch can't be verified offline", async () => {
+    await signInAndEnablePush("user-a");
+    const { ensureCachesMatchUser } = await loadModules();
+    localStorageStub.setItem(LAST_USER_KEY, "user-a");
+
+    // No way to ask who owns the endpoint, and no second chance: once
+    // the last-user key is rewritten this boot, later boots see no
+    // mismatch and never reconcile again. Dropping is the safe
+    // direction, at the cost of a re-enable tap if the device was
+    // actually still user A's.
+    backend.currentUserId = "user-b";
+    backend.online = false;
+    await ensureCachesMatchUser("user-b");
+
+    await vi.waitFor(() => {
+      expect(pushManager.current).toBeNull();
+    });
+  });
+
   it("reports unsubscribed when ownership cannot be verified offline", async () => {
     await signInAndEnablePush("user-a");
     const { readPushState } = await loadModules();

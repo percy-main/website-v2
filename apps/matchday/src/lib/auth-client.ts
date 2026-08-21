@@ -82,10 +82,13 @@ export function canManageMatchday(
 const PUSH_TEARDOWN_TIMEOUT_MS = 3_000;
 
 function withTimeout(work: Promise<unknown>, ms: number): Promise<unknown> {
-  return Promise.race([
-    work,
-    new Promise((resolve) => setTimeout(resolve, ms)),
-  ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(resolve, ms);
+  });
+  return Promise.race([work, deadline]).finally(() => {
+    clearTimeout(timer);
+  });
 }
 
 /**

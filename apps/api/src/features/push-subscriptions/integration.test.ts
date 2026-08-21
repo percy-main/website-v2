@@ -156,11 +156,37 @@ describe("push-subscriptions service (integration)", () => {
     ).toEqual([SUB_A.endpoint]);
   });
 
+  it("returns the newest subscription first", async () => {
+    const { userId } = await seedTestUser(ctx.db, { withMember: false });
+    await upsertPushSubscription(ctx.db)(userId, SUB_A);
+    await upsertPushSubscription(ctx.db)(userId, SUB_B);
+    // Two inserts in the same test can land in the same clock tick, so
+    // pin the timestamps rather than relying on insertion order.
+    await ctx.db
+      .updateTable("push_subscription")
+      .set({ created_at: new Date("2026-08-01T09:00:00.000Z") })
+      .where("endpoint", "=", SUB_A.endpoint)
+      .execute();
+    await ctx.db
+      .updateTable("push_subscription")
+      .set({ created_at: new Date("2026-08-02T09:00:00.000Z") })
+      .where("endpoint", "=", SUB_B.endpoint)
+      .execute();
+
+    const rows = await listPushSubscriptionsForUser(ctx.db)(userId);
+    expect(rows.map((s) => s.endpoint)).toEqual([
+      SUB_B.endpoint,
+      SUB_A.endpoint,
+    ]);
+  });
+
   it("serialises createdAt as an ISO string", async () => {
     const { userId } = await seedTestUser(ctx.db, { withMember: false });
     await upsertPushSubscription(ctx.db)(userId, SUB_A);
     const [row] = await listPushSubscriptionsForUser(ctx.db)(userId);
-    expect(row?.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(row?.createdAt).toBeDefined();
+    // Round-tripping proves it is a real instant, not just ISO-shaped.
+    expect(new Date(row?.createdAt ?? "").toISOString()).toBe(row?.createdAt);
   });
 
   it("hard-deletes a subscription by endpoint (gone-410 cleanup)", async () => {

@@ -72,12 +72,19 @@ stranger's.
 
 ## Trade-offs
 
-- **Unverifiable state reads as "off".** If the endpoint list cannot be
-  fetched (offline, 401, 5xx) the UI reports not-subscribed even though a
-  local subscription exists. Claiming "this device will receive matchday push"
-  to an account with no such row is the bug being fixed, so the failure is
-  deliberately in the safe direction. Recovery is one tap: Enable reuses the
-  existing browser subscription and re-registers the endpoint.
+- **An unverifiable answer counts as "not yours", and that is destructive.**
+  If the endpoint list cannot be fetched (offline, 401, 5xx) the UI reports
+  not-subscribed, and reconciliation on an identity change goes further: it
+  unsubscribes the local subscription. That is deliberate, because
+  reconciliation gets one attempt - `ensureCachesMatchUser` rewrites
+  `matchday-last-user-id` on the same boot, so later boots see no mismatch and
+  never retry. Skipping the drop when offline would leave the previous user's
+  alerts arriving on this device indefinitely, which is the bug being fixed.
+  The cost is a false positive when the device was still the same user's and
+  the last-user hint had been evicted: they lose push until they re-enable.
+  Recovery is one tap - Enable reuses the existing browser subscription and
+  re-registers the endpoint - and the card shows an Enable button, so the
+  state is at least visible rather than silent.
 - **An expired cookie does not drop the subscription.** `ensureCachesMatchUser`
   skips reconciliation when nobody is signed in, because a session that simply
   ended is usually a personal device whose owner is about to sign back in, and
