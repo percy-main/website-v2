@@ -49,6 +49,20 @@ export const createPushSubscriptionResponseSchema = z.object({
   id: z.string(),
 });
 
+// The caller only ever sees their own endpoints, so returning them in
+// full is safe - and it's what lets the client decide whether the
+// browser's local subscription belongs to the signed-in account.
+export const listPushSubscriptionsResponseSchema = z.object({
+  subscriptions: z.array(
+    z.object({
+      id: z.string(),
+      endpoint: z.string(),
+      userAgent: z.string().nullable(),
+      createdAt: z.string(),
+    }),
+  ),
+});
+
 export const deletePushSubscriptionSchema = z.object({
   endpoint: pushEndpointSchema,
 });

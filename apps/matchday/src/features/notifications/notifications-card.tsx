@@ -7,13 +7,10 @@ import {
   CardTitle,
 } from "@/components/ui/card.js";
 import { api, callApi, type ApiResponse } from "@/lib/api-client.js";
+import { disablePushOnThisDevice, enablePushOnThisDevice } from "@/lib/push.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  disablePushOnThisDevice,
-  enablePushOnThisDevice,
-  usePushState,
-} from "./use-push.js";
+import { usePushState } from "./use-push.js";
 
 type Prefs = ApiResponse<"/api/me/notification-preferences">;
 type Channel = Prefs["matchdayChannel"];
@@ -177,8 +174,14 @@ function PushStatus({
   }
   return (
     <div className="flex items-center justify-between gap-3">
+      {/*
+        Covers three cases that all end in the same action: never
+        subscribed, a subscription this device is holding for a
+        different account (shared device), and "we couldn't check with
+        the server". Enable re-registers the endpoint to this account.
+      */}
       <p className="text-text-secondary text-xs">
-        Not subscribed on this device yet.
+        Push isn't enabled for this account on this device.
       </p>
       <Button size="sm" onClick={onEnable} disabled={busy}>
         Enable
