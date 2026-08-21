@@ -3873,13 +3873,11 @@ function LoadedEditor({
   const canSave = canManage && (item?.status !== "published" || canPublish);
   const metadataIssue = metadataProblem(kind, form);
 
-  // Suggestions come from list pages already in the query cache; computed
-  // once per mount, which is as fresh as the list the author came from.
-  const tagSuggestions = useMemo(
-    () =>
-      kind === "news" ? cachedTagSuggestions(queryClient, kind, userId) : [],
-    [kind, queryClient, userId],
-  );
+  // Suggestions come from list pages already in the query cache, which is
+  // as fresh as the list the author came from. Left to the compiler to
+  // cache rather than a manual useMemo.
+  const tagSuggestions =
+    kind === "news" ? cachedTagSuggestions(queryClient, kind, userId) : [];
 
   const { uploadError, fileInputRef, startImageUpload, onFileChosen } =
     useSlashImageUpload(editor, consentConfirmed);
