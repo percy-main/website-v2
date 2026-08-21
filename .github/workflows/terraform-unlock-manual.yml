@@ -22,9 +22,10 @@ name: Terraform unlock (manual)
 #      holder, its age and the raw lock Info, and changes nothing.
 #   2. Satisfy yourself from the Actions history that no live run owns
 #      that lock, then dispatch again passing the exact `lock_id` from
-#      phase 1. The release refuses on any mismatch - i.e. if the lock
-#      changed hands after you inspected it, because a new run has
-#      legitimately taken the backend.
+#      phase 1. The release is conditional on the lock still being
+#      byte-for-byte the one that was inspected, so if it changed hands
+#      in between - because a new run has legitimately taken the
+#      backend - nothing is deleted and the run fails.
 
 on:
   workflow_dispatch:
@@ -39,8 +40,9 @@ on:
           - production
       lock_id:
         description: >
-          Leave EMPTY to inspect only. To actually force-unlock, re-run
-          and paste the exact lock ID printed by the inspection run.
+          Leave EMPTY to inspect only. To actually release the lock,
+          re-run and paste the exact lock ID printed by the inspection
+          run.
         required: false
         default: ""
 
@@ -63,9 +65,10 @@ defaults:
 
 env:
   AWS_REGION: eu-west-2
-  TF_VERSION: "1.7"
   # Mirrors the backend blocks in infra/environments/*/main.tf and the
-  # defaults in .github/actions/tf-unlock.
+  # defaults in .github/actions/tf-unlock; the first job step asserts
+  # they still agree. No terraform binary here on purpose - see the
+  # release step.
   STATE_BUCKET: percy-main-terraform-state-bucket
   LOCK_TABLE: percy-main-terraform-locks
 
@@ -73,16 +76,6 @@ jobs:
   unlock:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      # Placeholder, NOT the real secret - same reasoning as the
-      # `validate` job in terraform.yml. This workflow never plans or
-      # applies, but terraform still loads the config, and shared's
-      # newrelic provider marks api_key required while
-      # newrelic_account_id has no default. Both values keep a config
-      # load from failing; neither is used to call any API, so the run
-      # stays free of secrets.
-      NEW_RELIC_API_KEY: "unlock-only-placeholder"
-      TF_VAR_newrelic_account_id: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
     steps:
       - name: Require dispatch from main
         # The plan role's OIDC trust accepts
@@ -104,20 +97,46 @@ jobs:
         with:
           # The plan role, not the read-write terraform role: it is
           # read-only apart from dynamodb Put/DeleteItem on the locks
-          # table (shared/main.tf), which is exactly the privilege a
-          # force-unlock needs and nothing more.
+          # table (shared/main.tf), which is exactly the privilege
+          # releasing a lock row needs and nothing more.
           role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
+      - name: Verify the backend wiring this workflow assumes
+        # The release below is a direct DynamoDB call (see its comment
+        # for why), so the bucket, state key and lock table it assumes
+        # have to be the ones the environment's backend block actually
+        # declares. Without this, a backend migration would turn every
+        # run into a confident "no lock held" against a row that moved.
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          MAIN="infra/environments/${ENVIRONMENT}/main.tf"
+          backend_value() {
+            awk -v key="$1" '
+              /backend "s3" \{/ { inside = 1 }
+              inside && $1 == key && $2 == "=" { gsub(/"/, "", $3); print $3; exit }
+            ' "$MAIN"
+          }
 
-      - name: Terraform Init
-        # force-unlock talks to the configured backend, so the working
-        # directory has to be initialised first.
-        working-directory: infra/environments/${{ inputs.environment }}
-        run: terraform init
+          mismatch=0
+          check() {
+            local label="$1" actual="$2" expected="$3"
+            if [ "$actual" != "$expected" ]; then
+              echo "::error::${MAIN} declares ${label} '${actual}', this workflow assumes '${expected}'."
+              mismatch=1
+            fi
+          }
+
+          check "bucket" "$(backend_value bucket)" "$STATE_BUCKET"
+          check "key" "$(backend_value key)" "${ENVIRONMENT}/terraform.tfstate"
+          check "dynamodb_table" "$(backend_value dynamodb_table)" "$LOCK_TABLE"
+
+          if [ "$mismatch" -ne 0 ]; then
+            echo "::error::Backend wiring has changed - update this workflow (and .github/actions/tf-unlock) before using it."
+            exit 1
+          fi
+          echo "Backend wiring matches: ${STATE_BUCKET}/${ENVIRONMENT}/terraform.tfstate in ${LOCK_TABLE}."
 
       - name: Inspect the current lock
         id: inspect
@@ -168,6 +187,15 @@ jobs:
 
           echo "held=true" >> "$GITHUB_OUTPUT"
           echo "lock_id=$LOCK_ID" >> "$GITHUB_OUTPUT"
+          # The raw Info string is what the release conditions its
+          # delete on, so it has to survive verbatim. Delimiter form,
+          # not `key=value`, so an embedded newline can never truncate
+          # it or forge another output.
+          {
+            echo "info<<LOCK_INFO_EOF"
+            echo "$OUT"
+            echo "LOCK_INFO_EOF"
+          } >> "$GITHUB_OUTPUT"
 
           {
             echo "## Terraform lock: ${ENVIRONMENT}"
@@ -181,7 +209,7 @@ jobs:
             echo "| Age (minutes) | \`${AGE_MINUTES}\` |"
             echo
             if [ "$AGE_MINUTES" != "unknown" ] && [ "$AGE_MINUTES" -lt 30 ]; then
-              echo "> **This lock is less than 30 minutes old.** A deploy or plan that is still running looks exactly like this. Check the Actions tab for a live run against \`${ENVIRONMENT}\` before releasing it - force-unlocking a live apply is how state gets corrupted."
+              echo "> **This lock is less than 30 minutes old.** A deploy or plan that is still running looks exactly like this. Check the Actions tab for a live run against \`${ENVIRONMENT}\` before releasing it - releasing a live apply's lock is how state gets corrupted."
               echo
             fi
             echo '<details><summary>Raw lock info</summary>'
@@ -213,30 +241,65 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Inspection only. Re-run with lock_id=${CURRENT_LOCK_ID} to release."
 
-      - name: Force-unlock the inspected lock
+      - name: Release the inspected lock
         if: inputs.lock_id != ''
-        working-directory: infra/environments/${{ inputs.environment }}
         env:
           # Operator-supplied free text: keep it in the environment
           # rather than interpolating it into the script body.
           REQUESTED_LOCK_ID: ${{ inputs.lock_id }}
           CURRENT_LOCK_ID: ${{ steps.inspect.outputs.lock_id }}
+          CURRENT_LOCK_INFO: ${{ steps.inspect.outputs.info }}
           LOCK_HELD: ${{ steps.inspect.outputs.held }}
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
           if [ "$LOCK_HELD" != "true" ]; then
-            echo "::error::No lock is held for ${ENVIRONMENT} - nothing to force-unlock."
+            echo "::error::No lock is held for ${ENVIRONMENT} - nothing to release."
             exit 1
           fi
-          # The equality check is the TOCTOU guard: between the
-          # inspection run and this one, the orphaned lock may have been
-          # released and a NEW, live lock taken. Releasing that one is
-          # the exact failure this workflow exists to avoid.
+          # First gate: the operator has to name the lock the run just
+          # inspected, so a stale browser tab from an earlier dispatch
+          # cannot release whatever happens to be held now.
           if [ "$REQUESTED_LOCK_ID" != "$CURRENT_LOCK_ID" ]; then
             echo "::error::Lock ID mismatch. Supplied '${REQUESTED_LOCK_ID}', currently held '${CURRENT_LOCK_ID}'. The lock changed hands since it was inspected, so a different run may now own the backend. Re-inspect before releasing."
             exit 1
           fi
-          terraform force-unlock -force "$CURRENT_LOCK_ID"
+
+          # Second gate, and the reason this is a DynamoDB call rather
+          # than `terraform force-unlock`: the s3 backend's Unlock reads
+          # the lock row, compares the ID, then issues an UNCONDITIONAL
+          # DeleteItem. A lock released and re-acquired between those
+          # two calls is deleted out from under its new owner - the
+          # precise failure this workflow exists to prevent. DynamoDB
+          # can express the whole thing atomically instead: delete this
+          # row only if its Info is still byte-for-byte what the
+          # inspection above read. Anything else fails the condition and
+          # releases nothing. (The lock row IS the s3-backend lock;
+          # force-unlock deletes the same item, and
+          # .github/actions/tf-unlock already reads it directly.)
+          KEY="${STATE_BUCKET}/${ENVIRONMENT}/terraform.tfstate"
+          EXPRESSION_VALUES=$(jq -n --arg info "$CURRENT_LOCK_INFO" '{":expected": {"S": $info}}')
+
+          set +e
+          ERR=$(aws dynamodb delete-item \
+            --region "$AWS_REGION" \
+            --table-name "$LOCK_TABLE" \
+            --key "{\"LockID\":{\"S\":\"$KEY\"}}" \
+            --condition-expression "#info = :expected" \
+            --expression-attribute-names '{"#info":"Info"}' \
+            --expression-attribute-values "$EXPRESSION_VALUES" 2>&1)
+          STATUS=$?
+          set -e
+
+          if [ $STATUS -ne 0 ]; then
+            if grep -q 'ConditionalCheckFailedException' <<<"$ERR"; then
+              echo "::error::Lock changed between inspection and release - nothing was deleted. Another run has taken the backend since this run started; re-inspect before trying again."
+            else
+              echo "::error::delete-item failed (exit $STATUS): $ERR"
+            fi
+            exit 1
+          fi
+
+          echo "Released lock ${CURRENT_LOCK_ID} on ${ENVIRONMENT}."
           {
             echo
             echo "Released lock \`${CURRENT_LOCK_ID}\` on \`${ENVIRONMENT}\` (actor: \`${GITHUB_ACTOR}\`)."
