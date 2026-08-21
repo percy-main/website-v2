@@ -174,7 +174,7 @@ describe("game-reports-service (integration)", () => {
         opposition: "Team B",
       });
 
-      const result = await listGameReports(ctx.db)({
+      const result = await listGameReports(ctx.db)(defaultUserId, "admin", {
         limit: 50,
         offset: 0,
       });
@@ -194,7 +194,7 @@ describe("game-reports-service (integration)", () => {
       await seedMatchday(ctx.db, teamA, { opposition: "Opponent A" });
       await seedMatchday(ctx.db, teamB, { opposition: "Opponent B" });
 
-      const result = await listGameReports(ctx.db)({
+      const result = await listGameReports(ctx.db)(defaultUserId, "admin", {
         teamId: teamA,
         limit: 50,
         offset: 0,
@@ -209,7 +209,7 @@ describe("game-reports-service (integration)", () => {
       const teamId = await seedTeam(ctx.db, { name: "Percy Main 2nd XI" });
       await seedMatchday(ctx.db, teamId);
 
-      const result = await listGameReports(ctx.db)({
+      const result = await listGameReports(ctx.db)(defaultUserId, "admin", {
         teamId,
         limit: 50,
         offset: 0,
@@ -221,9 +221,9 @@ describe("game-reports-service (integration)", () => {
 
   describe("getMatchdayReport", () => {
     it("throws 404 for missing matchday", async () => {
-      await expect(getMatchdayReport(ctx.db)("nonexistent-id")).rejects.toThrow(
-        "Matchday not found",
-      );
+      await expect(
+        getMatchdayReport(ctx.db)(defaultUserId, "admin", "nonexistent-id"),
+      ).rejects.toThrow("Matchday not found");
     });
 
     it("returns financial summary with correct calculations", async () => {
@@ -255,7 +255,11 @@ describe("game-reports-service (integration)", () => {
         createdBy: user.userId,
       });
 
-      const report = await getMatchdayReport(ctx.db)(matchdayId);
+      const report = await getMatchdayReport(ctx.db)(
+        defaultUserId,
+        "admin",
+        matchdayId,
+      );
 
       expect(report.matchday.id).toBe(matchdayId);
       expect(report.team).not.toBeNull();
@@ -282,7 +286,11 @@ describe("game-reports-service (integration)", () => {
         chargeDeletedAt: "2026-06-16T00:00:00Z",
       });
 
-      const report = await getMatchdayReport(ctx.db)(matchdayId);
+      const report = await getMatchdayReport(ctx.db)(
+        defaultUserId,
+        "admin",
+        matchdayId,
+      );
 
       expect(report.summary.totalIncoming).toBe(0);
       expect(report.summary.totalPaid).toBe(0);
@@ -309,12 +317,98 @@ describe("game-reports-service (integration)", () => {
         })
         .execute();
 
-      const report = await getMatchdayReport(ctx.db)(matchdayId);
+      const report = await getMatchdayReport(ctx.db)(
+        defaultUserId,
+        "admin",
+        matchdayId,
+      );
 
       expect(report.sponsorship).not.toBeNull();
       expect(report.sponsorship?.sponsor_name).toBe("Local Pub");
       expect(report.summary.sponsorshipIncome).toBe(5000);
       expect(report.summary.profitLoss).toBe(5000);
+    });
+  });
+
+  // #627: `official` is a team-scoped role, so game reports - which carry
+  // per-player charge amounts and expense totals - must be filtered to the
+  // teams the caller is actually assigned to.
+  describe("team scoping", () => {
+    /** Two teams with a matchday each, and an official assigned to the first. */
+    async function seedTwoTeams() {
+      const { userId: officialId } = await seedTestUser(ctx.db, {
+        withMember: true,
+        role: "official",
+      });
+      const myTeam = await seedTeam(ctx.db, { name: "Scoped XI" });
+      const otherTeam = await seedTeam(ctx.db, { name: "Other XI" });
+      await ctx.db
+        .insertInto("team_official")
+        .values({ user_id: officialId, play_cricket_team_id: myTeam })
+        .execute();
+
+      const myMatchday = await seedMatchday(ctx.db, myTeam, {
+        opposition: "Mine CC",
+      });
+      const otherMatchday = await seedMatchday(ctx.db, otherTeam, {
+        opposition: "Theirs CC",
+      });
+
+      return { officialId, myTeam, otherTeam, myMatchday, otherMatchday };
+    }
+
+    it("listGameReports filters rows and the total to assigned teams", async () => {
+      const { officialId, myMatchday, otherMatchday } = await seedTwoTeams();
+
+      const scoped = await listGameReports(ctx.db)(officialId, "official", {
+        limit: 100,
+        offset: 0,
+      });
+      const ids = scoped.matchdays.map((m) => m.id);
+      expect(ids).toContain(myMatchday);
+      expect(ids).not.toContain(otherMatchday);
+      // The count is filtered too, so pagination can't hint at the size of
+      // the fixture list the official can't see.
+      expect(scoped.total).toBe(scoped.matchdays.length);
+
+      const clubWide = await listGameReports(ctx.db)(defaultUserId, "admin", {
+        limit: 100,
+        offset: 0,
+      });
+      const clubWideIds = clubWide.matchdays.map((m) => m.id);
+      expect(clubWideIds).toContain(myMatchday);
+      expect(clubWideIds).toContain(otherMatchday);
+    });
+
+    it("listGameReports returns nothing for an official with no assignments", async () => {
+      const { userId: strandedId } = await seedTestUser(ctx.db, {
+        withMember: true,
+        role: "official",
+      });
+      await seedTwoTeams();
+
+      const result = await listGameReports(ctx.db)(strandedId, "official", {
+        limit: 100,
+        offset: 0,
+      });
+      expect(result).toEqual({ matchdays: [], total: 0 });
+    });
+
+    it("getMatchdayReport 404s an official on another team's report", async () => {
+      const { officialId, myMatchday, otherMatchday } = await seedTwoTeams();
+      await seedExpense(ctx.db, otherMatchday, { amountPence: 9999 });
+
+      await expect(
+        getMatchdayReport(ctx.db)(officialId, "official", otherMatchday),
+      ).rejects.toThrow("Matchday not found");
+
+      // Their own team's report still resolves.
+      const own = await getMatchdayReport(ctx.db)(
+        officialId,
+        "official",
+        myMatchday,
+      );
+      expect(own.matchday.id).toBe(myMatchday);
     });
   });
 });

@@ -85,6 +85,7 @@ import { generateTeamNewsImage } from "./team-news-image.ts";
 export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const officialRole = requirePermission("matchday", "view");
   const adminRole = requirePermission("matchday", "manage");
+  const financeAdminRole = requirePermission("finance", "manage");
   // Manual results and cancellations surface on prerendered game pages
   // (outcome badge); fire a reconcile so they don't wait for the
   // 15-minute sweep.
@@ -376,7 +377,9 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await pending(request.query);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await pending(user.id, role, request.query);
     },
   );
 
@@ -411,7 +414,8 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      return await approve(user.id, request.params.expenseId);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await approve(user.id, role, request.params.expenseId);
     },
   );
 
@@ -427,14 +431,22 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      return await reject(user.id, request.params.expenseId, request.body);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await reject(
+        user.id,
+        role,
+        request.params.expenseId,
+        request.body,
+      );
     },
   );
 
+  // Paying a claim out is a finance action. Team officials can approve or
+  // reject claims in scope, but only the treasurer can record reimbursement.
   app.post(
     "/matchday/expenses/:expenseId/reimburse",
     {
-      preHandler: [adminRole],
+      preHandler: [financeAdminRole],
       schema: {
         params: expenseIdParamSchema,
         response: { 200: successResponseSchema },

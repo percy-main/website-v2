@@ -9,6 +9,7 @@ const { mockExecuteTakeFirst, mockExecute, mockQueryBuilder } = vi.hoisted(
 
     const mockQueryBuilder: Record<string, unknown> = {
       selectFrom: vi.fn().mockReturnThis(),
+      innerJoin: vi.fn().mockReturnThis(),
       leftJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
@@ -62,7 +63,7 @@ describe("game-reports-service", () => {
       // Second call: count query
       mockExecuteTakeFirst.mockResolvedValueOnce({ count: "1" });
 
-      const result = await listGameReports(db)({
+      const result = await listGameReports(db)("admin-1", "admin", {
         limit: 50,
         offset: 0,
       });
@@ -75,7 +76,7 @@ describe("game-reports-service", () => {
       mockExecute.mockResolvedValueOnce([]);
       mockExecuteTakeFirst.mockResolvedValueOnce({ count: "0" });
 
-      const result = await listGameReports(db)({
+      const result = await listGameReports(db)("admin-1", "admin", {
         teamId: "t1",
         limit: 50,
         offset: 0,
@@ -91,22 +92,92 @@ describe("game-reports-service", () => {
       mockExecute.mockResolvedValueOnce([]);
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
 
-      const result = await listGameReports(db)({
+      const result = await listGameReports(db)("admin-1", "admin", {
         limit: 50,
         offset: 0,
       });
 
       expect(result.total).toBe(0);
     });
+
+    it("filters list and count to the official's assigned teams", async () => {
+      // getAssignedTeamIds, then the listing query.
+      mockExecute
+        .mockResolvedValueOnce([{ play_cricket_team_id: "t1" }])
+        .mockResolvedValueOnce([]);
+      mockExecuteTakeFirst.mockResolvedValueOnce({ count: "0" });
+
+      await listGameReports(db)("official-1", "official", {
+        limit: 50,
+        offset: 0,
+      });
+
+      expect(mockQueryBuilder.selectFrom).toHaveBeenCalledWith("team_official");
+      // Listing query and count query both constrained, so the total can't
+      // leak the size of other teams' fixture lists.
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+        "matchday.play_cricket_team_id",
+        "in",
+        ["t1"],
+      );
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+        "play_cricket_team_id",
+        "in",
+        ["t1"],
+      );
+    });
+
+    it("returns nothing for an official with no team assignments", async () => {
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await listGameReports(db)("official-1", "official", {
+        limit: 50,
+        offset: 0,
+      });
+
+      expect(result).toEqual({ matchdays: [], total: 0 });
+      expect(mockQueryBuilder.selectFrom).not.toHaveBeenCalledWith("matchday");
+    });
   });
 
   describe("getMatchdayReport", () => {
+    it("404s an official on another team's report before reading it", async () => {
+      // Access check misses.
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+
+      await expect(
+        getMatchdayReport(db)("official-1", "official", "m-other-team"),
+      ).rejects.toThrow("Matchday not found");
+
+      expect(mockQueryBuilder.innerJoin).toHaveBeenCalledWith(
+        "team_official",
+        "team_official.play_cricket_team_id",
+        "matchday.play_cricket_team_id",
+      );
+      // Charge amounts and expense rows are never fetched.
+      expect(mockQueryBuilder.selectAll).not.toHaveBeenCalled();
+    });
+
+    it("skips the access check for club-wide roles", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+
+      await expect(
+        getMatchdayReport(db)("admin-1", "matchday_viewer", "m1"),
+      ).rejects.toThrow("Matchday not found");
+
+      expect(mockQueryBuilder.innerJoin).not.toHaveBeenCalledWith(
+        "team_official",
+        "team_official.play_cricket_team_id",
+        "matchday.play_cricket_team_id",
+      );
+    });
+
     it("throws 404 when matchday not found", async () => {
       mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
 
-      await expect(getMatchdayReport(db)("nonexistent")).rejects.toThrow(
-        "Matchday not found",
-      );
+      await expect(
+        getMatchdayReport(db)("admin-1", "admin", "nonexistent"),
+      ).rejects.toThrow("Matchday not found");
     });
 
     it("returns full report with financial summary", async () => {
@@ -171,7 +242,7 @@ describe("game-reports-service", () => {
         name: "1st XI",
       });
 
-      const result = await getMatchdayReport(db)("m1");
+      const result = await getMatchdayReport(db)("admin-1", "admin", "m1");
 
       expect(result.matchday.id).toBe("m1");
       expect(result.team?.name).toBe("1st XI");
@@ -220,7 +291,7 @@ describe("game-reports-service", () => {
         amount_pence: 5000,
       });
 
-      const result = await getMatchdayReport(db)("m1");
+      const result = await getMatchdayReport(db)("admin-1", "admin", "m1");
 
       expect(result.sponsorship).not.toBeNull();
       expect(result.summary.sponsorshipIncome).toBe(5000);
@@ -267,7 +338,7 @@ describe("game-reports-service", () => {
         name: "1st XI",
       });
 
-      const result = await getMatchdayReport(db)("m1");
+      const result = await getMatchdayReport(db)("admin-1", "admin", "m1");
 
       // Deleted charge should be excluded
       expect(result.summary.totalIncoming).toBe(0);
@@ -329,7 +400,7 @@ describe("game-reports-service", () => {
         name: "1st XI",
       });
 
-      const result = await getMatchdayReport(db)("m1");
+      const result = await getMatchdayReport(db)("admin-1", "admin", "m1");
 
       expect(result.players[0].charge_status).toBe("paid");
       expect(result.players[1].charge_status).toBe("relieved");

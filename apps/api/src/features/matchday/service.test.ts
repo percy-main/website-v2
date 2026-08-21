@@ -45,6 +45,7 @@ import {
   deleteExpense,
   finishMatch,
   listMatches,
+  listPendingExpenses,
   listTeams,
   markExpenseReimbursed,
   recordExpense,
@@ -333,11 +334,60 @@ describe("expense approval workflow", () => {
       });
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await approveExpense(db)("admin-1", "exp-1");
+      const result = await approveExpense(db)("admin-1", "admin", "exp-1");
       expect(result).toEqual({ success: true });
       expect(mockQueryBuilder.set).toHaveBeenCalledWith(
         expect.objectContaining({ status: "approved" }),
       );
+    });
+
+    it("skips the team-scope check for club-wide managers", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce({
+        id: "exp-1",
+        status: "submitted",
+      });
+      mockExecute.mockResolvedValueOnce([]);
+
+      await approveExpense(db)("admin-1", "matchday_admin", "exp-1");
+
+      expect(mockQueryBuilder.innerJoin).not.toHaveBeenCalledWith(
+        "team_official",
+        "team_official.play_cricket_team_id",
+        "matchday.play_cricket_team_id",
+      );
+    });
+
+    it("scopes the lookup to the official's teams", async () => {
+      // Access check hits, then the expense row itself.
+      mockExecuteTakeFirst
+        .mockResolvedValueOnce({ id: "exp-1" })
+        .mockResolvedValueOnce({ id: "exp-1", status: "submitted" });
+      mockExecute.mockResolvedValueOnce([]);
+
+      await approveExpense(db)("official-1", "official", "exp-1");
+
+      expect(mockQueryBuilder.innerJoin).toHaveBeenCalledWith(
+        "team_official",
+        "team_official.play_cricket_team_id",
+        "matchday.play_cricket_team_id",
+      );
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+        "team_official.user_id",
+        "=",
+        "official-1",
+      );
+    });
+
+    it("404s an official on another team's expense without touching it", async () => {
+      // Access check misses.
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+
+      await expect(
+        approveExpense(db)("official-1", "official", "exp-other-team"),
+      ).rejects.toThrow("Expense not found");
+
+      // Same message as a nonexistent id, and no write attempted.
+      expect(mockQueryBuilder.updateTable).not.toHaveBeenCalled();
     });
 
     it("rejects approval of non-submitted expense", async () => {
@@ -346,9 +396,9 @@ describe("expense approval workflow", () => {
         status: "draft",
       });
 
-      await expect(approveExpense(db)("admin-1", "exp-1")).rejects.toThrow(
-        "Only submitted expenses can be approved",
-      );
+      await expect(
+        approveExpense(db)("admin-1", "admin", "exp-1"),
+      ).rejects.toThrow("Only submitted expenses can be approved");
     });
   });
 
@@ -360,7 +410,7 @@ describe("expense approval workflow", () => {
       });
       mockExecute.mockResolvedValueOnce([]);
 
-      const result = await rejectExpense(db)("admin-1", "exp-1", {
+      const result = await rejectExpense(db)("admin-1", "admin", "exp-1", {
         reason: "Missing details",
       });
       expect(result).toEqual({ success: true });
@@ -369,6 +419,76 @@ describe("expense approval workflow", () => {
           status: "rejected",
           rejected_reason: "Missing details",
         }),
+      );
+    });
+
+    it("404s an official on another team's expense", async () => {
+      mockExecuteTakeFirst.mockResolvedValueOnce(undefined);
+
+      await expect(
+        rejectExpense(db)("official-1", "official", "exp-other-team", {
+          reason: "Nope",
+        }),
+      ).rejects.toThrow("Expense not found");
+
+      expect(mockQueryBuilder.updateTable).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("listPendingExpenses", () => {
+    it("does not filter by team for club-wide managers", async () => {
+      mockExecute.mockResolvedValueOnce([{ id: "exp-1" }]);
+
+      const result = await listPendingExpenses(db)(
+        "admin-1",
+        "matchday_admin",
+        { limit: 20, offset: 0 },
+      );
+
+      expect(result.items).toEqual([{ id: "exp-1" }]);
+      expect(mockQueryBuilder.selectFrom).not.toHaveBeenCalledWith(
+        "team_official",
+      );
+      expect(mockQueryBuilder.where).not.toHaveBeenCalledWith(
+        "matchday.play_cricket_team_id",
+        "in",
+        expect.anything(),
+      );
+    });
+
+    it("filters to the official's assigned teams", async () => {
+      // getAssignedTeamIds, then the listing itself.
+      mockExecute
+        .mockResolvedValueOnce([{ play_cricket_team_id: "t1" }])
+        .mockResolvedValueOnce([{ id: "exp-1" }]);
+
+      const result = await listPendingExpenses(db)("official-1", "official", {
+        limit: 20,
+        offset: 0,
+      });
+
+      expect(result.items).toEqual([{ id: "exp-1" }]);
+      expect(mockQueryBuilder.selectFrom).toHaveBeenCalledWith("team_official");
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+        "matchday.play_cricket_team_id",
+        "in",
+        ["t1"],
+      );
+    });
+
+    it("returns nothing for an official with no team assignments", async () => {
+      mockExecute.mockResolvedValueOnce([]);
+
+      const result = await listPendingExpenses(db)("official-1", "official", {
+        limit: 20,
+        offset: 0,
+      });
+
+      expect(result.items).toEqual([]);
+      // Short-circuited before building the listing query - an empty IN
+      // list is invalid SQL, and there is nothing to return anyway.
+      expect(mockQueryBuilder.selectFrom).not.toHaveBeenCalledWith(
+        "matchday_expense",
       );
     });
   });
