@@ -1,4 +1,4 @@
-# Decision 058: Push Subscriptions Are Dropped, Not Re-Keyed, When the Account Changes
+# Decision 059: Push Subscriptions Are Dropped, Not Re-Keyed, When the Account Changes
 
 **Date:** 2026-08-21
 **Status:** Accepted
