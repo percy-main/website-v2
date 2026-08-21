@@ -69,6 +69,9 @@ importers:
       typescript-eslint:
         specifier: ^8.66.0
         version: 8.67.0(@typescript/typescript6@6.0.2)(eslint@10.6.0(jiti@2.7.0))
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
 
   apps/api:
     dependencies:

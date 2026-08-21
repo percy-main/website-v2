@@ -171,7 +171,17 @@ Before pushing:
 ```sh
 pnpm format                  # workflow YAML is prettier-formatted
 pnpm format:check            # confirm
+
+# actionlint - the same digest the `actionlint` job in ci.yml runs, so
+# a clean run here means a clean run in CI (#700).
+docker run --rm --volume "$PWD:/repo" --workdir /repo \
+  rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+  -color
+
+node .github/scripts/check-tf-unlock-scope.mjs   # tf-unlock state-lock invariant (#631)
 ```
+
+actionlint runs shellcheck over every `run:` block. Fix findings in the workflow; if a finding is genuinely wrong (deliberate word-splitting, JMESPath backticks inside a `--query`), suppress it with an inline `# shellcheck disable=<code>` directive carrying a reason. There is no `.github/actionlint.yaml` and blanket rule disables do not belong in one.
 
 Optional but recommended for non-trivial changes:
 
