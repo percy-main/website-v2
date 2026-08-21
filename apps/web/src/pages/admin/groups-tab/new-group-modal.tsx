@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQueryKey } from "@/lib/authed-query.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -24,6 +25,7 @@ export function NewGroupModal({ open, onOpenChange, onCreated }: Props) {
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const qc = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
   const reset = () => {
     setName("");
@@ -42,7 +44,9 @@ export function NewGroupModal({ open, onOpenChange, onCreated }: Props) {
         }),
       ),
     onSuccess: (data) => {
-      void qc.invalidateQueries({ queryKey: ["admin", "user-groups"] });
+      void qc.invalidateQueries({
+        queryKey: authedKey(["admin", "user-groups"]),
+      });
       onCreated?.(data.id);
       reset();
       onOpenChange(false);

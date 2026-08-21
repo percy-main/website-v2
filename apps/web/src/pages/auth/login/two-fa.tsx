@@ -6,6 +6,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp.js";
 import { authClient, useSession } from "@/lib/auth-client.js";
+import { resetAuthCaches } from "@/lib/query-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FC } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -29,6 +30,12 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
         { code: otp },
         {
           async onSuccess() {
+            // Session changed - drop all cached data before the new session
+            // lands. Invalidation alone kept the previous account's data
+            // readable until each refetch returned (#628). This runs here
+            // rather than in the mutation's own onSuccess so the cache is
+            // empty before we navigate into the members area.
+            await resetAuthCaches(queryClient);
             // See EmailPassword: refetch so the session atom is populated
             // before the new route's RequireAuth reads it.
             await refetchSession();
@@ -36,10 +43,6 @@ export const TwoFA: FC<Props> = ({ setPhase }) => {
           },
         },
       ),
-    onSuccess: () => {
-      // Session changed — drop all cached data so member-scoped queries refetch.
-      void queryClient.invalidateQueries();
-    },
   });
 
   const handleSubmit = (event: React.SyntheticEvent) => {

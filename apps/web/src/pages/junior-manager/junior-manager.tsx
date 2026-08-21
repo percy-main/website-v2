@@ -19,7 +19,7 @@ import { useHasAdminPanelAccess } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useSession } from "@/lib/auth-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -31,14 +31,14 @@ type PlayerDetail =
   paths["/api/junior/players/{dependentId}"]["get"]["responses"]["200"]["content"]["application/json"];
 
 function useTeams() {
-  return useQuery({
+  return useAuthedQuery({
     queryKey: ["juniorManager", "myTeams"],
     queryFn: () => callApi(api.GET("/api/junior/teams")),
   });
 }
 
 function usePlayers(teamId: string, enabled: boolean) {
-  return useQuery({
+  return useAuthedQuery({
     queryKey: ["juniorManager", "players", teamId],
     queryFn: () =>
       callApi(
@@ -182,7 +182,7 @@ function PlayersTable({ players }: { players: Player[] }) {
 }
 
 function usePlayerDetail(dependentId: string) {
-  return useQuery({
+  return useAuthedQuery({
     queryKey: ["juniorManager", "playerDetail", dependentId],
     queryFn: () =>
       callApi(

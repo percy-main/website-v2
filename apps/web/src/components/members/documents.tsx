@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { useNavigate } from "react-router";
 
 function formatDate(iso: string) {
@@ -23,7 +23,7 @@ function formatDate(iso: string) {
 export function Documents() {
   const navigate = useNavigate();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["myDocuments"],
     queryFn: () => callApi(api.GET("/api/documents")),
   });

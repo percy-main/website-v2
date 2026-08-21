@@ -17,8 +17,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import { noticedFetch } from "@/lib/newrelic";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 function formatDate(iso: string) {
@@ -47,6 +48,7 @@ function CreateDocumentDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
@@ -77,7 +79,7 @@ function CreateDocumentDialog({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "documents"],
+        queryKey: authedKey(["admin", "documents"]),
       });
       setTitle("");
       setFile(null);
@@ -163,6 +165,7 @@ function EditDocumentDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   // Seeded from `currentTitle` on mount; the parent passes a `key` tied to
   // (title, version) so a new doc opening remounts this dialog with fresh state.
   const [title, setTitle] = useState(() => currentTitle);
@@ -204,10 +207,10 @@ function EditDocumentDialog({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "documents"],
+        queryKey: authedKey(["admin", "documents"]),
       });
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "documentDetail", documentId],
+        queryKey: authedKey(["admin", "documentDetail", documentId]),
       });
       setFile(null);
       onOpenChange(false);
@@ -288,11 +291,12 @@ function AssignUsersDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [search, setSearch] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
 
-  const { data: usersData } = useQuery({
+  const { data: usersData } = useAuthedQuery({
     queryKey: ["admin", "listUsers", search],
     queryFn: () =>
       callApi(
@@ -315,10 +319,10 @@ function AssignUsersDialog({
       ),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "documents"],
+        queryKey: authedKey(["admin", "documents"]),
       });
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "documentDetail", documentId],
+        queryKey: authedKey(["admin", "documentDetail", documentId]),
       });
       setResultMessage(
         `Assigned to ${data.assigned} new member${data.assigned === 1 ? "" : "s"}.`,
@@ -452,10 +456,11 @@ function DocumentDetailModal({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [editOpen, setEditOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["admin", "documentDetail", documentId],
     queryFn: () =>
       callApi(
@@ -474,7 +479,7 @@ function DocumentDetailModal({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "documents"],
+        queryKey: authedKey(["admin", "documents"]),
       });
       onClose();
     },
@@ -489,10 +494,10 @@ function DocumentDetailModal({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "documentDetail", documentId],
+        queryKey: authedKey(["admin", "documentDetail", documentId]),
       });
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "documents"],
+        queryKey: authedKey(["admin", "documents"]),
       });
     },
   });
@@ -659,7 +664,7 @@ export function DocumentsTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["admin", "documents"],
     queryFn: () => callApi(api.GET("/api/admin/documents")),
   });

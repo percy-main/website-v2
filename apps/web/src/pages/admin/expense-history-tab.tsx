@@ -24,8 +24,8 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { noticedFetch } from "@/lib/newrelic";
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useReducer, useRef, useState } from "react";
 import {
   expenseFiltersReducer,
@@ -117,7 +117,7 @@ export function ExpenseHistoryTab() {
     pageSize: PAGE_SIZE,
   };
 
-  const { data: expensesData, isLoading: expensesLoading } = useQuery({
+  const { data: expensesData, isLoading: expensesLoading } = useAuthedQuery({
     queryKey: ["treasurer", "expense-history", queryParams],
     queryFn: () =>
       callApi(

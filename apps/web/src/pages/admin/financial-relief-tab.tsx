@@ -28,6 +28,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import {
   CONTACT_PREFERENCE_LABELS,
   CONTRIBUTION_ABILITY_LABELS,
@@ -69,7 +70,7 @@ export function FinancialReliefTab() {
     );
   };
 
-  const { data: listData, isLoading: listLoading } = useQuery({
+  const { data: listData, isLoading: listLoading } = useAuthedQuery({
     queryKey: [
       "admin-relief",
       "list",
@@ -295,7 +296,8 @@ function RequestDetailDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const { data: detail, isLoading: detailLoading } = useQuery({
+  const authedKey = useAuthedQueryKey();
+  const { data: detail, isLoading: detailLoading } = useAuthedQuery({
     queryKey: ["admin-relief", "detail", requestId],
     queryFn: () =>
       callApi(
@@ -319,9 +321,11 @@ function RequestDetailDialog({
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["admin-relief", "detail", requestId],
+          queryKey: authedKey(["admin-relief", "detail", requestId]),
         }),
-        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+        queryClient.invalidateQueries({
+          queryKey: authedKey(["admin-relief", "list"]),
+        }),
       ]),
   });
 
@@ -585,6 +589,7 @@ function DeclineDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [memberFacingNote, setMemberFacingNote] = useState("");
   const [adminNote, setAdminNote] = useState("");
 
@@ -602,9 +607,11 @@ function DeclineDialog({
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["admin-relief", "detail", requestId],
+          queryKey: authedKey(["admin-relief", "detail", requestId]),
         }),
-        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+        queryClient.invalidateQueries({
+          queryKey: authedKey(["admin-relief", "list"]),
+        }),
       ]).then(onClose),
   });
 
@@ -884,6 +891,7 @@ function DecideDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const requestedMembership =
     request.requestedMembershipFull || request.requestedMembershipPartial;
   const [form, update] = useState<DecideFormState>(() => ({
@@ -944,9 +952,11 @@ function DecideDialog({
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["admin-relief", "detail", requestId],
+          queryKey: authedKey(["admin-relief", "detail", requestId]),
         }),
-        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+        queryClient.invalidateQueries({
+          queryKey: authedKey(["admin-relief", "list"]),
+        }),
       ]).then(onClose),
   });
 
@@ -1151,6 +1161,7 @@ function CloseGrantButton({
   requestId: string;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("");
 
@@ -1165,9 +1176,11 @@ function CloseGrantButton({
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["admin-relief", "detail", requestId],
+          queryKey: authedKey(["admin-relief", "detail", requestId]),
         }),
-        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+        queryClient.invalidateQueries({
+          queryKey: authedKey(["admin-relief", "list"]),
+        }),
       ]).then(() => setConfirming(false)),
   });
 
@@ -1223,6 +1236,7 @@ function ApplyMembershipReliefButton({
   requestId: string;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [open, setOpen] = useState(false);
   const [form, update] = useReducer(
     (
@@ -1275,9 +1289,11 @@ function ApplyMembershipReliefButton({
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["admin-relief", "detail", requestId],
+          queryKey: authedKey(["admin-relief", "detail", requestId]),
         }),
-        queryClient.invalidateQueries({ queryKey: ["admin-relief", "list"] }),
+        queryClient.invalidateQueries({
+          queryKey: authedKey(["admin-relief", "list"]),
+        }),
       ]).then(() => setOpen(false)),
   });
 
@@ -1411,7 +1427,7 @@ function ReliefReportPanel() {
     }),
   );
 
-  const { data: reportData, isLoading: reportLoading } = useQuery({
+  const { data: reportData, isLoading: reportLoading } = useAuthedQuery({
     queryKey: ["admin-relief", "report", report.dateFrom, report.dateTo],
     queryFn: () =>
       callApi(

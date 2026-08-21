@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { authClient } from "@/lib/auth-client.js";
 import { trackEvent } from "@/lib/marketing/gtag.js";
+import { resetAuthCaches } from "@/lib/query-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useReducer, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -66,11 +67,13 @@ export function Component() {
         callbackURL: emailConfirmedUrl,
       });
     },
-    onSuccess(result) {
+    async onSuccess(result) {
       if (!result.error) {
         trackEvent("sign_up", { method: "email" });
-        // Session changed — drop cached anonymous queries.
-        void queryClient.invalidateQueries();
+        // Session changed - drop every cached query rather than marking it
+        // stale, so no data cached under the previous identity (anonymous or
+        // a signed-out account) is readable by the new one (#628).
+        await resetAuthCaches(queryClient);
         const registeredUrl = returnTo
           ? `/auth/registered?returnTo=${encodeURIComponent(returnTo)}`
           : "/auth/registered";

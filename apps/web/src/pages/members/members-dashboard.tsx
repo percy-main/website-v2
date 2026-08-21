@@ -27,7 +27,7 @@ import {
 } from "@/hooks/use-has-permission.js";
 import { api, callApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
@@ -62,7 +62,7 @@ export function Component() {
 
   // Only members whose account is slug-linked to a player profile have
   // something to edit; the link is hidden otherwise.
-  const { data: profileEditState } = useQuery({
+  const { data: profileEditState } = useAuthedQuery({
     queryKey: ["profile", "edit"],
     queryFn: () => callApi(api.GET("/api/profile/edit")),
   });
@@ -243,7 +243,7 @@ function IncompleteDetailsBanner({ hidden }: { hidden: boolean }) {
 }
 
 function AvailabilityBanner() {
-  const { data } = useQuery({
+  const { data } = useAuthedQuery({
     queryKey: ["availability", "active"],
     queryFn: () => callApi(api.GET("/api/availability/active")),
   });
@@ -283,7 +283,7 @@ function AvailabilityBanner() {
  * API's requireScoutAccess preHandler).
  */
 function ScoutLink() {
-  const { data: access } = useQuery({
+  const { data: access } = useAuthedQuery({
     queryKey: ["scout", "access"],
     queryFn: () => callApi(api.GET("/api/scout/access")),
     staleTime: 5 * 60 * 1000,

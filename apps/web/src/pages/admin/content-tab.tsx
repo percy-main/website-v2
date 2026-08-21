@@ -18,13 +18,13 @@ import {
 } from "@/components/ui/table";
 import { useHasPermission } from "@/hooks/use-has-permission";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import {
   CONTENT_KIND_RESOURCES,
   CONTENT_STATUSES,
   type ContentKind,
   type ContentStatus,
 } from "@percy-main/shared/content";
-import { useQuery } from "@tanstack/react-query";
 import { formatInTimeZone } from "date-fns-tz";
 import { lazy, Suspense } from "react";
 import { IoOpenOutline } from "react-icons/io5";
@@ -116,7 +116,7 @@ export function ContentTab({ kind }: { kind: ContentKind }) {
     setSearchParams(params, { replace: options.replace ?? false });
   };
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useAuthedQuery({
     queryKey: ["admin", "content", kind, status, search, page],
     queryFn: () =>
       callApi(

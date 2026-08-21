@@ -116,6 +116,18 @@ export function getEligiblePlayers(db: Kysely<DB>) {
   };
 }
 
+const SLOT_TYPES = ["batting", "bowling", "allrounder"] as const;
+
+/**
+ * `fantasy_team_player.slot_type` is a plain text column. Only saveTeam
+ * writes it and its input is enum-validated, so an out-of-range value means
+ * hand-edited data; treat it as a batting slot rather than failing the
+ * whole squad response.
+ */
+function toSlotType(value: string): (typeof SLOT_TYPES)[number] {
+  return SLOT_TYPES.find((slot) => slot === value) ?? "batting";
+}
+
 export function getMyTeam(db: Kysely<DB>) {
   return async (userId: string, season?: string) => {
     const s = season ?? getCurrentSeason();
@@ -204,7 +216,18 @@ export function getMyTeam(db: Kysely<DB>) {
 
     return {
       team,
-      players,
+      // Projected to the six fields the squad builder renders. The join also
+      // carries row ids and gameweek bookkeeping, which no client needs and
+      // which used to reach the browser through this endpoint's untyped
+      // `players` array.
+      players: players.map((p) => ({
+        play_cricket_id: p.play_cricket_id,
+        player_name: p.player_name,
+        sandwich_cost: p.sandwich_cost,
+        is_captain: p.is_captain,
+        slot_type: toSlotType(p.slot_type),
+        is_wicketkeeper: p.is_wicketkeeper,
+      })),
       gameweek,
       transfersUsed,
       maxTransfers: unlimitedTransfers ? null : MAX_TRANSFERS_PER_GAMEWEEK,

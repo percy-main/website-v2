@@ -1,6 +1,7 @@
 import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
 import { authClient, useSession } from "@/lib/auth-client.js";
+import { resetAuthCaches } from "@/lib/query-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FC } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -24,15 +25,16 @@ export const Recovery: FC<Props> = ({ setPhase }) => {
         { code: recoveryCode },
         {
           async onSuccess() {
+            // Session changed - drop all cached data before the new session
+            // lands, so nothing from the previous account is readable in the
+            // members area (#628). See TwoFA for why this sits here rather
+            // than in the mutation's own onSuccess.
+            await resetAuthCaches(queryClient);
             await refetchSession();
             void navigate(returnTo ?? "/members");
           },
         },
       ),
-    onSuccess: () => {
-      // Session changed — drop all cached data so member-scoped queries refetch.
-      void queryClient.invalidateQueries();
-    },
   });
 
   const handleSubmit = (event: React.SyntheticEvent) => {

@@ -22,7 +22,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useReducer, useState } from "react";
 import {
   buildPlayerNameMap,
@@ -64,6 +65,7 @@ const initialRecordLinkingState: RecordLinkingState = {
 // eslint-disable-next-line react-doctor/no-giant-component -- admin record-linking tool: search + filter bar + people table + DetailModal that shares 4 mutations + linked PC players state. The DetailModal is already extracted; the remaining surface is the linker UI itself.
 export function RecordLinkingTab() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [state, update] = useReducer(
     (
       s: RecordLinkingState,
@@ -91,7 +93,7 @@ export function RecordLinkingTab() {
     return () => clearTimeout(timeout);
   }, [search]);
 
-  const { data: linkingData, isLoading } = useQuery({
+  const { data: linkingData, isLoading } = useAuthedQuery({
     queryKey: ["admin", "recordLinking"],
     queryFn: () => callApi(api.GET("/api/admin/record-linking")),
   });
@@ -119,7 +121,7 @@ export function RecordLinkingTab() {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "recordLinking"],
+        queryKey: authedKey(["admin", "recordLinking"]),
       });
       update((s) => ({
         detailModal: s.detailModal
@@ -139,7 +141,7 @@ export function RecordLinkingTab() {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "recordLinking"],
+        queryKey: authedKey(["admin", "recordLinking"]),
       });
     },
   });
@@ -151,7 +153,7 @@ export function RecordLinkingTab() {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "recordLinking"],
+        queryKey: authedKey(["admin", "recordLinking"]),
       });
     },
   });
@@ -163,7 +165,7 @@ export function RecordLinkingTab() {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "recordLinking"],
+        queryKey: authedKey(["admin", "recordLinking"]),
       });
     },
   });

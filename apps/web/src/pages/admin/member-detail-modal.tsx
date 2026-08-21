@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import {
@@ -63,7 +64,7 @@ const CATEGORY_OPTIONS = [
 ] as const;
 
 export function MemberDetailModal({ userId, onClose }: MemberDetailModalProps) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["admin", "userDetail", userId],
     queryFn: () =>
       callApi(
@@ -287,6 +288,7 @@ function MemberCategorySection({
   userId: string;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const currentCategory = member?.member_category ?? null;
   const categoryDisplay = getMemberCategoryDisplay(currentCategory);
 
@@ -300,9 +302,11 @@ function MemberCategorySection({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
+        queryKey: authedKey(["admin", "userDetail", userId]),
       });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "listUsers"]),
+      });
     },
   });
 
@@ -528,6 +532,7 @@ function PaymentsSection({
   charges: UserDetail["charges"];
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [showForm, setShowForm] = useState(false);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -549,9 +554,11 @@ function PaymentsSection({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
+        queryKey: authedKey(["admin", "userDetail", userId]),
       });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "listUsers"]),
+      });
       setDescription("");
       setAmount("");
       setChargeDate(new Date().toISOString().split("T")[0]);
@@ -675,6 +682,7 @@ function ChargeRow({
   userId: string;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [showDelete, setShowDelete] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
 
@@ -688,9 +696,11 @@ function ChargeRow({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
+        queryKey: authedKey(["admin", "userDetail", userId]),
       });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "listUsers"]),
+      });
       setShowDelete(false);
     },
   });
@@ -764,6 +774,7 @@ function LinkedParentsSection({
   linkedParents: UserDetail["linkedParents"];
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const unlinkMutation = useMutation({
@@ -775,7 +786,7 @@ function LinkedParentsSection({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
+        queryKey: authedKey(["admin", "userDetail", userId]),
       });
     },
   });
@@ -842,6 +853,7 @@ function ParentLinkDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -860,7 +872,7 @@ function ParentLinkDialog({
     data: candidatesData,
     isLoading: candidatesLoading,
     error: candidatesError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["admin", "parentSearch", memberId, debounced],
     queryFn: () =>
       callApi(
@@ -884,7 +896,7 @@ function ParentLinkDialog({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
+        queryKey: authedKey(["admin", "userDetail", userId]),
       });
       onClose();
     },
@@ -981,6 +993,7 @@ function ArchiveSection({
   member: UserDetail["member"];
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const isArchived = isMemberArchived(member);
   const [showArchiveForm, setShowArchiveForm] = useState(false);
   const [archiveReason, setArchiveReason] = useState("");
@@ -995,9 +1008,11 @@ function ArchiveSection({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
+        queryKey: authedKey(["admin", "userDetail", userId]),
       });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "listUsers"]),
+      });
       setShowArchiveForm(false);
       setArchiveReason("");
     },
@@ -1012,9 +1027,11 @@ function ArchiveSection({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "userDetail", userId],
+        queryKey: authedKey(["admin", "userDetail", userId]),
       });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "listUsers"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "listUsers"]),
+      });
     },
   });
 

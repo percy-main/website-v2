@@ -14,6 +14,7 @@ import {
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import {
   closestCenter,
   DndContext,
@@ -33,7 +34,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 import { Link } from "react-router";
 import {
@@ -69,8 +70,11 @@ function SandwichCost({ cost }: { cost: number }) {
 // Hooks
 // ---------------------------------------------------------------------------
 
+// All three ride useAuthedQuery: "my team" and "chip status" are the
+// signed-in member's own records, and the eligible-player list stays in the
+// same bucket so one invalidation covers the page (#628).
 function useEligiblePlayers() {
-  return useQuery({
+  return useAuthedQuery({
     queryKey: ["fantasy", "eligible-players"],
     queryFn: () => callApi(api.GET("/api/fantasy/players")),
     staleTime: 5 * 60_000,
@@ -78,18 +82,15 @@ function useEligiblePlayers() {
 }
 
 function useMyTeam() {
-  return useQuery({
+  return useAuthedQuery({
     queryKey: ["fantasy", "my-team"],
-    queryFn: async () => {
-      const data = await callApi(api.GET("/api/fantasy/team"));
-      return data as unknown as MyTeamResponse;
-    },
+    queryFn: () => callApi(api.GET("/api/fantasy/team")),
     staleTime: 30_000,
   });
 }
 
 function useChipStatus() {
-  return useQuery({
+  return useAuthedQuery({
     queryKey: ["fantasy", "chip-status"],
     queryFn: () => callApi(api.GET("/api/fantasy/chip")),
     staleTime: 30_000,
@@ -100,29 +101,8 @@ type EligiblePlayer =
   paths["/api/fantasy/players"]["get"]["responses"][200]["content"]["application/json"]["players"][number];
 type ChipStatus =
   paths["/api/fantasy/chip"]["get"]["responses"][200]["content"]["application/json"];
-
-// The generated spec types `/api/fantasy/team` players as `{ [key: string]: unknown }[]`
-// because Fastify serialises the response without a strict schema for the array items.
-// We define the shape explicitly here until the OpenAPI spec is tightened.
-interface MyTeamResponse {
-  team: { id: number; season: string } | null;
-  players: Array<{
-    play_cricket_id: string;
-    player_name: string;
-    sandwich_cost: number;
-    is_captain: boolean;
-    slot_type: string;
-    is_wicketkeeper: boolean;
-  }>;
-  gameweek: number;
-  transfersUsed: number;
-  maxTransfers: number | null;
-  chaosWeek: {
-    name: string;
-    description: string;
-    rule_type: string;
-  } | null;
-}
+type MyTeamResponse =
+  paths["/api/fantasy/team"]["get"]["responses"][200]["content"]["application/json"];
 
 // ---------------------------------------------------------------------------
 // Container — fetches data, handles loading/error, renders TeamBuilder
@@ -166,7 +146,7 @@ export function Component() {
           playerName: p.player_name,
           sandwichCost: p.sandwich_cost,
           isCaptain: p.is_captain,
-          slotType: p.slot_type as SlotType,
+          slotType: p.slot_type,
           isWicketkeeper: p.is_wicketkeeper,
         }))
       : [];
@@ -198,9 +178,11 @@ function TeamBuilder({
   chipData: ChipStatus | null;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
-  // Seeded from initialSquad on mount; parent never re-renders TeamBuilder
-  // with a different team for the same user, so a key isn't needed.
+  // Seeded from initialSquad on mount. RequireAuth keys the authenticated
+  // subtree on the session user id, so a change of account remounts this
+  // component and the seed can never carry another user's squad (#628).
   const [squad, setSquad] = useState<SelectedPlayer[]>(() => initialSquad);
   // UI state grouped via a shallow-merge reducer to keep search / save
   // status / drag-active state consolidated.
@@ -234,6 +216,9 @@ function TeamBuilder({
       updateUi({ saveError: null });
       updateUi({ saveSuccess: true });
       setTimeout(() => updateUi({ saveSuccess: false }), 3000);
+      void queryClient.invalidateQueries({ queryKey: authedKey(["fantasy"]) });
+      // The public fantasy pages read ownership percentages and leaderboards
+      // from unprefixed keys, so they need invalidating separately.
       void queryClient.invalidateQueries({ queryKey: ["fantasy"] });
     },
     onError: (err: Error) => {
@@ -257,7 +242,7 @@ function TeamBuilder({
           ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["fantasy", "chip-status"],
+        queryKey: authedKey(["fantasy", "chip-status"]),
       });
     },
   });

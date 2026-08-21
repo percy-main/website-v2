@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { Suspense, lazy, useState } from "react";
 import { formatPence } from "./status-pill";
 import { TreasurerExpensesSection } from "./treasurer-expenses-section";
@@ -58,7 +58,7 @@ export function TreasurerTab() {
 
   // --- Queries ---
 
-  const { data: income } = useQuery({
+  const { data: income } = useAuthedQuery({
     queryKey: ["treasurer", "income-by-month", dateFrom, dateTo],
     queryFn: () =>
       callApi(
@@ -68,7 +68,7 @@ export function TreasurerTab() {
       ),
   });
 
-  const { data: membership, isLoading: isMembershipLoading } = useQuery({
+  const { data: membership, isLoading: isMembershipLoading } = useAuthedQuery({
     queryKey: ["treasurer", "membership-summary"],
     queryFn: () => callApi(api.GET("/api/treasurer/membership-summary")),
   });
@@ -76,7 +76,7 @@ export function TreasurerTab() {
   // Page 1 fetched here purely so the summary card can show the count;
   // TreasurerOutstandingSection runs the same query with its own page
   // state (TanStack dedupes the page-1 hit).
-  const { data: outstanding } = useQuery({
+  const { data: outstanding } = useAuthedQuery({
     queryKey: ["treasurer", "outstanding-payments", 1],
     queryFn: () =>
       callApi(
@@ -91,17 +91,19 @@ export function TreasurerTab() {
       ),
   });
 
-  const { data: sponsorship, isLoading: isSponsorshipLoading } = useQuery({
-    queryKey: ["treasurer", "sponsorship-summary", dateFrom, dateTo],
-    queryFn: () =>
-      callApi(
-        api.GET("/api/treasurer/sponsorship-summary", {
-          params: { query: { dateFrom, dateTo } },
-        }),
-      ),
-  });
+  const { data: sponsorship, isLoading: isSponsorshipLoading } = useAuthedQuery(
+    {
+      queryKey: ["treasurer", "sponsorship-summary", dateFrom, dateTo],
+      queryFn: () =>
+        callApi(
+          api.GET("/api/treasurer/sponsorship-summary", {
+            params: { query: { dateFrom, dateTo } },
+          }),
+        ),
+    },
+  );
 
-  const { data: expensesSummary } = useQuery({
+  const { data: expensesSummary } = useAuthedQuery({
     queryKey: ["treasurer", "matchday-expenses-summary", dateFrom, dateTo],
     queryFn: () =>
       callApi(

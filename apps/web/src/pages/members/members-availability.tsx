@@ -4,7 +4,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "react-router";
@@ -13,7 +14,7 @@ import { Link } from "react-router";
 
 export function Component() {
   useDocumentMeta("Availability");
-  const { isPending, isError, data } = useQuery({
+  const { isPending, isError, data } = useAuthedQuery({
     queryKey: ["availability", "active"],
     queryFn: () => callApi(api.GET("/api/availability/active")),
   });
@@ -110,6 +111,7 @@ function DateCard({
   existing: MyResponse | undefined;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [status, setStatus] = useState(existing?.status ?? "");
   const [note, setNote] = useState(existing?.note ?? "");
 
@@ -131,7 +133,7 @@ function DateCard({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["availability", "active"],
+        queryKey: authedKey(["availability", "active"]),
       });
     },
   });

@@ -1,7 +1,8 @@
 import { SimpleInput } from "@/components/form/simple-input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useReducer } from "react";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -53,6 +54,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
 
 export function ChangePassword() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [form, dispatch] = useReducer(formReducer, initialState);
   const {
     currentPassword,
@@ -62,7 +64,7 @@ export function ChangePassword() {
     success,
   } = form;
 
-  const { data: accounts, isLoading: accountsLoading } = useQuery({
+  const { data: accounts, isLoading: accountsLoading } = useAuthedQuery({
     queryKey: ["accounts"],
     queryFn: async () => {
       const result = await authClient.listAccounts();
@@ -90,7 +92,7 @@ export function ChangePassword() {
     },
     onSuccess: () => {
       dispatch({ type: "submitSucceeded" });
-      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      void queryClient.invalidateQueries({ queryKey: authedKey(["accounts"]) });
     },
   });
 

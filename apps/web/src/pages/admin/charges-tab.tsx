@@ -35,7 +35,8 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { API_BASE, api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useReducer, useRef, useState } from "react";
 import {
   type ChargeStatus,
@@ -66,6 +67,7 @@ const statusBadgeMap: Record<
 // eslint-disable-next-line react-doctor/no-giant-component -- admin charges tab: filter bar + paginated table + row actions (refund, void, edit) all share the filters reducer + table query; splitting would mean lifting the reducer and queryClient through props for marginal benefit.
 export function ChargesTab() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [filters, dispatch] = useReducer(
     chargesFilterReducer,
     initialChargesFilterState,
@@ -142,7 +144,7 @@ export function ChargesTab() {
     data: result,
     isLoading: chargesLoading,
     isError: chargesError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: [
       "admin",
       "charges",
@@ -172,7 +174,7 @@ export function ChargesTab() {
       ),
   });
 
-  const { data: aggregates } = useQuery({
+  const { data: aggregates } = useAuthedQuery({
     queryKey: ["admin", "chargeAggregates", dateFrom, dateTo],
     queryFn: () =>
       callApi(
@@ -196,7 +198,9 @@ export function ChargesTab() {
       ),
     onSuccess: () => {
       setConfirmAction(null);
-      void queryClient.invalidateQueries({ queryKey: ["admin", "charges"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "charges"]),
+      });
     },
   });
 
@@ -210,9 +214,11 @@ export function ChargesTab() {
       ),
     onSuccess: () => {
       setConfirmAction(null);
-      void queryClient.invalidateQueries({ queryKey: ["admin", "charges"] });
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "chargeAggregates"],
+        queryKey: authedKey(["admin", "charges"]),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "chargeAggregates"]),
       });
     },
   });
@@ -227,9 +233,11 @@ export function ChargesTab() {
       ),
     onSuccess: () => {
       setConfirmAction(null);
-      void queryClient.invalidateQueries({ queryKey: ["admin", "charges"] });
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "chargeAggregates"],
+        queryKey: authedKey(["admin", "charges"]),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "chargeAggregates"]),
       });
     },
   });
@@ -251,9 +259,11 @@ export function ChargesTab() {
       ),
     onSuccess: () => {
       setConfirmAction(null);
-      void queryClient.invalidateQueries({ queryKey: ["admin", "charges"] });
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "chargeAggregates"],
+        queryKey: authedKey(["admin", "charges"]),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "chargeAggregates"]),
       });
     },
   });

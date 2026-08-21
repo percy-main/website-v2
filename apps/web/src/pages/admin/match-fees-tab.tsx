@@ -17,7 +17,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 import {
   buildAddRatePayload,
@@ -32,17 +33,18 @@ const COMPETITION_TYPES = ["League", "Cup", "Friendly"] as const;
 
 export function MatchFeesTab() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [newRate, dispatchNewRate] = useReducer(
     newRateFormReducer,
     initialNewRateFormState,
   );
 
-  const { data: ratesData, isLoading: ratesLoading } = useQuery({
+  const { data: ratesData, isLoading: ratesLoading } = useAuthedQuery({
     queryKey: ["admin", "matchFeeRates"],
     queryFn: () => callApi(api.GET("/api/admin/match-fee-rates")),
   });
 
-  const { data: teamsData } = useQuery({
+  const { data: teamsData } = useAuthedQuery({
     queryKey: ["admin", "playCricketTeams"],
     queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
   });
@@ -57,7 +59,7 @@ export function MatchFeesTab() {
     onSuccess: () => {
       dispatchNewRate({ type: "reset" });
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "matchFeeRates"],
+        queryKey: authedKey(["admin", "matchFeeRates"]),
       });
     },
   });
@@ -75,7 +77,7 @@ export function MatchFeesTab() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "matchFeeRates"],
+        queryKey: authedKey(["admin", "matchFeeRates"]),
       });
     },
     onSettled: (_data, _error, rateId) => {

@@ -25,8 +25,9 @@ import {
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import { AGE_GROUPS } from "@percy-main/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useReducer, useRef, useState } from "react";
 import {
   initialJuniorsFilterState,
@@ -53,6 +54,7 @@ const PAGE_SIZE = 100;
 
 export function JuniorsTab() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [filters, dispatch] = useReducer(
     juniorsFilterReducer,
     initialJuniorsFilterState,
@@ -82,7 +84,7 @@ export function JuniorsTab() {
     };
   }, [search]);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useAuthedQuery({
     queryKey: [
       "admin",
       "listJuniors",
@@ -284,7 +286,7 @@ export function JuniorsTab() {
           onClose={() => setSelectedJunior(null)}
           onLinked={() => {
             void queryClient.invalidateQueries({
-              queryKey: ["admin", "listJuniors"],
+              queryKey: authedKey(["admin", "listJuniors"]),
             });
           }}
         />
@@ -400,6 +402,7 @@ function LinkingDialog({
   onLinked: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [userSearch, setUserSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -418,7 +421,7 @@ function LinkingDialog({
     data: suggestedUsersData,
     isLoading: suggestedUsersLoading,
     error: suggestedUsersError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["admin", "searchUsersForLinking", junior.id, debouncedSearch],
     queryFn: () =>
       callApi(
@@ -442,7 +445,7 @@ function LinkingDialog({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "listJuniors"],
+        queryKey: authedKey(["admin", "listJuniors"]),
       });
       onLinked();
       onClose();
@@ -458,7 +461,7 @@ function LinkingDialog({
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "listJuniors"],
+        queryKey: authedKey(["admin", "listJuniors"]),
       });
       onLinked();
       onClose();

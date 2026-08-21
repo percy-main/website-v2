@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { useEffect, useReducer, useState } from "react";
 import { MemberDetailModal } from "./member-detail-modal";
 import { getRoleLabels } from "./member-detail-modal.lib";
@@ -59,7 +59,7 @@ export function MembersTab() {
     return () => clearTimeout(timeout);
   }, [searchInput]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: [
       "admin",
       "listUsers",

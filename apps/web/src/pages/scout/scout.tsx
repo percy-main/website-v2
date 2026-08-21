@@ -2,10 +2,11 @@ import { ImbuzaiMascot } from "@/components/imbuzai-mascot.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import { useSession } from "@/lib/auth-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import type { UIMessage } from "@ai-sdk/react";
 import type { ReportData } from "@percy-main/shared";
 import { checkPermission } from "@percy-main/shared/auth/permissions";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { MessageAttachments } from "./attachments/message-attachments.js";
@@ -283,7 +284,7 @@ function ActiveThread({ threadId }: { threadId: string }) {
     data: loaded,
     isLoading,
     error,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["scout", "thread", threadId],
     queryFn: () =>
       callApi(
@@ -633,6 +634,7 @@ function ReadOnlyBanner({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
   // Forks the shared thread into a fresh thread owned by the current user.
   // Recipients lose nothing — the original stays read-only — but get an
@@ -648,7 +650,9 @@ function ReadOnlyBanner({
         }),
       ),
     onSuccess: async (newThread) => {
-      await queryClient.invalidateQueries({ queryKey: ["scout", "threads"] });
+      await queryClient.invalidateQueries({
+        queryKey: authedKey(["scout", "threads"]),
+      });
       void navigate(`/scout/${newThread.id}`);
     },
   });

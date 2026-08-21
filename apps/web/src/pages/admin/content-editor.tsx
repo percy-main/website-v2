@@ -1,4 +1,10 @@
 import {
+  authedQueryKey,
+  useAuthedQuery,
+  useAuthedQueryKey,
+  useAuthedUserId,
+} from "@/lib/authed-query.js";
+import {
   BlockNoteSchema,
   defaultBlockSpecs,
   filterSuggestionItems,
@@ -1491,7 +1497,7 @@ export default function ContentEditor({
     data: item,
     isLoading,
     error,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["admin", "content", "detail", contentId],
     queryFn: () =>
       callApi(
@@ -1988,10 +1994,13 @@ function buildMetadata(
 function cachedTagSuggestions(
   queryClient: QueryClient,
   kind: ContentKind,
+  userId: string,
 ): string[] {
   const tags = new Set<string>();
+  // The list pages register under the user-scoped prefix (#628), so the
+  // lookup has to be built the same way the query was.
   for (const [, data] of queryClient.getQueriesData({
-    queryKey: ["admin", "content", kind],
+    queryKey: authedQueryKey(userId, ["admin", "content", kind]),
   })) {
     const items = (data as { items?: unknown } | undefined)?.items;
     if (!Array.isArray(items)) continue;
@@ -2152,7 +2161,7 @@ function PageMetadataFields({
 }) {
   // Same key as the Pages tab's tree query, so opening the editor from
   // the tree hits the cache and the picker renders instantly.
-  const { data } = useQuery({
+  const { data } = useAuthedQuery({
     queryKey: ["admin", "content", "page-tree"],
     queryFn: () => callApi(api.GET("/api/admin/content/page-tree")),
   });
@@ -2950,6 +2959,7 @@ function PublishingCard({
   beforePublish: () => Promise<unknown>;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [mode, setMode] = useState<"now" | "schedule">("now");
   // UK wall-clock datetime-local value (same convention as event times).
@@ -3013,7 +3023,9 @@ function PublishingCard({
     },
     onSuccess: (_result, input) => {
       if (input.action === "publish") setDialogOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "content"]),
+      });
       // Public pages cache content under ["content", ...] with a 5 minute
       // staleTime; drop those too so a publish/unpublish shows up on the
       // live site without waiting out the cache.
@@ -3277,7 +3289,7 @@ function RevisionDialog({
     data: revision,
     isLoading,
     error,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["admin", "content", "revision", item.id, revisionId],
     queryFn: () =>
       callApi(
@@ -3387,7 +3399,7 @@ function HistoryCard({
   canRestore: boolean;
   onRestore: (revision: RevisionDetail) => boolean;
 }) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useAuthedQuery({
     queryKey: ["admin", "content", "revisions", item.id],
     queryFn: () =>
       callApi(
@@ -3734,6 +3746,8 @@ function LoadedEditor({
   onCreated: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
+  const userId = useAuthedUserId();
   const { allowed: canManage } = useHasPermission(
     CONTENT_KIND_RESOURCES[kind],
     "manage",
@@ -3834,7 +3848,9 @@ function LoadedEditor({
       dirtyRef.current = false;
       clearRestoreNotice();
       setLastSavedAt(new Date().toISOString());
-      void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "content"]),
+      });
       // Saving a published item changes the live page immediately; drop
       // the public ["content", ...] cache so the SPA reflects it.
       void queryClient.invalidateQueries({ queryKey: ["content"] });
@@ -3857,12 +3873,11 @@ function LoadedEditor({
   const canSave = canManage && (item?.status !== "published" || canPublish);
   const metadataIssue = metadataProblem(kind, form);
 
-  // Suggestions come from list pages already in the query cache; computed
-  // once per mount, which is as fresh as the list the author came from.
-  const tagSuggestions = useMemo(
-    () => (kind === "news" ? cachedTagSuggestions(queryClient, kind) : []),
-    [kind, queryClient],
-  );
+  // Suggestions come from list pages already in the query cache, which is
+  // as fresh as the list the author came from. Left to the compiler to
+  // cache rather than a manual useMemo.
+  const tagSuggestions =
+    kind === "news" ? cachedTagSuggestions(queryClient, kind, userId) : [];
 
   const { uploadError, fileInputRef, startImageUpload, onFileChosen } =
     useSlashImageUpload(editor, consentConfirmed);

@@ -18,7 +18,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useReducer, useState } from "react";
 import {
   chaosWeekFormReducer,
@@ -45,6 +46,7 @@ const RULE_TYPE_LABELS: Record<string, string> = {
 
 function PlayCricketSyncSection() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +59,7 @@ function PlayCricketSyncSection() {
       setError(null);
       // Sync runs in the background; invalidate broadly so any fantasy data
       // refetches once it completes.
-      void queryClient.invalidateQueries({ queryKey: ["admin"] });
+      void queryClient.invalidateQueries({ queryKey: authedKey(["admin"]) });
     },
     onError: (err) => {
       setResult(null);
@@ -95,6 +97,7 @@ function PlayCricketSyncSection() {
 
 function PlayerManagementSection() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [populateResult, setPopulateResult] = useState<string | null>(null);
@@ -107,7 +110,7 @@ function PlayerManagementSection() {
     return () => clearTimeout(timeout);
   }, [searchInput]);
 
-  const { data } = useQuery({
+  const { data } = useAuthedQuery({
     queryKey: ["admin", "fantasyPlayers", debouncedSearch],
     queryFn: () =>
       callApi(
@@ -128,7 +131,7 @@ function PlayerManagementSection() {
         `Found ${result.total} players, ${result.inserted} updated.`,
       );
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "fantasyPlayers"],
+        queryKey: authedKey(["admin", "fantasyPlayers"]),
       });
     },
   });
@@ -145,7 +148,7 @@ function PlayerManagementSection() {
         `Sandwich costs calculated from ${result.previousSeason} season data. ${result.updated} players updated for ${result.season} season.`,
       );
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "fantasyPlayers"],
+        queryKey: authedKey(["admin", "fantasyPlayers"]),
       });
     },
   });
@@ -165,7 +168,7 @@ function PlayerManagementSection() {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "fantasyPlayers"],
+        queryKey: authedKey(["admin", "fantasyPlayers"]),
       });
     },
   });
@@ -293,6 +296,7 @@ function PlayerManagementSection() {
 
 function ChaosWeeksSection() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [form, dispatch] = useReducer(
     chaosWeekFormReducer,
     initialChaosWeekFormState,
@@ -301,7 +305,7 @@ function ChaosWeeksSection() {
     form;
 
   const season = getCurrentSeason();
-  const { data } = useQuery({
+  const { data } = useAuthedQuery({
     queryKey: ["admin", "chaosWeeks", season],
     queryFn: () =>
       callApi(
@@ -325,7 +329,9 @@ function ChaosWeeksSection() {
       ruleConfig?: string;
     }) => callApi(api.POST("/api/fantasy/admin/chaos-weeks", { body })),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "chaosWeeks"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "chaosWeeks"]),
+      });
       dispatch({ type: "reset" });
     },
   });
@@ -334,7 +340,9 @@ function ChaosWeeksSection() {
     mutationFn: (id: number) =>
       callApi(api.DELETE("/api/fantasy/admin/chaos-weeks", { body: { id } })),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "chaosWeeks"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "chaosWeeks"]),
+      });
     },
   });
 
@@ -344,7 +352,9 @@ function ChaosWeeksSection() {
     mutationFn: (_id: number) =>
       Promise.reject(new Error("send-email endpoint not yet implemented")),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "chaosWeeks"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["admin", "chaosWeeks"]),
+      });
     },
   });
 

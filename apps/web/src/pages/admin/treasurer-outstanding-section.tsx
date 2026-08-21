@@ -16,7 +16,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatPence } from "./status-pill";
 import { daysOverdue } from "./treasurer-tab.lib";
@@ -32,23 +33,26 @@ const PAGE_SIZE = 20;
  */
 export function TreasurerOutstandingSection() {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [page, setPage] = useState(1);
   const [chasingId, setChasingId] = useState<string | null>(null);
 
-  const { data: outstanding, isLoading: isOutstandingLoading } = useQuery({
-    queryKey: ["treasurer", "outstanding-payments", page],
-    queryFn: () =>
-      callApi(
-        api.GET("/api/treasurer/outstanding-payments", {
-          params: {
-            query: {
-              page,
-              pageSize: PAGE_SIZE,
+  const { data: outstanding, isLoading: isOutstandingLoading } = useAuthedQuery(
+    {
+      queryKey: ["treasurer", "outstanding-payments", page],
+      queryFn: () =>
+        callApi(
+          api.GET("/api/treasurer/outstanding-payments", {
+            params: {
+              query: {
+                page,
+                pageSize: PAGE_SIZE,
+              },
             },
-          },
-        }),
-      ),
-  });
+          }),
+        ),
+    },
+  );
 
   const chaseMutation = useMutation({
     mutationFn: (chargeId: string) =>
@@ -60,7 +64,7 @@ export function TreasurerOutstandingSection() {
     onSuccess: () => {
       setChasingId(null);
       void queryClient.invalidateQueries({
-        queryKey: ["treasurer", "outstanding-payments"],
+        queryKey: authedKey(["treasurer", "outstanding-payments"]),
       });
     },
   });

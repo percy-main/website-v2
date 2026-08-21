@@ -1,8 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api, callApi } from "@/lib/api-client";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { REQUEST_STATUS_LABELS } from "@percy-main/shared";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
 /**
@@ -15,7 +15,7 @@ import { Link } from "react-router";
  * make another one" appearing for members mid-review.
  */
 export function FinancialReliefStatus() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useAuthedQuery({
     queryKey: ["financial-relief", "me"],
     queryFn: () => callApi(api.GET("/api/financial-relief/me")),
   });

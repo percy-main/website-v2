@@ -430,7 +430,21 @@ export const myTeamResponseSchema = z.object({
       created_at: z.string(),
     })
     .nullable(),
-  players: z.array(z.record(z.string(), z.unknown())),
+  // Declared field by field rather than as a loose record: the generated
+  // client typed these rows as `{ [key: string]: unknown }`, which forced a
+  // hand-rolled interface and an `as unknown as` cast in the web app. Only
+  // the fields the squad builder renders are exposed - the join also carries
+  // internal row ids and gameweek bookkeeping that no client needs.
+  players: z.array(
+    z.object({
+      play_cricket_id: z.string(),
+      player_name: z.string(),
+      sandwich_cost: z.number(),
+      is_captain: z.boolean(),
+      slot_type: slotTypeSchema,
+      is_wicketkeeper: z.boolean(),
+    }),
+  ),
   gameweek: z.number(),
   transfersUsed: z.number(),
   maxTransfers: z.number().nullable(),

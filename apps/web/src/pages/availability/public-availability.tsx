@@ -5,6 +5,7 @@ import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen.js";
 import { useSession } from "@/lib/auth-client";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -63,8 +64,11 @@ export function Component() {
     enabled: !!requestId,
   });
 
-  // Check for existing member record (only if signed in)
-  const { data: memberData, isPending: memberPending } = useQuery({
+  // Check for existing member record (only if signed in). User-scoped, so it
+  // rides useAuthedQuery even though the surrounding page is public - the
+  // request data above stays on an unprefixed key because it is addressed by
+  // the shared request link, not by the viewer (#628).
+  const { data: memberData, isPending: memberPending } = useAuthedQuery({
     queryKey: ["availability", "active"],
     queryFn: () => callApi(api.GET("/api/availability/active")),
     enabled: !!session,
@@ -141,6 +145,7 @@ export function Component() {
   };
 
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
   const submitMutation = useMutation({
     mutationFn: () =>
@@ -160,7 +165,11 @@ export function Component() {
       if (requestId) clearDraft(requestId);
       setSubmitted(true);
       void queryClient.invalidateQueries({
-        queryKey: ["availability"],
+        queryKey: authedKey(["availability"]),
+      });
+      // The request itself is keyed publicly, so it needs its own pass.
+      void queryClient.invalidateQueries({
+        queryKey: ["availability", "public"],
       });
     },
   });

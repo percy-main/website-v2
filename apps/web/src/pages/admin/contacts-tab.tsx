@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { useEffect, useRef, useState } from "react";
 import { formatDate } from "./status-pill";
 
@@ -42,7 +42,7 @@ export function ContactsTab() {
     };
   }, [search]);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError } = useAuthedQuery({
     queryKey: ["admin", "contactSubmissions", page, PAGE_SIZE, debouncedSearch],
     queryFn: () =>
       callApi(

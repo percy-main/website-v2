@@ -1818,7 +1818,13 @@ export interface paths {
                                 created_at: string;
                             } | null;
                             players: {
-                                [key: string]: unknown;
+                                play_cricket_id: string;
+                                player_name: string;
+                                sandwich_cost: number;
+                                is_captain: boolean;
+                                /** @enum {string} */
+                                slot_type: "batting" | "bowling" | "allrounder";
+                                is_wicketkeeper: boolean;
                             }[];
                             gameweek: number;
                             transfersUsed: number;

@@ -21,7 +21,8 @@ import {
 import { Textarea } from "@/components/ui/textarea.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
@@ -50,7 +51,7 @@ export function ProfileRequestsTab() {
     data: listData,
     isPending: listPending,
     isError: listError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: listQueryKey,
     queryFn: () => callApi(api.GET("/api/admin/profile-proposals")),
   });
@@ -116,6 +117,7 @@ function ReviewPanel({
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [note, setNote] = useState("");
 
@@ -123,7 +125,7 @@ function ReviewPanel({
     data: detail,
     isPending: detailPending,
     isError: detailError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["admin", "profile-proposals", proposalId],
     queryFn: () =>
       callApi(
@@ -143,7 +145,7 @@ function ReviewPanel({
     onSuccess: () => {
       // The queue and (because approve applies the edit) the live public
       // profile both change.
-      void queryClient.invalidateQueries({ queryKey: listQueryKey });
+      void queryClient.invalidateQueries({ queryKey: authedKey(listQueryKey) });
       void queryClient.invalidateQueries({ queryKey: ["content"] });
       onBack();
     },
@@ -159,7 +161,7 @@ function ReviewPanel({
       ),
     onSuccess: () => {
       setRejectOpen(false);
-      void queryClient.invalidateQueries({ queryKey: listQueryKey });
+      void queryClient.invalidateQueries({ queryKey: authedKey(listQueryKey) });
       onBack();
     },
   });

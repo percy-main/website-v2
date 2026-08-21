@@ -15,7 +15,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useReducer } from "react";
 import { Link } from "react-router";
@@ -183,7 +184,7 @@ function TextInput({
 }
 
 function SocialMembershipUpsell() {
-  const { data: membershipData } = useQuery({
+  const { data: membershipData } = useAuthedQuery({
     queryKey: ["membership"],
     queryFn: () => callApi(api.GET("/api/members/me/membership")),
   });
@@ -213,8 +214,9 @@ function JuniorRegistrationInner() {
   const { step, dependents, errors, paymentData, paymentError } = wizard;
   const setStep = (next: Step) => dispatch({ type: "goToStep", step: next });
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
-  const { data: existingDepsData } = useQuery({
+  const { data: existingDepsData } = useAuthedQuery({
     queryKey: ["dependents"],
     queryFn: () => callApi(api.GET("/api/junior/dependents")),
   });
@@ -246,8 +248,12 @@ function JuniorRegistrationInner() {
         }),
       ),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dependents"] });
-      void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["dependents"]),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["myCharges"]),
+      });
     },
   });
 
@@ -271,7 +277,9 @@ function JuniorRegistrationInner() {
         },
       });
       dispatch({ type: "setPaymentError", message: null });
-      void queryClient.invalidateQueries({ queryKey: ["myCharges"] });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(["myCharges"]),
+      });
     },
     onError: () => {
       dispatch({

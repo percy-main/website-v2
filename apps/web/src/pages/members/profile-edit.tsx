@@ -18,8 +18,9 @@ import { Label } from "@/components/ui/label.js";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { api, callApi } from "@/lib/api-client.js";
 import type { paths } from "@/lib/api.gen.js";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
 import { uploadProfilePhoto } from "@/lib/profile-photo.js";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
 
@@ -34,7 +35,7 @@ const profileEditQueryKey = ["profile", "edit"] as const;
 export function Component() {
   useDocumentMeta("Edit my profile");
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError } = useAuthedQuery({
     queryKey: profileEditQueryKey,
     queryFn: () => callApi(api.GET("/api/profile/edit")),
   });
@@ -137,6 +138,7 @@ function PendingNotice({
 
 function EditForm({ profile }: { profile: NonNullable<EditState["profile"]> }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const editable = bioIsEditable(profile.body);
   // The latest bio to submit: the edited document when the bio is editable,
   // otherwise the unchanged original (a photo-only change still re-submits
@@ -157,7 +159,9 @@ function EditForm({ profile }: { profile: NonNullable<EditState["profile"]> }) {
         api.POST("/api/profile/edit/proposals", { body: { body, photo } }),
       ),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: profileEditQueryKey });
+      void queryClient.invalidateQueries({
+        queryKey: authedKey(profileEditQueryKey),
+      });
     },
   });
 

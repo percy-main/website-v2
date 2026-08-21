@@ -2,11 +2,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 export function useMemberDetails() {
-  return useQuery({
+  return useAuthedQuery({
     queryKey: ["memberDetails"],
     queryFn: () => callApi(api.GET("/api/members/me")),
   });
@@ -78,6 +79,7 @@ function EditView({
   onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const initial = member ?? { ...emptyMember, name: defaultName ?? null };
   const [form, setForm] = useState<NonNullable<MemberData>>(initial);
 
@@ -104,7 +106,9 @@ function EditView({
       );
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["memberDetails"] });
+      await queryClient.invalidateQueries({
+        queryKey: authedKey(["memberDetails"]),
+      });
       onSaved();
     },
   });

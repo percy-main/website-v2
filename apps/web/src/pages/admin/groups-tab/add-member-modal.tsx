@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useMemo, useState } from "react";
 
 interface Props {
@@ -21,9 +22,10 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const qc = useQueryClient();
+  const authedKey = useAuthedQueryKey();
   const selectAllId = useId();
 
-  const { data: availableData, isLoading: availableLoading } = useQuery({
+  const { data: availableData, isLoading: availableLoading } = useAuthedQuery({
     queryKey: ["admin", "user-groups", "available", groupId],
     queryFn: () =>
       callApi(
@@ -79,7 +81,9 @@ export function AddMemberModal({ groupId, open, onOpenChange }: Props) {
         }),
       ),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["admin", "user-groups"] });
+      void qc.invalidateQueries({
+        queryKey: authedKey(["admin", "user-groups"]),
+      });
       onOpenChange(false);
     },
   });

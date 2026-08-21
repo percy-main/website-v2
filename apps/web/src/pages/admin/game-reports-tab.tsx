@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useQuery } from "@tanstack/react-query";
+import { useAuthedQuery } from "@/lib/authed-query.js";
 import { useState } from "react";
 import { formatDate, formatPence } from "./status-pill";
 
@@ -48,12 +48,12 @@ export function GameReportsTab() {
     null,
   );
 
-  const { data: teamsData } = useQuery({
+  const { data: teamsData } = useAuthedQuery({
     queryKey: ["admin", "playCricketTeams"],
     queryFn: () => callApi(api.GET("/api/admin/play-cricket-teams")),
   });
 
-  const { data: matchdaysData, isLoading: matchdaysLoading } = useQuery({
+  const { data: matchdaysData, isLoading: matchdaysLoading } = useAuthedQuery({
     queryKey: ["admin", "gameReports", teamFilter],
     queryFn: () =>
       callApi(
@@ -220,7 +220,7 @@ function MatchdayReport({
     data,
     isLoading: reportLoading,
     isError: reportError,
-  } = useQuery({
+  } = useAuthedQuery({
     queryKey: ["admin", "matchdayReport", matchdayId],
     queryFn: () =>
       callApi(

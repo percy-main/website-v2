@@ -1,6 +1,7 @@
 import { SimpleInput } from "@/components/form/simple-input.js";
 import { Button } from "@/components/ui/button.js";
 import { authClient, useSession } from "@/lib/auth-client.js";
+import { resetAuthCaches } from "@/lib/query-client.js";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FC } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -121,6 +122,12 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
         {
           async onSuccess() {
             if (cancelled) return;
+            // Account transition - drop every cached query before the new
+            // session lands so nothing from the previous identity survives
+            // (#628). Passkey autofill signs a user in without ever
+            // submitting the form, so it needs the same reset as the
+            // password path.
+            await resetAuthCaches(queryClient);
             // The post-await `cancelled` check guards against unmount
             // during the session refetch — it's not a redundant
             // pre-await guard, so the rule's "move await past it" advice
@@ -159,10 +166,11 @@ export const EmailPassword: FC<Props> = ({ setPhase }) => {
         setPhase("2fa");
         return;
       }
+      // Session changed - drop all cached queries so the new user cannot see
+      // the previous user's (or anonymous) cached responses. Invalidation
+      // alone left the old data readable until each refetch landed (#628).
+      await resetAuthCaches(queryClient);
       await refetchSession();
-      // Session changed — drop all cached queries so the new user sees fresh
-      // data rather than the previous user's (or anonymous) cached responses.
-      void queryClient.invalidateQueries();
       navigateBack("/members");
     },
   });

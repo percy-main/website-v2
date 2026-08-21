@@ -15,7 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api, callApi } from "@/lib/api-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { AddMemberModal } from "./groups-tab/add-member-modal";
@@ -34,7 +35,7 @@ export function GroupsTab() {
     setSearchParams(next, { replace: true });
   };
 
-  const { data: groupsData, isLoading: groupsLoading } = useQuery({
+  const { data: groupsData, isLoading: groupsLoading } = useAuthedQuery({
     queryKey: ["admin", "user-groups"],
     queryFn: () => callApi(api.GET("/api/admin/user-groups")),
   });
@@ -138,7 +139,8 @@ function GroupMembers({
   onAddMember: () => void;
 }) {
   const qc = useQueryClient();
-  const { data: detailData, isLoading: detailLoading } = useQuery({
+  const authedKey = useAuthedQueryKey();
+  const { data: detailData, isLoading: detailLoading } = useAuthedQuery({
     queryKey: ["admin", "user-groups", "detail", groupId],
     queryFn: () =>
       callApi(
@@ -156,7 +158,9 @@ function GroupMembers({
         }),
       ),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["admin", "user-groups"] });
+      void qc.invalidateQueries({
+        queryKey: authedKey(["admin", "user-groups"]),
+      });
     },
   });
 

@@ -3171,7 +3171,40 @@
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "additionalProperties": {}
+                        "properties": {
+                          "play_cricket_id": {
+                            "type": "string"
+                          },
+                          "player_name": {
+                            "type": "string"
+                          },
+                          "sandwich_cost": {
+                            "type": "number"
+                          },
+                          "is_captain": {
+                            "type": "boolean"
+                          },
+                          "slot_type": {
+                            "type": "string",
+                            "enum": [
+                              "batting",
+                              "bowling",
+                              "allrounder"
+                            ]
+                          },
+                          "is_wicketkeeper": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "play_cricket_id",
+                          "player_name",
+                          "sandwich_cost",
+                          "is_captain",
+                          "slot_type",
+                          "is_wicketkeeper"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "gameweek": {

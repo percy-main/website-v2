@@ -1,7 +1,8 @@
 import { SimpleInput } from "@/components/form/simple-input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthedQuery, useAuthedQueryKey } from "@/lib/authed-query.js";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "date-fns";
 import { useState } from "react";
 import { IoTrashBinOutline } from "react-icons/io5";
@@ -9,8 +10,9 @@ import { IoTrashBinOutline } from "react-icons/io5";
 export function Passkeys() {
   const [newPasskeyName, setNewPasskeyName] = useState("");
   const queryClient = useQueryClient();
+  const authedKey = useAuthedQueryKey();
 
-  const { data: passkeys } = useQuery({
+  const { data: passkeys } = useAuthedQuery({
     queryKey: ["passkeys"],
     queryFn: async () => {
       const result = await authClient.passkey.listUserPasskeys();
@@ -28,7 +30,7 @@ export function Passkeys() {
       return result.data;
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["passkeys"] });
+      void queryClient.invalidateQueries({ queryKey: authedKey(["passkeys"]) });
     },
   });
 
@@ -40,7 +42,7 @@ export function Passkeys() {
       return result.data;
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["passkeys"] });
+      void queryClient.invalidateQueries({ queryKey: authedKey(["passkeys"]) });
       setNewPasskeyName("");
     },
   });
