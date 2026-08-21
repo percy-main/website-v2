@@ -203,13 +203,13 @@ jobs:
             AGE_MINUTES=$(( ( $(date -u +%s) - CREATED_EPOCH ) / 60 ))
           fi
 
-          echo "held=true" >> "$GITHUB_OUTPUT"
-          echo "lock_id=$LOCK_ID" >> "$GITHUB_OUTPUT"
           # The raw Info string is what the release conditions its
-          # delete on, so it has to survive verbatim. Delimiter form,
-          # not `key=value`, so an embedded newline can never truncate
-          # it or forge another output.
+          # delete on, so it has to survive verbatim. Delimiter form for
+          # it, not `key=value`, so an embedded newline can never
+          # truncate it or forge another output.
           {
+            echo "held=true"
+            echo "lock_id=$LOCK_ID"
             echo "info<<LOCK_INFO_EOF"
             echo "$OUT"
             echo "LOCK_INFO_EOF"
