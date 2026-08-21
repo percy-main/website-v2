@@ -6,6 +6,11 @@ import {
 } from "@percy-main/shared/auth/permissions";
 import { adminClient, twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
+import {
+  disablePushOnThisDevice,
+  reconcilePushSubscriptionForUser,
+} from "./push.js";
+import { clearPerUserCaches } from "./runtime-caches.js";
 
 const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
 // VITE_API_URL is e.g. "https://api.v2.percymain.org/api" — strip the /api
@@ -68,50 +73,43 @@ export function canManageMatchday(
 }
 
 /**
- * Names of every runtime cache populated by vite-plugin-pwa for
- * /api/* responses. Kept in lockstep with vite.config.ts. Used to
- * wipe per-user data on sign-out / sign-in-as-someone-else so a
- * shared device doesn't leak account A's availability/charges/team-
- * sheet to account B (each Workbox StaleWhileRevalidate entry is
- * keyed on URL only, so without this clear the first paint after
- * switching shows the previous user's cached body).
- *
- * Also consumed by `api-client.ts` to evict a single entry when a
- * /api/* GET returns 401 — covers the case where a cookie expired
- * server-side without the user clicking sign-out.
+ * Ceiling on the push teardown during sign-out. `navigator.serviceWorker
+ * .ready` never settles when no registration ever activates (dev builds,
+ * a browser with the SW disabled), and a sign-out button that hangs
+ * forever is worse than a subscription that survives one extra boot -
+ * the next signed-in boot reconciles it either way.
  */
-export const PER_USER_RUNTIME_CACHES = [
-  "matchday-availability-active",
-  "matchday-team-sheet",
-  "matchday-charges",
-  "matchday-games",
-];
+const PUSH_TEARDOWN_TIMEOUT_MS = 3_000;
 
-/**
- * Wipe every per-user runtime cache. Returns `true` only if every
- * `caches.delete()` resolved cleanly — Safari private mode can have
- * the `caches` API present but reject deletes, in which case we must
- * NOT report the user's caches as clean (the previous-user data is
- * still on disk).
- */
-async function clearPerUserCaches(): Promise<boolean> {
-  if (typeof caches === "undefined") return true;
-  const results = await Promise.all(
-    PER_USER_RUNTIME_CACHES.map((name) =>
-      caches
-        .delete(name)
-        .then(() => true)
-        .catch(() => false),
-    ),
-  );
-  return results.every(Boolean);
+function withTimeout(work: Promise<unknown>, ms: number): Promise<unknown> {
+  return Promise.race([
+    work,
+    new Promise((resolve) => setTimeout(resolve, ms)),
+  ]);
 }
 
 /**
- * Sign out + clear any cached per-user API responses. Use this instead
- * of `authClient.signOut()` everywhere a sign-out is wired up.
+ * Sign out + drop this device's push subscription + clear any cached
+ * per-user API responses. Use this instead of `authClient.signOut()`
+ * everywhere a sign-out is wired up.
  */
 export async function signOut(): Promise<void> {
+  // Order matters: the DELETE /api/me/push-subscriptions inside
+  // `disablePushOnThisDevice` has to authenticate as the departing user,
+  // so it must run while the session cookie is still valid. It also
+  // unsubscribes locally and clears the stashed SW push config, which is
+  // what stops `pushsubscriptionchange` re-registering the endpoint for
+  // whoever signs in next on a shared device.
+  //
+  // Best-effort throughout: sign-out must complete even if push teardown
+  // throws or stalls. A subscription that outlives this call is caught
+  // by `reconcilePushSubscriptionForUser` on the next signed-in boot.
+  try {
+    await withTimeout(disablePushOnThisDevice(), PUSH_TEARDOWN_TIMEOUT_MS);
+  } catch {
+    // ignore
+  }
+
   try {
     await authClient.signOut();
   } finally {
@@ -148,6 +146,14 @@ export async function ensureCachesMatchUser(
   const previous = localStorage.getItem(LAST_USER_KEY);
   const current = userId ?? null;
   if (current !== previous) {
+    // Whoever is signed in now is not who this device was last used by,
+    // so the browser's push subscription may still belong to the
+    // previous account. Reconcile it against the server (drop it unless
+    // it is registered to the current user) - deliberately not awaited,
+    // because the render gate below must not block on a network call
+    // that the PWA routinely makes offline.
+    void reconcilePushSubscriptionForUser(current);
+
     const cleared = await clearPerUserCaches();
     if (!cleared) return false;
     if (current) {

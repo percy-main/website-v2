@@ -62,6 +62,36 @@ export function deletePushSubscription(db: Kysely<DB>) {
   };
 }
 
+// Powers GET /api/me/push-subscriptions - lets the matchday PWA check
+// whether the browser's local PushSubscription is actually registered
+// against the signed-in account. On a shared device the endpoint may
+// still belong to whoever used the browser last, and a local-only
+// subscription must not render as "enabled for this account".
+export interface OwnPushSubscription {
+  id: string;
+  endpoint: string;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export function listPushSubscriptionsForUser(db: Kysely<DB>) {
+  return async (userId: string): Promise<OwnPushSubscription[]> => {
+    const rows = await db
+      .selectFrom("push_subscription")
+      .select(["id", "endpoint", "user_agent", "created_at"])
+      .where("user_id", "=", userId)
+      .orderBy("created_at", "desc")
+      .execute();
+
+    return rows.map((row) => ({
+      id: row.id,
+      endpoint: row.endpoint,
+      userAgent: row.user_agent,
+      createdAt: row.created_at.toISOString(),
+    }));
+  };
+}
+
 export function listPushSubscriptionsForUsers(db: Kysely<DB>) {
   return async (
     userIds: string[],

@@ -16,7 +16,7 @@
 
 import createClient from "openapi-fetch";
 import type { paths } from "./api.gen.js";
-import { PER_USER_RUNTIME_CACHES } from "./auth-client.js";
+import { PER_USER_RUNTIME_CACHES } from "./runtime-caches.js";
 
 /**
  * Resolve the 200 application/json body for a path + method to its

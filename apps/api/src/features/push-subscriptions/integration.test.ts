@@ -8,6 +8,7 @@ import {
 import {
   deletePushSubscription,
   deletePushSubscriptionByEndpoint,
+  listPushSubscriptionsForUser,
   listPushSubscriptionsForUsers,
   upsertPushSubscription,
 } from "./service.ts";
@@ -115,6 +116,51 @@ describe("push-subscriptions service (integration)", () => {
     expect(map.get(a.userId)).toHaveLength(1);
     expect(map.get(b.userId)).toHaveLength(1);
     expect(map.get(a.userId)?.[0]?.endpoint).toBe(SUB_A.endpoint);
+  });
+
+  it("lists only the caller's own subscriptions", async () => {
+    const a = await seedTestUser(ctx.db, { withMember: false });
+    const b = await seedTestUser(ctx.db, { withMember: false });
+    await upsertPushSubscription(ctx.db)(a.userId, SUB_A);
+    await upsertPushSubscription(ctx.db)(b.userId, SUB_B);
+
+    const forA = await listPushSubscriptionsForUser(ctx.db)(a.userId);
+    expect(forA).toHaveLength(1);
+    expect(forA[0]?.endpoint).toBe(SUB_A.endpoint);
+    expect(forA[0]?.userAgent).toBe("Chrome/Mac");
+    expect(forA.map((s) => s.endpoint)).not.toContain(SUB_B.endpoint);
+
+    // The shared-device check the matchday client relies on: B must not
+    // see A's endpoint, so B's local subscription reads as unsubscribed.
+    const forB = await listPushSubscriptionsForUser(ctx.db)(b.userId);
+    expect(forB.map((s) => s.endpoint)).toEqual([SUB_B.endpoint]);
+    expect(forB[0]?.userAgent).toBeNull();
+  });
+
+  it("returns an empty list for a user with no subscriptions", async () => {
+    const { userId } = await seedTestUser(ctx.db, { withMember: false });
+    expect(await listPushSubscriptionsForUser(ctx.db)(userId)).toEqual([]);
+  });
+
+  it("stops listing an endpoint once it is re-keyed to another user", async () => {
+    const a = await seedTestUser(ctx.db, { withMember: false });
+    const b = await seedTestUser(ctx.db, { withMember: false });
+    await upsertPushSubscription(ctx.db)(a.userId, SUB_A);
+    await upsertPushSubscription(ctx.db)(b.userId, SUB_A);
+
+    expect(await listPushSubscriptionsForUser(ctx.db)(a.userId)).toEqual([]);
+    expect(
+      (await listPushSubscriptionsForUser(ctx.db)(b.userId)).map(
+        (s) => s.endpoint,
+      ),
+    ).toEqual([SUB_A.endpoint]);
+  });
+
+  it("serialises createdAt as an ISO string", async () => {
+    const { userId } = await seedTestUser(ctx.db, { withMember: false });
+    await upsertPushSubscription(ctx.db)(userId, SUB_A);
+    const [row] = await listPushSubscriptionsForUser(ctx.db)(userId);
+    expect(row?.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it("hard-deletes a subscription by endpoint (gone-410 cleanup)", async () => {
