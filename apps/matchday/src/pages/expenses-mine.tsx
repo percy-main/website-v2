@@ -39,7 +39,7 @@ export default function ExpensesMine() {
     <div className="mx-auto w-full max-w-2xl pb-6">
       <header className="px-4 pt-6 pb-2">
         <p className="text-text-secondary text-[11px] font-semibold tracking-[0.06em] uppercase">
-          My expenses
+          Team expenses
         </p>
         <h1 className="text-2xl font-semibold tracking-[-0.015em]">Recorded</h1>
       </header>
@@ -69,7 +69,7 @@ export default function ExpensesMine() {
         )}
       {!isLoading && items.length === 0 && (
         <p className="text-text-secondary px-6 py-12 text-center text-sm">
-          You haven't recorded any expenses yet. Add one from the captain's
+          No expenses recorded for your teams yet. Add one from the captain's
           match-day view.
         </p>
       )}

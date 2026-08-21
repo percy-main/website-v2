@@ -108,7 +108,17 @@ export function requireClubWidePermission<R extends Resource>(
 }
 
 type PermissionCheck = {
-  [R in Resource]: { resource: R; action: Action<R> };
+  [R in Resource]: {
+    resource: R;
+    action: Action<R>;
+    /**
+     * Test this branch with {@link hasClubWideAccess} instead of
+     * checkPermission, so a team-scoped role holding the permission does not
+     * satisfy it. Set it when the branch exists to serve a surface that is
+     * itself club-wide gated.
+     */
+    clubWide?: boolean;
+  };
 }[Resource];
 
 /**
@@ -124,7 +134,9 @@ export function requireAnyPermission(...checks: PermissionCheck[]) {
     const userRole =
       (request.authSession?.user as { role?: string | null }).role ?? "user";
     const allowed = checks.some((c) =>
-      checkPermission(userRole, c.resource, c.action),
+      c.clubWide
+        ? hasClubWideAccess(userRole, c.resource, c.action)
+        : checkPermission(userRole, c.resource, c.action),
     );
     if (!allowed) {
       return reply.status(403).send({ error: "Forbidden" });

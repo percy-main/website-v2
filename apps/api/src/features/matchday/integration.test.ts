@@ -1751,9 +1751,12 @@ describe("matchday service (integration)", () => {
       expect(scopedIds).toContain(mine);
       expect(scopedIds).not.toContain(theirs);
 
-      // The club-wide manager still sees both.
+      // The club-wide manager still sees both. Uses the schema's maximum
+      // limit: the container is shared across this file, so every other
+      // suite's expenses compete for the page and a lower limit would
+      // eventually truncate these two out of the result.
       const clubWide = await listPendingExpenses(ctx.db)(adminId, "admin", {
-        limit: 50,
+        limit: 100,
         offset: 0,
       });
       const clubWideIds = clubWide.items.map((e) => e.id);

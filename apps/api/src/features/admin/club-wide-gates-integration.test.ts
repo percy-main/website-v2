@@ -152,6 +152,29 @@ describe("juniors endpoints are club-wide only (#627)", () => {
     expect(link.statusCode).toBe(403);
   });
 
+  it("403s a junior_manager on the junior-teams reference list", async () => {
+    // Shares the juniors admin surface's gate, but keeps its second branch:
+    // a standalone superadmin needs the list to assign scoped roles from the
+    // Access tab, which is where the only UI consumer lives.
+    const scoped = await sessionFor("junior_manager");
+    const refused = await app.inject({
+      method: "GET",
+      url: "/api/admin/junior-teams",
+      headers: { cookie: scoped },
+    });
+    expect(refused.statusCode).toBe(403);
+
+    for (const role of ["juniors_viewer", "superadmin"]) {
+      const cookie = await sessionFor(role);
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/junior-teams",
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(200);
+    }
+  });
+
   it("does not leak dependent PII in the refusal body", async () => {
     const cookie = await sessionFor("junior_manager");
     const res = await app.inject({

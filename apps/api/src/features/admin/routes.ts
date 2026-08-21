@@ -385,7 +385,11 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       preHandler: [
         requireAnyPermission(
-          { resource: "juniors", action: "view" },
+          // Club-wide, like the rest of the juniors admin surface this feeds
+          // (#627). The only UI consumer is the Access tab, which needs
+          // users.manage_roles anyway, so a scoped junior_manager loses
+          // nothing they were actually using.
+          { resource: "juniors", action: "view", clubWide: true },
           { resource: "users", action: "manage_roles" },
         ),
       ],
