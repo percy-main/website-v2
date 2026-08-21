@@ -46,6 +46,43 @@ describe("requireClubWidePermission", () => {
     await requireClubWidePermission("matchday", "view")(request, reply);
     expect(reply.sent).toBe(false);
   });
+
+  it("403s a team-scoped junior_manager on juniors (#627)", async () => {
+    const { request, reply, getStatus } = makeReqReply("junior_manager");
+    await requireClubWidePermission("juniors", "view")(request, reply);
+    expect(getStatus()).toBe(403);
+  });
+
+  it("allows juniors_admin, and juniors_viewer for view only", async () => {
+    const admin = makeReqReply("juniors_admin");
+    await requireClubWidePermission("juniors", "manage")(
+      admin.request,
+      admin.reply,
+    );
+    expect(admin.reply.sent).toBe(false);
+
+    const viewer = makeReqReply("juniors_viewer");
+    await requireClubWidePermission("juniors", "view")(
+      viewer.request,
+      viewer.reply,
+    );
+    expect(viewer.reply.sent).toBe(false);
+
+    const viewerManaging = makeReqReply("juniors_viewer");
+    await requireClubWidePermission("juniors", "manage")(
+      viewerManaging.request,
+      viewerManaging.reply,
+    );
+    expect(viewerManaging.getStatus()).toBe(403);
+  });
+
+  it("still 403s a junior_manager who also holds a scoped official role", async () => {
+    const { request, reply, getStatus } = makeReqReply(
+      "junior_manager,official",
+    );
+    await requireClubWidePermission("juniors", "view")(request, reply);
+    expect(getStatus()).toBe(403);
+  });
 });
 
 describe("Auth middleware", () => {

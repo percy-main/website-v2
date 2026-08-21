@@ -8,11 +8,13 @@ type PendingExpense =
   ApiResponse<"/api/matchday/expenses/pending">["items"][number];
 
 /**
- * /expenses/mine — list of matchday expenses the current official has
- * recorded, grouped by status. Re-uses GET /api/matchday/expenses/pending
- * for submitted+approved+reimbursed (treasurer view filtered server-side
- * by caller). For a thorough "draft only" view we'd add a separate
- * endpoint; for v1 this is the most useful surface the captain has.
+ * /expenses/mine — matchday expenses for the current official's teams,
+ * grouped by status. Re-uses GET /api/matchday/expenses/pending for
+ * submitted+approved+reimbursed; since #627 that endpoint filters to the
+ * caller's assigned teams (team_official), so a scoped official sees their
+ * own teams' claims rather than the whole club's. For a true "only the ones
+ * I raised" view we'd add a separate endpoint; for v1 this is the most
+ * useful surface the captain has.
  */
 export default function ExpensesMine() {
   const { data, isLoading } = useQuery({

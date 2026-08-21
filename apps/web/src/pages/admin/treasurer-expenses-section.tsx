@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useHasClubWidePermission } from "@/hooks/use-has-permission";
 import { api, callApi } from "@/lib/api-client";
 import type { paths } from "@/lib/api.gen";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -70,6 +71,10 @@ export function TreasurerExpensesSection({
   dateTo,
 }: TreasurerExpensesSectionProps) {
   const queryClient = useQueryClient();
+  // Paying out is a club-wide treasurer action (#627) - a team-scoped
+  // official holds matchday:manage but the API refuses the reimburse call,
+  // so don't offer the button.
+  const canReimburse = useHasClubWidePermission("matchday", "manage").allowed;
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -374,7 +379,7 @@ export function TreasurerExpensesSection({
                     )}
                   </>
                 )}
-                {selectedExpense.status === "approved" && (
+                {selectedExpense.status === "approved" && canReimburse && (
                   <Button
                     size="sm"
                     disabled={anyActionPending}

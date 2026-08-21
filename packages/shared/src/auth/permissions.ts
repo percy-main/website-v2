@@ -255,7 +255,10 @@ export function hasAdminPanelAccess(
     checkPermission(rawRole, "users", "view") ||
     checkPermission(rawRole, "users", "manage") ||
     checkPermission(rawRole, "users", "manage_roles") ||
-    checkPermission(rawRole, "juniors", "view") ||
+    // Club-wide, matching the Juniors sub-tab's own gate (#627): a scoped
+    // junior_manager has juniors:view but no admin-panel surface, so counting
+    // it here would leave them on an empty /admin.
+    hasClubWideAccess(rawRole, "juniors", "view") ||
     checkPermission(rawRole, "marketing", "view") ||
     checkPermission(rawRole, "finance", "view") ||
     checkPermission(rawRole, "finance", "manage") ||

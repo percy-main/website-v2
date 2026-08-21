@@ -1,6 +1,8 @@
 import type { DB } from "@percy-main/db";
+import { hasClubWideAccess } from "@percy-main/shared/auth/permissions";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
+import { getAssignedTeamIds } from "../../lib/team-access.ts";
 import type { ListGameReports } from "./schemas.ts";
 
 const ABANDONED_THRESHOLD_HOURS = 1;
@@ -34,8 +36,17 @@ function getChargeStatus(
 }
 
 export function listGameReports(db: Kysely<DB>) {
-  return async (params: ListGameReports) => {
+  return async (userId: string, role: string, params: ListGameReports) => {
     const { teamId, limit, offset } = params;
+
+    // Team-scoped officials only see reports for their assigned teams. No
+    // assignments means nothing to show - short-circuit rather than emit an
+    // empty IN list.
+    let assignedTeamIds: string[] | null = null;
+    if (!hasClubWideAccess(role, "matchday", "view")) {
+      assignedTeamIds = await getAssignedTeamIds(db, userId);
+      if (assignedTeamIds.length === 0) return { matchdays: [], total: 0 };
+    }
 
     let query = db
       .selectFrom("matchday")
@@ -55,6 +66,14 @@ export function listGameReports(db: Kysely<DB>) {
       ])
       .orderBy("matchday.match_date", "desc");
 
+    if (assignedTeamIds) {
+      query = query.where(
+        "matchday.play_cricket_team_id",
+        "in",
+        assignedTeamIds,
+      );
+    }
+
     if (teamId) {
       query = query.where("matchday.play_cricket_team_id", "=", teamId);
     }
@@ -62,6 +81,14 @@ export function listGameReports(db: Kysely<DB>) {
     let countQuery = db
       .selectFrom("matchday")
       .select(sql<string>`count(*)`.as("count"));
+
+    if (assignedTeamIds) {
+      countQuery = countQuery.where(
+        "play_cricket_team_id",
+        "in",
+        assignedTeamIds,
+      );
+    }
 
     if (teamId) {
       countQuery = countQuery.where("play_cricket_team_id", "=", teamId);
@@ -80,7 +107,31 @@ export function listGameReports(db: Kysely<DB>) {
 }
 
 export function getMatchdayReport(db: Kysely<DB>) {
-  return async (matchdayId: string) => {
+  return async (userId: string, role: string, matchdayId: string) => {
+    // Same 404-on-out-of-scope rule as matchday's getMatch: a scoped official
+    // can't tell another team's report from one that doesn't exist. The report
+    // carries per-player charge amounts and expense totals, so this is a
+    // financial boundary, not just a tidiness one.
+    if (!hasClubWideAccess(role, "matchday", "view")) {
+      const access = await db
+        .selectFrom("matchday")
+        .innerJoin(
+          "team_official",
+          "team_official.play_cricket_team_id",
+          "matchday.play_cricket_team_id",
+        )
+        .where("matchday.id", "=", matchdayId)
+        .where("team_official.user_id", "=", userId)
+        .select("matchday.id")
+        .executeTakeFirst();
+
+      if (!access) {
+        throw Object.assign(new Error("Matchday not found"), {
+          statusCode: 404,
+        });
+      }
+    }
+
     const matchday = await db
       .selectFrom("matchday")
       .where("id", "=", matchdayId)

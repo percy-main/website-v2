@@ -36,3 +36,4 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 | [055](055-content-assistant-edit-ops-and-sidebar.md)     | Content assistant edit-op protocol + persistent sidebar            | 2026-07-09 | Accepted |
 | [056](056-dnb-rows-stay-in-batting-table.md)             | "Did not bat" rows stay in the batting table with a did_bat flag   | 2026-07-26 | Accepted |
 | [057](057-reviewer-gated-terraform-pr-plans.md)          | Reviewer-gated Terraform PR plans instead of a de-scoped plan role | 2026-08-20 | Accepted |
+| [058](058-team-scope-enforced-in-services.md)            | Team scope enforced in services, juniors admin club-wide only      | 2026-08-21 | Accepted |

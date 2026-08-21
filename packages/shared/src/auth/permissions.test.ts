@@ -4,8 +4,11 @@ import {
   ASSIGNABLE_ROLES,
   checkPermission,
   hasAdminPanelAccess,
+  hasAnyElevatedRole,
+  hasClubWideAccess,
   ROLE_LABELS,
   roles,
+  SCOPED_ROLES,
   type Action,
   type Resource,
 } from "./permissions.js";
@@ -120,5 +123,47 @@ describe("content roles", () => {
       expect(ROLE_LABELS[role]).toBeTruthy();
       expect(roles[role]).toBeDefined();
     }
+  });
+});
+
+describe("club-wide vs team-scoped access (#627)", () => {
+  it("hasClubWideAccess ignores the scoped roles", () => {
+    for (const role of SCOPED_ROLES) {
+      expect(hasAnyElevatedRole(role)).toBe(true);
+    }
+
+    // junior_manager and official hold the permission, but only per-team.
+    expect(checkPermission("junior_manager", "juniors", "view")).toBe(true);
+    expect(hasClubWideAccess("junior_manager", "juniors", "view")).toBe(false);
+    expect(checkPermission("official", "matchday", "manage")).toBe(true);
+    expect(hasClubWideAccess("official", "matchday", "manage")).toBe(false);
+
+    // Club-wide equivalents are unaffected.
+    expect(hasClubWideAccess("juniors_admin", "juniors", "manage")).toBe(true);
+    expect(hasClubWideAccess("matchday_admin", "matchday", "manage")).toBe(
+      true,
+    );
+    expect(hasClubWideAccess("admin", "juniors", "view")).toBe(true);
+  });
+
+  it("a scoped role does not mask a club-wide one held alongside it", () => {
+    expect(hasClubWideAccess("official,juniors_admin", "juniors", "view")).toBe(
+      true,
+    );
+    expect(
+      hasClubWideAccess("junior_manager,official", "juniors", "view"),
+    ).toBe(false);
+  });
+
+  it("junior_manager alone no longer counts as admin-panel access", () => {
+    // The Juniors sub-tab is its only surface and that is now club-wide
+    // only, so counting it would land them on an empty /admin.
+    expect(hasAdminPanelAccess("junior_manager")).toBe(false);
+    expect(hasAdminPanelAccess("juniors_viewer")).toBe(true);
+    expect(hasAdminPanelAccess("juniors_admin")).toBe(true);
+
+    // `official` keeps its (team-filtered) Game Reports sub-tab.
+    expect(hasAdminPanelAccess("official")).toBe(true);
+    expect(hasAdminPanelAccess("junior_manager,official")).toBe(true);
   });
 });

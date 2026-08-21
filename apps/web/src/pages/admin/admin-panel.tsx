@@ -1,7 +1,10 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDocumentMeta } from "@/hooks/use-document-meta.js";
 import { useSession } from "@/lib/auth-client";
-import { checkPermission } from "@percy-main/shared/auth/permissions";
+import {
+  checkPermission,
+  hasClubWideAccess,
+} from "@percy-main/shared/auth/permissions";
 import { Link, useSearchParams } from "react-router";
 import { AccessTab } from "./access-tab";
 import { ChargesTab } from "./charges-tab";
@@ -62,9 +65,12 @@ const SECTIONS: readonly SectionDef[] = [
         render: () => <GroupsTab />,
       },
       {
+        // Club-wide only (#627): the tab lists every dependent in the club
+        // with guardian contact details, so a team-scoped junior_manager is
+        // 403'd by the API. Their per-team surface is /junior-manager.
         value: "juniors",
         label: "Juniors",
-        visible: (role) => checkPermission(role, "juniors", "view"),
+        visible: (role) => hasClubWideAccess(role, "juniors", "view"),
         render: () => <JuniorsTab />,
       },
       {

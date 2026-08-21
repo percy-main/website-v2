@@ -7,6 +7,7 @@ import React from "react";
 import {
   getAuthSession,
   requireAnyPermission,
+  requireClubWidePermission,
   requirePermission,
 } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
@@ -149,8 +150,13 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   const financeView = requirePermission("finance", "view");
   const financeManage = requirePermission("finance", "manage");
   const matchdayView = requirePermission("matchday", "view");
-  const juniorsView = requirePermission("juniors", "view");
-  const juniorsManage = requirePermission("juniors", "manage");
+  // Club-wide, not just permission-holding (#627): the juniors tab lists every
+  // dependent in the club along with guardian contact details, and there is no
+  // dependent-to-junior-team association in the schema to scope it by. Until
+  // one exists, a team-scoped junior_manager can't have it - they keep the
+  // per-team /junior-manager area, which is scoped via junior_team_manager.
+  const juniorsView = requireClubWidePermission("juniors", "view");
+  const juniorsManage = requireClubWidePermission("juniors", "manage");
   const marketingView = requirePermission("marketing", "view");
   const list = listUsers(app.db);
   const update = updateUser(app.db);
@@ -860,7 +866,9 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await listReports(request.query);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await listReports(user.id, role, request.query);
     },
   );
 
@@ -874,7 +882,9 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await getReport(request.params.matchdayId);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await getReport(user.id, role, request.params.matchdayId);
     },
   );
 };

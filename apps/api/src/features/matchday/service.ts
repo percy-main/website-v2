@@ -14,7 +14,10 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Kysely } from "kysely";
 import type { SendPush } from "../../lib/push-sender.ts";
 import type { S3Uploader } from "../../lib/s3-upload.ts";
-import { getAccessibleTeamIds } from "../../lib/team-access.ts";
+import {
+  getAccessibleTeamIds,
+  getAssignedTeamIds,
+} from "../../lib/team-access.ts";
 import { applyReliefIfAny } from "../financial-relief/apply-relief.ts";
 import type { MatchdayChannel } from "../notification-preferences/schemas.ts";
 import {
@@ -2568,8 +2571,43 @@ export function submitExpenseClaim(db: Kysely<DB>, s3: S3Uploader) {
   };
 }
 
+/**
+ * Team-scope guard for expense mutations addressed by expense ID.
+ *
+ * Club-wide matchday managers pass straight through. A scoped official only
+ * passes if the expense hangs off a matchday for one of their assigned teams;
+ * otherwise this throws the same 404 the service raises for an expense that
+ * doesn't exist, so an out-of-scope ID is indistinguishable from a bad one
+ * (same rule as getMatch's "not found or access denied").
+ */
+async function assertExpenseInScope(
+  db: Kysely<DB>,
+  userId: string,
+  role: string,
+  expenseId: string,
+): Promise<void> {
+  if (hasClubWideAccess(role, "matchday", "manage")) return;
+
+  const access = await db
+    .selectFrom("matchday_expense")
+    .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
+    .innerJoin(
+      "team_official",
+      "team_official.play_cricket_team_id",
+      "matchday.play_cricket_team_id",
+    )
+    .where("matchday_expense.id", "=", expenseId)
+    .where("team_official.user_id", "=", userId)
+    .select("matchday_expense.id")
+    .executeTakeFirst();
+
+  if (!access) throwHttpError(404, "Expense not found");
+}
+
 export function approveExpense(db: Kysely<DB>) {
-  return async (adminUserId: string, expenseId: string) => {
+  return async (adminUserId: string, role: string, expenseId: string) => {
+    await assertExpenseInScope(db, adminUserId, role, expenseId);
+
     const expense = await db
       .selectFrom("matchday_expense")
       .where("id", "=", expenseId)
@@ -2602,9 +2640,12 @@ export function approveExpense(db: Kysely<DB>) {
 export function rejectExpense(db: Kysely<DB>) {
   return async (
     adminUserId: string,
+    role: string,
     expenseId: string,
     data: RejectExpense,
   ) => {
+    await assertExpenseInScope(db, adminUserId, role, expenseId);
+
     const expense = await db
       .selectFrom("matchday_expense")
       .where("id", "=", expenseId)
@@ -2633,6 +2674,12 @@ export function rejectExpense(db: Kysely<DB>) {
   };
 }
 
+/**
+ * Paying a claim out is a club-wide treasurer action, not a per-team one, so
+ * there is no team-scope branch here: the route gates it with
+ * requireClubWidePermission and team-scoped officials never reach this
+ * service.
+ */
 export function markExpenseReimbursed(db: Kysely<DB>) {
   return async (adminUserId: string, expenseId: string) => {
     const expense = await db
@@ -2665,7 +2712,16 @@ export function markExpenseReimbursed(db: Kysely<DB>) {
 }
 
 export function listPendingExpenses(db: Kysely<DB>) {
-  return async (params: ListPendingExpenses) => {
+  return async (userId: string, role: string, params: ListPendingExpenses) => {
+    // Team-scoped officials see only expenses raised on their own teams'
+    // matchdays. No assignments means no visible expenses - short-circuit
+    // rather than emit an empty IN list.
+    let assignedTeamIds: string[] | null = null;
+    if (!hasClubWideAccess(role, "matchday", "manage")) {
+      assignedTeamIds = await getAssignedTeamIds(db, userId);
+      if (assignedTeamIds.length === 0) return { items: [] };
+    }
+
     let query = db
       .selectFrom("matchday_expense")
       .innerJoin("matchday", "matchday.id", "matchday_expense.matchday_id")
@@ -2695,6 +2751,14 @@ export function listPendingExpenses(db: Kysely<DB>) {
         "submitted",
         "approved",
       ]);
+    }
+
+    if (assignedTeamIds) {
+      query = query.where(
+        "matchday.play_cricket_team_id",
+        "in",
+        assignedTeamIds,
+      );
     }
 
     if (params.teamId) {

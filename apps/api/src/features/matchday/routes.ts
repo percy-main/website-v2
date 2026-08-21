@@ -3,6 +3,7 @@ import { createPrerenderTrigger } from "../../lib/prerender-trigger.ts";
 import {
   getAuthSession,
   requireAuth,
+  requireClubWidePermission,
   requirePermission,
 } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
@@ -85,6 +86,7 @@ import { generateTeamNewsImage } from "./team-news-image.ts";
 export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
   const officialRole = requirePermission("matchday", "view");
   const adminRole = requirePermission("matchday", "manage");
+  const clubWideAdminRole = requireClubWidePermission("matchday", "manage");
   // Manual results and cancellations surface on prerendered game pages
   // (outcome badge); fire a reconcile so they don't wait for the
   // 15-minute sweep.
@@ -376,7 +378,9 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await pending(request.query);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await pending(user.id, role, request.query);
     },
   );
 
@@ -411,7 +415,8 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      return await approve(user.id, request.params.expenseId);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await approve(user.id, role, request.params.expenseId);
     },
   );
 
@@ -427,14 +432,23 @@ export const matchdayRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const { user } = getAuthSession(request);
-      return await reject(user.id, request.params.expenseId, request.body);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await reject(
+        user.id,
+        role,
+        request.params.expenseId,
+        request.body,
+      );
     },
   );
 
+  // Paying a claim out is a whole-club treasurer action (#627), so this is
+  // the one expense route a team-scoped official can't reach even for their
+  // own team: club-wide matchday:manage only.
   app.post(
     "/matchday/expenses/:expenseId/reimburse",
     {
-      preHandler: [adminRole],
+      preHandler: [clubWideAdminRole],
       schema: {
         params: expenseIdParamSchema,
         response: { 200: successResponseSchema },

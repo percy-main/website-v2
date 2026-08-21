@@ -1513,7 +1513,7 @@ describe("matchday service (integration)", () => {
       expect(expense?.submitted_at).toBeTruthy();
 
       // 2. Approve
-      await approveExpense(ctx.db)(adminId, expenseId);
+      await approveExpense(ctx.db)(adminId, "admin", expenseId);
 
       expense = await ctx.db
         .selectFrom("matchday_expense")
@@ -1564,7 +1564,7 @@ describe("matchday service (integration)", () => {
         },
       );
 
-      await rejectExpense(ctx.db)(adminId, expenseId, {
+      await rejectExpense(ctx.db)(adminId, "admin", expenseId, {
         reason: "No receipt attached",
       });
 
@@ -1596,9 +1596,9 @@ describe("matchday service (integration)", () => {
         amountPence: 2000,
       });
 
-      await expect(approveExpense(ctx.db)(adminId, expenseId)).rejects.toThrow(
-        "Only submitted expenses can be approved",
-      );
+      await expect(
+        approveExpense(ctx.db)(adminId, "admin", expenseId),
+      ).rejects.toThrow("Only submitted expenses can be approved");
     });
 
     it("cannot reimburse a non-approved expense", async () => {
@@ -1664,10 +1664,10 @@ describe("matchday service (integration)", () => {
       });
 
       // Approve the first one
-      await approveExpense(ctx.db)(adminId, exp1);
+      await approveExpense(ctx.db)(adminId, "admin", exp1);
 
       // List all pending (submitted + approved)
-      const result = await listPendingExpenses(ctx.db)({
+      const result = await listPendingExpenses(ctx.db)(adminId, "admin", {
         limit: 50,
         offset: 0,
       });
@@ -1677,7 +1677,7 @@ describe("matchday service (integration)", () => {
       expect(result.items.length).toBeGreaterThanOrEqual(2);
 
       // Filter by submitted only
-      const submitted = await listPendingExpenses(ctx.db)({
+      const submitted = await listPendingExpenses(ctx.db)(adminId, "admin", {
         status: "submitted",
         limit: 50,
         offset: 0,
@@ -1685,6 +1685,172 @@ describe("matchday service (integration)", () => {
       for (const item of submitted.items) {
         expect(item.status).toBe("submitted");
       }
+    });
+  });
+
+  // #627: `official` is a team-scoped role. Before this, holding it was
+  // enough to read and approve every team's claims.
+  describe("expense team scoping", () => {
+    /**
+     * Two teams, an official assigned to only the first, and one submitted
+     * expense on each. Returns the ids the assertions need.
+     */
+    async function seedTwoTeamExpenses(label: string) {
+      const { userId: officialId } = await seedTestUser(ctx.db, {
+        email: `off-${label}-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      // `admin`, not `matchday_admin`: withdrawFromMatch emails every
+      // matchday_admin in the database, so seeding one here would inflate the
+      // recipient counts asserted by the withdrawal tests. Both roles are
+      // club-wide for this purpose - the matchday_admin path is covered by
+      // the unit tests.
+      const { userId: adminId } = await seedTestUser(ctx.db, {
+        email: `adm-${label}-${crypto.randomUUID()}@test.com`,
+        role: "admin",
+      });
+
+      const myTeam = await seedTeam();
+      const otherTeam = await seedTeam();
+      await seedTeamOfficial(officialId, myTeam);
+
+      const myMatch = await seedMatchday({
+        teamId: myTeam,
+        createdBy: officialId,
+        status: "confirmed",
+      });
+      const otherMatch = await seedMatchday({
+        teamId: otherTeam,
+        createdBy: adminId,
+        status: "confirmed",
+      });
+
+      const { expenseId: mine } = await submitExpenseClaim(ctx.db, s3)(
+        officialId,
+        "official",
+        { matchId: myMatch, type: "umpire_fee", amountPence: 5000 },
+      );
+      const { expenseId: theirs } = await submitExpenseClaim(ctx.db, s3)(
+        adminId,
+        "admin",
+        { matchId: otherMatch, type: "teas", amountPence: 3000 },
+      );
+
+      return { officialId, adminId, mine, theirs, myTeam, otherTeam };
+    }
+
+    it("listPendingExpenses shows an official only their own teams' claims", async () => {
+      const { officialId, adminId, mine, theirs } =
+        await seedTwoTeamExpenses("list");
+
+      const scoped = await listPendingExpenses(ctx.db)(officialId, "official", {
+        limit: 50,
+        offset: 0,
+      });
+      const scopedIds = scoped.items.map((e) => e.id);
+      expect(scopedIds).toContain(mine);
+      expect(scopedIds).not.toContain(theirs);
+
+      // The club-wide manager still sees both.
+      const clubWide = await listPendingExpenses(ctx.db)(adminId, "admin", {
+        limit: 50,
+        offset: 0,
+      });
+      const clubWideIds = clubWide.items.map((e) => e.id);
+      expect(clubWideIds).toContain(mine);
+      expect(clubWideIds).toContain(theirs);
+    });
+
+    it("listPendingExpenses returns nothing for an official with no assignments", async () => {
+      const { userId: strandedId } = await seedTestUser(ctx.db, {
+        email: `off-stranded-${crypto.randomUUID()}@test.com`,
+        role: "official",
+      });
+      await seedTwoTeamExpenses("stranded");
+
+      const result = await listPendingExpenses(ctx.db)(strandedId, "official", {
+        limit: 50,
+        offset: 0,
+      });
+      expect(result.items).toEqual([]);
+    });
+
+    it("approveExpense 404s an official on another team's claim and leaves it untouched", async () => {
+      const { officialId, mine, theirs } = await seedTwoTeamExpenses("approve");
+
+      await expect(
+        approveExpense(ctx.db)(officialId, "official", theirs),
+      ).rejects.toThrow("Expense not found");
+
+      const untouched = await ctx.db
+        .selectFrom("matchday_expense")
+        .where("id", "=", theirs)
+        .select(["status", "approved_by"])
+        .executeTakeFirst();
+      expect(untouched?.status).toBe("submitted");
+      expect(untouched?.approved_by).toBeNull();
+
+      // Their own team's claim still goes through.
+      await approveExpense(ctx.db)(officialId, "official", mine);
+      const approved = await ctx.db
+        .selectFrom("matchday_expense")
+        .where("id", "=", mine)
+        .select(["status", "approved_by"])
+        .executeTakeFirst();
+      expect(approved?.status).toBe("approved");
+      expect(approved?.approved_by).toBe(officialId);
+    });
+
+    it("rejectExpense 404s an official on another team's claim", async () => {
+      const { officialId, mine, theirs } = await seedTwoTeamExpenses("reject");
+
+      await expect(
+        rejectExpense(ctx.db)(officialId, "official", theirs, {
+          reason: "Not my problem",
+        }),
+      ).rejects.toThrow("Expense not found");
+
+      const untouched = await ctx.db
+        .selectFrom("matchday_expense")
+        .where("id", "=", theirs)
+        .select(["status", "rejected_reason"])
+        .executeTakeFirst();
+      expect(untouched?.status).toBe("submitted");
+      expect(untouched?.rejected_reason).toBeNull();
+
+      await rejectExpense(ctx.db)(officialId, "official", mine, {
+        reason: "No receipt",
+      });
+      const rejected = await ctx.db
+        .selectFrom("matchday_expense")
+        .where("id", "=", mine)
+        .select("status")
+        .executeTakeFirst();
+      expect(rejected?.status).toBe("rejected");
+    });
+
+    it("an out-of-scope expense id is indistinguishable from a nonexistent one", async () => {
+      const { officialId, theirs } = await seedTwoTeamExpenses("indistinct");
+
+      /** The failure an official sees, as message plus status code. */
+      const refusal = async (expenseId: string) => {
+        try {
+          await approveExpense(ctx.db)(officialId, "official", expenseId);
+          throw new Error("expected the approval to be refused");
+        } catch (e: unknown) {
+          const err = e as Error & { statusCode?: number };
+          return { message: err.message, statusCode: err.statusCode };
+        }
+      };
+
+      const outOfScope = await refusal(theirs);
+      const nonexistent = await refusal(`exp-${crypto.randomUUID()}`);
+
+      expect(outOfScope).toEqual({
+        message: "Expense not found",
+        statusCode: 404,
+      });
+      expect(outOfScope).toEqual(nonexistent);
     });
   });
 

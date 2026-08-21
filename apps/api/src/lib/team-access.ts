@@ -26,6 +26,22 @@ export async function getAccessibleTeamIds(
     return allTeams.map((t) => t.id).filter((id): id is string => id !== null);
   }
 
+  return getAssignedTeamIds(db, userId);
+}
+
+/**
+ * The play_cricket_team IDs a caller is assigned to via team_official, with
+ * no club-wide branch of its own.
+ *
+ * Use this (not getAccessibleTeamIds) when the caller has already tested
+ * `hasClubWideAccess` for the specific action it is gating: getAccessibleTeamIds
+ * always tests `matchday:view`, so a caller gating on `matchday:manage` would
+ * be silently handed every team by a role that is club-wide for view only.
+ */
+export async function getAssignedTeamIds(
+  db: Kysely<DB>,
+  userId: string,
+): Promise<string[]> {
   const assignments = await db
     .selectFrom("team_official")
     .where("user_id", "=", userId)
