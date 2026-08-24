@@ -34,6 +34,6 @@
     "kysely-codegen": "^0.20.0",
     "tsx": "^4.23.11",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }
