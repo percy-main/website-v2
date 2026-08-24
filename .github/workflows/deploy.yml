@@ -115,7 +115,7 @@ jobs:
 
       - name: Terraform Init
         working-directory: infra/environments/shared
-        run: terraform init
+        run: terraform init -input=false
 
       - name: Verify remote backend is configured
         working-directory: infra/environments/shared
@@ -140,7 +140,7 @@ jobs:
         # -lock-timeout: queue briefly behind a concurrent in-flight
         # PR plan rather than failing instantly on lock contention.
         run: |
-          terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
+          terraform plan -input=false -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
           exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if plan didn't release its own
@@ -266,14 +266,14 @@ jobs:
 
       - name: Terraform Init
         working-directory: infra/environments/production
-        run: terraform init
+        run: terraform init -input=false
 
       - name: Terraform Plan
         id: plan
         timeout-minutes: 10
         working-directory: infra/environments/production
         run: |
-          terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
+          terraform plan -input=false -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
           exit "${PIPESTATUS[0]}"
 
       - name: Release stale state lock if plan didn't release its own
