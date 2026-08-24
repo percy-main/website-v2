@@ -62,8 +62,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@aws-sdk/client-cloudfront": "^3.1112.0",
-    "@aws-sdk/client-cloudfront-keyvaluestore": "^3.1112.0",
+    "@aws-sdk/client-cloudfront": "^3.1115.0",
+    "@aws-sdk/client-cloudfront-keyvaluestore": "^3.1115.0",
     "@aws-sdk/client-s3": "^3.1112.0",
     "@aws-sdk/signature-v4-multi-region": "^3.996.45",
     "@rolldown/plugin-babel": "^0.2.3",
@@ -74,11 +74,11 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "@vitejs/plugin-react": "^6.0.5",
+    "@vitejs/plugin-react": "^6.1.0",
     "babel-plugin-react-compiler": "^1.0.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vite": "^8.2.1",
+    "vite": "^8.2.2",
     "vite-imagetools": "^12.0.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   }
 }
