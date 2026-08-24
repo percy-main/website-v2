@@ -104,7 +104,7 @@ jobs:
 
       - name: Terraform Init (no backend)
         working-directory: infra/environments/${{ matrix.environment }}
-        run: terraform init -backend=false
+        run: terraform init -backend=false -input=false
 
       - name: Terraform Validate
         working-directory: infra/environments/${{ matrix.environment }}
@@ -126,6 +126,10 @@ jobs:
       # NR provider - newrelic_cloud_aws_link_account in shared (#201).
       # Job-scoped rather than workflow-level so the uncredentialed
       # jobs above never see the secret.
+      # NOTE: dependabot-triggered runs resolve secrets from the
+      # separate Dependabot secret store, so this key must be defined
+      # in BOTH stores (Settings > Secrets and variables > Actions AND
+      # > Dependabot) or dependabot plans of shared fail.
       NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
       TF_VAR_newrelic_account_id: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
     # Bound execution well under the 1h OIDC credential lifetime. The
@@ -162,7 +166,7 @@ jobs:
 
       - name: Terraform Init
         working-directory: infra/environments/${{ matrix.environment }}
-        run: terraform init
+        run: terraform init -input=false
 
       - name: Terraform Plan
         id: plan
@@ -175,8 +179,14 @@ jobs:
         # `pipefail`, so we have to check explicitly.)
         # -lock-timeout: queue briefly behind a concurrent in-flight plan
         # rather than failing immediately on lock contention.
+        # -input=false: a missing provider credential must error, not
+        # prompt on stdin. Dependabot-triggered runs read the Dependabot
+        # secret store, so if NEW_RELIC_API_KEY is absent there terraform
+        # would otherwise prompt for provider.newrelic.api_key and hang
+        # plan (shared) to the step timeout (see the 2026-06-15 stale
+        # lock note above).
         run: |
-          terraform plan -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
+          terraform plan -input=false -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
           exit "${PIPESTATUS[0]}"
         continue-on-error: true
 

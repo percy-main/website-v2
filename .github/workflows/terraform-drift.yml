@@ -64,7 +64,7 @@ jobs:
 
       - name: Terraform Init
         working-directory: infra/environments/${{ matrix.environment }}
-        run: terraform init -backend=true
+        run: terraform init -backend=true -input=false
 
       - name: Terraform Plan (detailed exit code)
         id: plan
@@ -77,7 +77,7 @@ jobs:
         # We capture the code so the next step can branch.
         run: |
           set +e
-          terraform plan -detailed-exitcode -no-color -out=drift.tfplan 2>&1 | tee plan.txt
+          terraform plan -input=false -detailed-exitcode -no-color -out=drift.tfplan 2>&1 | tee plan.txt
           code=${PIPESTATUS[0]}
           set -e
           echo "exitcode=${code}" >> "$GITHUB_OUTPUT"
