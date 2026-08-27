@@ -15,3 +15,9 @@ variable "ses_subdomain" {
   default     = "contact.percymain.org"
   description = "SES sending domain"
 }
+
+variable "alarm_email" {
+  type        = string
+  default     = "alex.young@percymain.org"
+  description = "Email endpoint subscribed to the reliability alarms topics (both regions). Each subscription must be confirmed from the AWS confirmation email before it delivers."
+}

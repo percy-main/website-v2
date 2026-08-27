@@ -614,9 +614,10 @@ resource "aws_acm_certificate_validation" "cloudfront" {
 # -----------------------------------------------------------------------------
 # Reliability alarms - Route 53 health check + ACM expiry
 # -----------------------------------------------------------------------------
-# Operator-subscribed SNS topics (no Terraform-managed subscription -
-# add an email/Slack/Lambda subscription out of band, same pattern as
-# the security-events topics).
+# Email subscriptions are Terraform-managed (#719 audit found both
+# topics had zero subscribers, so every reliability alarm fired into
+# the void). The security-events topics remain operator-subscribed out
+# of band.
 #
 # Per-region split: Route 53 health-check metrics + the CloudFront
 # certificate live in us-east-1; the ALB certificate lives in
@@ -643,6 +644,22 @@ resource "aws_sns_topic" "shared_reliability_alarms_us_east_1" {
     ManagedBy   = "terraform"
     Purpose     = "reliability-alarms-us-east-1"
   }
+}
+
+# Email delivery for both reliability topics. Apply leaves each
+# subscription PendingConfirmation until the "Subscription
+# Confirmation" email AWS sends to the endpoint is clicked.
+resource "aws_sns_topic_subscription" "shared_reliability_alarms_email" {
+  topic_arn = aws_sns_topic.shared_reliability_alarms.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
+}
+
+resource "aws_sns_topic_subscription" "shared_reliability_alarms_email_us_east_1" {
+  provider  = aws.us_east_1
+  topic_arn = aws_sns_topic.shared_reliability_alarms_us_east_1.arn
+  protocol  = "email"
+  endpoint  = var.alarm_email
 }
 
 # Route 53 HTTPS health check on the production API. The check originates
