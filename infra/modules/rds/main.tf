@@ -211,7 +211,7 @@ resource "aws_db_instance" "main" {
   performance_insights_retention_period = 7
 
   # Export postgresql + upgrade logs to CloudWatch so they're reachable
-  # for alarming and downstream NR forwarding (#200). The parameter
+  # for alarming (#200). The parameter
   # group already enables log_min_duration_statement / log_connections
   # / log_disconnections - without exports those logs never leave the
   # instance.

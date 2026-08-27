@@ -109,12 +109,6 @@ variable "ses_identity_arn" {
   description = "ARN of the SES identity to restrict sending to (if empty, allows all)"
 }
 
-variable "newrelic_license_key_arn" {
-  type        = string
-  default     = ""
-  description = "ARN of the Secrets Manager value for the New Relic license key. When set, enables the New Relic Infrastructure sidecar and OTel export."
-}
-
 variable "documents_bucket_arn" {
   type        = string
   description = "ARN of the S3 bucket for permanent policy documents."
@@ -148,24 +142,6 @@ variable "scout_kb_uploads_bucket_arn" {
 variable "scout_kb_bucket_arn" {
   type        = string
   description = "ARN of the permanent scout knowledge-base bucket (committed reference docs)."
-}
-
-variable "enable_nri_ecs_alarm" {
-  type        = bool
-  default     = false
-  description = "Create a dedicated SNS topic + alarm that fires when the newrelic-infra sidecar logs failure messages. Operators subscribe out of band. Disabled by default to avoid a module cycle when monitoring's SNS topic is passed in."
-}
-
-variable "otel_endpoint" {
-  type        = string
-  default     = "https://otlp.eu01.nr-data.net"
-  description = "OTLP HTTP endpoint for OTel exporter. Override if NR account region changes (e.g. https://otlp.nr-data.net for US)."
-}
-
-variable "otel_traces_sampler_arg" {
-  type        = string
-  default     = "1.0"
-  description = "Trace sampler ratio (0.0-1.0) for OTEL_TRACES_SAMPLER=parentbased_traceidratio. 1.0 = sample everything (current low traffic); reduce when volume / cost demands."
 }
 
 # ------------------------------------------------------------------------------
@@ -606,96 +582,43 @@ resource "aws_ecs_task_definition" "api" {
     cpu_architecture        = "ARM64"
   }
 
-  container_definitions = jsonencode(concat(
-    [
-      {
-        name      = "api"
-        image     = "${var.ecr_repository_url}:${var.image_tag}"
-        essential = true
+  container_definitions = jsonencode([
+    {
+      name      = "api"
+      image     = "${var.ecr_repository_url}:${var.image_tag}"
+      essential = true
 
-        portMappings = [
-          {
-            containerPort = 3000
-            protocol      = "tcp"
-          }
-        ]
+      portMappings = [
+        {
+          containerPort = 3000
+          protocol      = "tcp"
+        }
+      ]
 
-        environment = concat(
-          [
-            for name, value in var.environment_variables : {
-              name  = name
-              value = value
-            }
-          ],
-          var.newrelic_license_key_arn != "" ? [
-            { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = var.otel_endpoint },
-            { name = "OTEL_SERVICE_NAME", value = "${local.name_prefix}-api" },
-            # OTEL_RESOURCE_ATTRIBUTES - propagated to every span /
-            # metric / log record so NR can filter by environment,
-            # release SHA (set in ECS task env by deploy.yml from
-            # #224), and service name. release.id falls back to
-            # "unknown" when RELEASE_SHA isn't set (local / staging
-            # without the deploy workflow patching the task def).
-            { name = "OTEL_RESOURCE_ATTRIBUTES", value = "service.name=${local.name_prefix}-api,deployment.environment=${var.environment},service.namespace=percy-main" },
-            # Sample everything for now - low traffic. Switch to ratio
-            # < 1.0 if/when volume warrants it.
-            { name = "OTEL_TRACES_SAMPLER", value = "parentbased_traceidratio" },
-            { name = "OTEL_TRACES_SAMPLER_ARG", value = var.otel_traces_sampler_arg },
-          ] : []
-        )
+      environment = [
+        for name, value in var.environment_variables : {
+          name  = name
+          value = value
+        }
+      ]
 
-        secrets = concat(
-          [
-            for name, arn in var.secrets : {
-              name      = name
-              valueFrom = arn
-            }
-          ],
-          var.newrelic_license_key_arn != "" ? [
-            { name = "NEW_RELIC_LICENSE_KEY", valueFrom = var.newrelic_license_key_arn },
-          ] : []
-        )
+      secrets = [
+        for name, arn in var.secrets : {
+          name      = name
+          valueFrom = arn
+        }
+      ]
 
-        logConfiguration = {
-          logDriver = "awslogs"
-          options = {
-            "awslogs-group"         = aws_cloudwatch_log_group.api.name
-            "awslogs-region"        = data.aws_region.current.region
-            "awslogs-stream-prefix" = "api"
-          }
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.api.name
+          "awslogs-region"        = data.aws_region.current.region
+          "awslogs-stream-prefix" = "api"
         }
       }
-    ],
-    var.newrelic_license_key_arn != "" ? [
-      {
-        name      = "newrelic-infra"
-        image     = "newrelic/nri-ecs:1.11.15"
-        essential = false
-        cpu       = 64
-        memory    = 128
-
-        environment = [
-          { name = "NRIA_OVERRIDE_HOST_ROOT", value = "" },
-          { name = "NRIA_IS_FORWARD_ONLY", value = "true" },
-          { name = "NRIA_PASSTHROUGH_ENVIRONMENT", value = "ECS_CONTAINER_METADATA_URI,ECS_CONTAINER_METADATA_URI_V4,FARGATE" },
-          { name = "FARGATE", value = "true" },
-        ]
-
-        secrets = [
-          { name = "NRIA_LICENSE_KEY", valueFrom = var.newrelic_license_key_arn },
-        ]
-
-        logConfiguration = {
-          logDriver = "awslogs"
-          options = {
-            "awslogs-group"         = aws_cloudwatch_log_group.api.name
-            "awslogs-region"        = data.aws_region.current.region
-            "awslogs-stream-prefix" = "newrelic-infra"
-          }
-        }
-      }
-    ] : []
-  ))
+    }
+  ])
 
   tags = local.tags
 }
@@ -1062,66 +985,4 @@ output "task_definition_family" {
 output "log_group_name" {
   description = "CloudWatch log group name for the API task"
   value       = aws_cloudwatch_log_group.api.name
-}
-
-# ------------------------------------------------------------------------------
-# nri-ecs sidecar failure detection
-# ------------------------------------------------------------------------------
-# The newrelic-infra sidecar runs with essential = false: if NR ingest
-# dies (license key invalid, NR endpoint unreachable, sidecar crash-
-# looping) the task continues serving traffic and the failure is
-# invisible. A log metric filter against the sidecar's stream catches
-# the common failure signatures and surfaces them via SNS.
-#
-# Dedicated SNS topic (rather than monitoring's alarms topic) avoids a
-# module dependency cycle: monitoring already takes ecs.cluster_name
-# and ecs.service_name, so ecs cannot also depend on
-# monitoring.sns_topic_arn. Operators subscribe to this topic out of
-# band.
-
-resource "aws_sns_topic" "nri_ecs_alarms" {
-  count = var.enable_nri_ecs_alarm ? 1 : 0
-  name  = "${local.name_prefix}-nri-ecs-alarms"
-  tags  = local.tags
-}
-
-resource "aws_cloudwatch_log_metric_filter" "nri_ecs_errors" {
-  count = var.enable_nri_ecs_alarm ? 1 : 0
-
-  name           = "${local.name_prefix}-nri-ecs-errors"
-  log_group_name = aws_cloudwatch_log_group.api.name
-  # Match nri-ecs failure phrases only. CloudWatch metric filters can't
-  # restrict by log stream, so the patterns are deliberately NR-specific
-  # to avoid matching app logs that happen to contain the word "ERROR".
-  # If the sidecar's failure vocabulary changes in a future NR Infra
-  # release this filter needs updating - track via a periodic alarm
-  # smoke test rather than relying on the alarm itself to never trip.
-  pattern = "?\"failed to send metrics\" ?\"License key not valid\" ?\"unauthorized\" ?\"InvalidLicenseKey\""
-
-  metric_transformation {
-    name          = "NriEcsErrors"
-    namespace     = "PercyMain/Observability"
-    value         = "1"
-    default_value = "0"
-  }
-}
-
-resource "aws_cloudwatch_metric_alarm" "nri_ecs_failure" {
-  count = var.enable_nri_ecs_alarm ? 1 : 0
-
-  alarm_name          = "${local.name_prefix}-nri-ecs-failure"
-  alarm_description   = "newrelic-infra sidecar is logging errors - NR ingest from this task may be dropping silently. Check the newrelic-infra log stream."
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
-  metric_name         = aws_cloudwatch_log_metric_filter.nri_ecs_errors[0].metric_transformation[0].name
-  namespace           = aws_cloudwatch_log_metric_filter.nri_ecs_errors[0].metric_transformation[0].namespace
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 0
-  treat_missing_data  = "notBreaching"
-
-  alarm_actions = [aws_sns_topic.nri_ecs_alarms[0].arn]
-  ok_actions    = [aws_sns_topic.nri_ecs_alarms[0].arn]
-
-  tags = local.tags
 }

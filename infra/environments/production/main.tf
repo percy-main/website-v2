@@ -155,25 +155,23 @@ module "rds" {
 # ---------------------------------------------------------------------------
 
 module "ecs" {
-  source                   = "../../modules/ecs-service"
-  environment              = "production"
-  task_count               = 1
-  max_task_count           = 4
-  cpu                      = 256
-  memory                   = 1024
-  ecr_repository_url       = local.shared.ecr_repository_url
-  acm_certificate_arn      = local.shared.acm_alb_certificate_arn
-  vpc_id                   = module.vpc.vpc_id
-  private_subnet_ids       = module.vpc.public_subnet_ids
-  public_subnet_ids        = module.vpc.public_subnet_ids
-  ecs_security_group_id    = module.vpc.ecs_security_group_id
-  alb_security_group_id    = module.vpc.alb_security_group_id
-  health_check_path        = "/health/ready"
-  log_retention_days       = 30
-  assign_public_ip         = true
-  ses_identity_arn         = local.shared.ses_identity_arn
-  newrelic_license_key_arn = "${aws_secretsmanager_secret.app_secrets.arn}:NEW_RELIC_LICENSE_KEY::"
-  enable_nri_ecs_alarm     = true
+  source                = "../../modules/ecs-service"
+  environment           = "production"
+  task_count            = 1
+  max_task_count        = 4
+  cpu                   = 256
+  memory                = 1024
+  ecr_repository_url    = local.shared.ecr_repository_url
+  acm_certificate_arn   = local.shared.acm_alb_certificate_arn
+  vpc_id                = module.vpc.vpc_id
+  private_subnet_ids    = module.vpc.public_subnet_ids
+  public_subnet_ids     = module.vpc.public_subnet_ids
+  ecs_security_group_id = module.vpc.ecs_security_group_id
+  alb_security_group_id = module.vpc.alb_security_group_id
+  health_check_path     = "/health/ready"
+  log_retention_days    = 30
+  assign_public_ip      = true
+  ses_identity_arn      = local.shared.ses_identity_arn
 
   documents_bucket_arn                = module.documents_bucket.bucket_arn
   document_uploads_bucket_arn         = module.document_uploads.bucket_arn

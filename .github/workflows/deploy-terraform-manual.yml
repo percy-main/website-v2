@@ -40,10 +40,6 @@ defaults:
 env:
   AWS_REGION: eu-west-2
   TF_VERSION: "1.7"
-  # NR provider — newrelic_cloud_aws_link_account in shared (#201).
-  # Workflow-level so both shared + production jobs inherit.
-  NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-  TF_VAR_newrelic_account_id: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
 
 jobs:
   terraform-shared:
@@ -66,7 +62,7 @@ jobs:
         id: ref
         # workflow_dispatch sets github.sha to the workflow file's branch
         # SHA, NOT the checked-out inputs.ref. Capture the actual SHA so
-        # the NR change marker references what we applied.
+        # the summary references what we applied.
         run: |
           DEPLOYED_SHA=$(git rev-parse HEAD)
           echo "sha=${DEPLOYED_SHA}" >> "$GITHUB_OUTPUT"
@@ -164,39 +160,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Record TF apply in New Relic
-        if: success()
-        env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-          NEW_RELIC_INFRA_ENTITY_GUID: ${{ vars.NEW_RELIC_INFRA_ENTITY_GUID }}
-          ACTOR: ${{ github.actor }}
-          REF_INPUT: ${{ inputs.ref }}
-          DEPLOYED_SHA: ${{ steps.ref.outputs.sha }}
-        run: |
-          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_INFRA_ENTITY_GUID:-}" ]; then
-            echo "New Relic API key or infrastructure entity GUID not configured, skipping"
-            exit 0
-          fi
-          TIMESTAMP=$(date -u +%s)000
-          DESCRIPTION="Manual infrastructure apply (shared): actor=${ACTOR} ref=${REF_INPUT}"
-          PAYLOAD=$(jq -n \
-            --arg version "$DEPLOYED_SHA" \
-            --arg entity "$NEW_RELIC_INFRA_ENTITY_GUID" \
-            --arg desc "$DESCRIPTION" \
-            --argjson ts "$TIMESTAMP" \
-            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
-          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
-            -H "Content-Type: application/json" \
-            -H "API-Key: $NEW_RELIC_API_KEY" \
-            -d "$PAYLOAD" || printf '\n000')
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
-            echo "::warning::New Relic infrastructure deployment tracking failed (HTTP $HTTP_CODE): $BODY"
-          else
-            echo "Infrastructure (shared, manual) recorded in New Relic"
-          fi
-
       - name: Notify on failure
         if: failure()
         uses: ./.github/actions/notify-deploy-failure
@@ -221,7 +184,7 @@ jobs:
         id: ref
         # workflow_dispatch sets github.sha to the workflow file's branch
         # SHA, NOT the checked-out inputs.ref. Capture the actual SHA so
-        # the NR change marker references what we applied.
+        # the summary references what we applied.
         run: |
           DEPLOYED_SHA=$(git rev-parse HEAD)
           echo "sha=${DEPLOYED_SHA}" >> "$GITHUB_OUTPUT"
@@ -304,39 +267,6 @@ jobs:
             tail -n 100 apply.log 2>/dev/null || echo "(no apply.log)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Record TF apply in New Relic
-        if: success()
-        env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-          NEW_RELIC_INFRA_ENTITY_GUID: ${{ vars.NEW_RELIC_INFRA_ENTITY_GUID }}
-          ACTOR: ${{ github.actor }}
-          REF_INPUT: ${{ inputs.ref }}
-          DEPLOYED_SHA: ${{ steps.ref.outputs.sha }}
-        run: |
-          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_INFRA_ENTITY_GUID:-}" ]; then
-            echo "New Relic API key or infrastructure entity GUID not configured, skipping"
-            exit 0
-          fi
-          TIMESTAMP=$(date -u +%s)000
-          DESCRIPTION="Manual infrastructure apply (production): actor=${ACTOR} ref=${REF_INPUT}"
-          PAYLOAD=$(jq -n \
-            --arg version "$DEPLOYED_SHA" \
-            --arg entity "$NEW_RELIC_INFRA_ENTITY_GUID" \
-            --arg desc "$DESCRIPTION" \
-            --argjson ts "$TIMESTAMP" \
-            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
-          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
-            -H "Content-Type: application/json" \
-            -H "API-Key: $NEW_RELIC_API_KEY" \
-            -d "$PAYLOAD" || printf '\n000')
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
-            echo "::warning::New Relic infrastructure deployment tracking failed (HTTP $HTTP_CODE): $BODY"
-          else
-            echo "Infrastructure (production, manual) recorded in New Relic"
-          fi
 
       - name: Notify on failure
         if: failure()

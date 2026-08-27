@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.45"
     }
+    # Transitional (#719): the NR provider is still required because state
+    # holds the two newrelic_* resources until the removed blocks below
+    # apply (forget). Delete this entry + the .terraform.lock.hcl entry in
+    # the follow-up cleanup PR once that apply has run.
     newrelic = {
       source  = "newrelic/newrelic"
       version = "~> 3.49"
@@ -28,14 +32,6 @@ provider "aws" {
 provider "aws" {
   alias  = "us_east_1"
   region = "us-east-1"
-}
-
-# New Relic provider - auth via NEW_RELIC_API_KEY env var (set on the
-# CI runner from secrets.NEW_RELIC_API_KEY). Account ID + region come
-# from variables so they're declarative rather than env-dependent.
-provider "newrelic" {
-  account_id = var.newrelic_account_id
-  region     = var.newrelic_region
 }
 
 # -----------------------------------------------------------------------------
@@ -1017,122 +1013,29 @@ resource "aws_cloudwatch_event_target" "db_break_glass_assume_to_sns_us_east_1" 
 
 
 # -----------------------------------------------------------------------------
-# New Relic ↔ AWS account integration (API poll)
+# New Relic removal (#719)
 # -----------------------------------------------------------------------------
-# Cross-account IAM role assumed by NR to poll CloudWatch metrics from
-# AWS namespace dashboards (RDS, ALB, CloudFront, SES, S3, Route 53,
-# etc). API poll over CloudWatch Metric Streams: 5-min granularity but
-# free; revisit when budget allows.
+# The NR AWS integration ran in PULL mode with no region restriction, so
+# NR issued billable GetMetricData calls in every AWS region (~$18/mo).
+# CloudWatch + SNS covers our alerting, so New Relic is removed entirely.
 #
-# The link account resource also tracks the integration in NR so a
-# console-side change shows as drift in the daily drift workflow
-# (#228) rather than silently diverging.
+# The two NR-provider-managed resources are forgotten (dropped from
+# state) rather than destroyed: once NR credentials are gone from CI an
+# apply could never destroy them anyway, and the NR account is being
+# closed out of band, which deletes the NR-side link objects regardless.
+# Delete these removed blocks in the follow-up cleanup PR once this has
+# applied.
 
-data "aws_iam_policy_document" "newrelic_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type = "AWS"
-      # New Relic's integration account. Same value across all NR
-      # tenants - they assume into our account using ExternalId for
-      # tenant separation.
-      identifiers = ["arn:aws:iam::754728514883:root"]
-    }
-    condition {
-      test     = "StringEquals"
-      variable = "sts:ExternalId"
-      values   = [tostring(var.newrelic_account_id)]
-    }
+removed {
+  from = newrelic_cloud_aws_link_account.main
+  lifecycle {
+    destroy = false
   }
 }
 
-resource "aws_iam_role" "newrelic_integration" {
-  name               = "NewRelicInfrastructure-Integrations"
-  description        = "Allows New Relic to poll CloudWatch on this account"
-  assume_role_policy = data.aws_iam_policy_document.newrelic_assume.json
-}
-
-resource "aws_iam_role_policy_attachment" "newrelic_readonly" {
-  role       = aws_iam_role.newrelic_integration.name
-  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
-}
-
-# Grants the additional permissions NR needs beyond ReadOnlyAccess
-# (mainly billing / budget metadata). The previous ARN ("AWSBilling")
-# does not exist as an AWS-managed policy; AWSBillingReadOnlyAccess
-# is the read-only managed policy that NR's docs recommend for the
-# billing integration. We're not yet enabling NR's `billing {}` block
-# in newrelic_cloud_aws_integrations, but attaching this now means
-# enabling billing later is a one-line change to that resource.
-resource "aws_iam_role_policy_attachment" "newrelic_budgets" {
-  role       = aws_iam_role.newrelic_integration.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSBillingReadOnlyAccess"
-}
-
-# Tell New Relic about the role. NR begins polling CloudWatch via this
-# role on the next poll cycle (every 5 min by default).
-resource "newrelic_cloud_aws_link_account" "main" {
-  account_id             = var.newrelic_account_id
-  arn                    = aws_iam_role.newrelic_integration.arn
-  metric_collection_mode = "PULL"
-  name                   = "percy-main-aws"
-  depends_on = [
-    aws_iam_role_policy_attachment.newrelic_readonly,
-    aws_iam_role_policy_attachment.newrelic_budgets,
-  ]
-}
-
-# Enable the per-service AWS integrations we actually use. Cheap to
-# leave the others off - NR only polls services listed here.
-resource "newrelic_cloud_aws_integrations" "main" {
-  account_id        = var.newrelic_account_id
-  linked_account_id = newrelic_cloud_aws_link_account.main.id
-
-  # Per-service blocks. Polling intervals + fetch flags are pinned to
-  # the NR provider defaults rather than left as empty `{}` because the
-  # provider populates them as computed values during apply, which
-  # otherwise produces perpetual `300 -> null` drift on every plan.
-  # Add tag filters here later if we want to narrow what gets ingested.
-  alb {
-    fetch_tags               = true
-    metrics_polling_interval = 300
-  }
-  cloudfront {
-    metrics_polling_interval = 300
-  }
-  ec2 {
-    fetch_ip_addresses       = true
-    metrics_polling_interval = 300
-  }
-  ecs {
-    fetch_tags               = true
-    metrics_polling_interval = 300
-  }
-  elb {
-    fetch_tags               = true
-    metrics_polling_interval = 300
-  }
-  iam {
-    metrics_polling_interval = 3600
-  }
-  rds {
-    fetch_tags               = true
-    metrics_polling_interval = 300
-  }
-  route53 {
-    metrics_polling_interval = 300
-  }
-  s3 {
-    fetch_tags               = true
-    metrics_polling_interval = 300
-  }
-  ses {
-    metrics_polling_interval = 300
-  }
-  sns {
-    metrics_polling_interval = 300
-  }
-  vpc {
-    metrics_polling_interval = 900
+removed {
+  from = newrelic_cloud_aws_integrations.main
+  lifecycle {
+    destroy = false
   }
 }

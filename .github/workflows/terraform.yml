@@ -80,13 +80,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-    env:
-      # Placeholder, NOT the real secret: the newrelic provider block in
-      # shared marks api_key required, and validate checks provider
-      # config schemas. Validate never configures providers or calls
-      # any API, so any non-empty value satisfies the schema while
-      # keeping this job secret-free.
-      NEW_RELIC_API_KEY: "validate-only-placeholder"
     strategy:
       # Report both environments independently; a shared-only failure
       # cancelling production (or vice versa) hides signal.
@@ -122,16 +115,6 @@ jobs:
       id-token: write
       contents: read
       pull-requests: write
-    env:
-      # NR provider - newrelic_cloud_aws_link_account in shared (#201).
-      # Job-scoped rather than workflow-level so the uncredentialed
-      # jobs above never see the secret.
-      # NOTE: dependabot-triggered runs resolve secrets from the
-      # separate Dependabot secret store, so this key must be defined
-      # in BOTH stores (Settings > Secrets and variables > Actions AND
-      # > Dependabot) or dependabot plans of shared fail.
-      NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-      TF_VAR_newrelic_account_id: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
     # Bound execution well under the 1h OIDC credential lifetime. The
     # 2026-06-15 stale lock came from a dependabot plan (shared) that hung
     # and ran to the 6h default limit; by then its creds had expired, so
@@ -179,12 +162,9 @@ jobs:
         # `pipefail`, so we have to check explicitly.)
         # -lock-timeout: queue briefly behind a concurrent in-flight plan
         # rather than failing immediately on lock contention.
-        # -input=false: a missing provider credential must error, not
-        # prompt on stdin. Dependabot-triggered runs read the Dependabot
-        # secret store, so if NEW_RELIC_API_KEY is absent there terraform
-        # would otherwise prompt for provider.newrelic.api_key and hang
-        # plan (shared) to the step timeout (see the 2026-06-15 stale
-        # lock note above).
+        # -input=false: a missing provider credential or variable must
+        # error, not prompt on stdin and hang the plan to the step
+        # timeout (see the 2026-06-15 stale lock note above).
         run: |
           terraform plan -input=false -no-color -lock-timeout=2m -out=tfplan 2>&1 | tee plan.txt
           exit "${PIPESTATUS[0]}"
