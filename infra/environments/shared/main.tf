@@ -34,6 +34,17 @@ provider "aws" {
   region = "us-east-1"
 }
 
+# Transitional (#719): the NR provider schema requires explicit configuration
+# while the two newrelic_* resources remain in state, even though the removed
+# blocks only forget them (no NR API calls are made, so the values are inert
+# placeholders). Delete this block in the follow-up cleanup PR alongside the
+# required_providers entry above.
+provider "newrelic" {
+  account_id = 1
+  api_key    = "NRAK-0000000000000000000000000000000000000"
+  region     = "EU"
+}
+
 # -----------------------------------------------------------------------------
 # Route 53
 # -----------------------------------------------------------------------------
