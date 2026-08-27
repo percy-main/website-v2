@@ -114,6 +114,23 @@ resource "aws_s3_bucket_versioning" "frontend" {
   }
 }
 
+# Every deploy's `sync --delete` turns the previous build into noncurrent
+# versions, which accumulate forever without an expiry. 30 days is ample
+# rollback window and mirrors the uploads bucket's rule (cdn module).
+resource "aws_s3_bucket_lifecycle_configuration" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 

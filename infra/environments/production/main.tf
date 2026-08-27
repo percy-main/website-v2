@@ -414,6 +414,15 @@ module "prerender" {
   alarms_sns_topic_arn = module.monitoring.sns_topic_arn
 }
 
+# Adopts the Lambda-auto-created prerenderer log group (infinite
+# retention) into state so the module's 14-day retention applies (#723).
+# One-shot: delete this block once the apply that performs the import
+# has landed.
+import {
+  to = module.prerender.aws_cloudwatch_log_group.prerenderer
+  id = "/aws/lambda/percy-main-production-prerenderer"
+}
+
 # Matchday PWA distribution - separate from the main marketing site so a
 # matchday deploy invalidates only matchday's cache. Reuses the wildcard
 # us-east-1 ACM cert (*.percymain.org SAN). DNS for matchday.percymain.org

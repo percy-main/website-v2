@@ -160,6 +160,15 @@ resource "aws_iam_role_policy" "prerenderer" {
 # Lambda function
 # ------------------------------------------------------------------------------
 
+# Explicit log group so retention is controlled - Lambda otherwise
+# auto-creates it with infinite retention (which is how the production
+# group came to exist; adopted via an import block in the root module).
+resource "aws_cloudwatch_log_group" "prerenderer" {
+  name              = "/aws/lambda/${local.function_name}"
+  retention_in_days = 14
+  tags              = local.tags
+}
+
 # Placeholder package so Terraform can create the function before the
 # first deploy-web run pushes the real bundle.
 data "archive_file" "placeholder" {
@@ -204,6 +213,10 @@ resource "aws_lambda_function" "prerenderer" {
     # deploy-web pushes the real bundle with update-function-code.
     ignore_changes = [filename, source_code_hash]
   }
+
+  # The log group must exist before the function's first invocation, or
+  # Lambda auto-creates it and the Terraform-managed one conflicts.
+  depends_on = [aws_cloudwatch_log_group.prerenderer]
 
   tags = local.tags
 }
