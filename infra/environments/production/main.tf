@@ -160,7 +160,7 @@ module "ecs" {
   task_count               = 1
   max_task_count           = 4
   cpu                      = 256
-  memory                   = 2048
+  memory                   = 1024
   ecr_repository_url       = local.shared.ecr_repository_url
   acm_certificate_arn      = local.shared.acm_alb_certificate_arn
   vpc_id                   = module.vpc.vpc_id
