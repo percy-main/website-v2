@@ -208,14 +208,14 @@ resource "aws_cloudwatch_log_group" "api" {
 resource "aws_ecs_cluster" "main" {
   name = "${local.name_prefix}-cluster"
 
-  # Enabled so the monitoring module's task-count-drop alarm (#205) has
-  # ECS/ContainerInsights DesiredTaskCount + RunningTaskCount metrics
-  # to alarm against. Without this, those metrics are not published
-  # and the alarm sits in INSUFFICIENT_DATA forever. The cost is the
-  # extra CW Logs ingest for ContainerInsights - small at our scale.
+  # Disabled (#718): the ~28 custom ECS/ContainerInsights metrics cost
+  # more than they tell us - task health is already covered by the ALB
+  # unhealthy-host alarm, the deployment-failed EventBridge rule, and
+  # the in-process OTel/New Relic agent. Re-enable only if an alarm
+  # needs ECS/ContainerInsights metrics again.
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = "disabled"
   }
 
   tags = local.tags
