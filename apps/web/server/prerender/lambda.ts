@@ -27,6 +27,7 @@ import {
   navHash,
   nextState,
   planReconcile,
+  sitemapNeedsUpdate,
   type ManifestItem,
   type PrerenderState,
 } from "@/prerender/reconcile.js";
@@ -63,6 +64,7 @@ import {
 // build:ssr; if it fails, run `pnpm dedupe @smithy/signature-v4`.
 import "@smithy/signature-v4a";
 import { QueryClient } from "@tanstack/react-query";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -464,6 +466,10 @@ async function sync(force: boolean): Promise<SyncSummary> {
         nextState(
           manifest,
           currentNavHash,
+          // sitemap.xml is only rewritten at the end of the sync, so a
+          // mid-sync flush must carry the stored hash - flushing the new
+          // one would make a resumed sync skip the sitemap rewrite.
+          state?.sitemapHash,
           new Set([...failed, ...pendingUrls]),
         ),
       ),
@@ -513,25 +519,44 @@ async function sync(force: boolean): Promise<SyncSummary> {
     plan.toUnrender.map(snapshotKvsKey),
   );
 
-  await putObject(
-    "sitemap.xml",
-    buildSitemap(manifest, siteOrigin()),
-    "application/xml",
+  const sitemap = buildSitemap(manifest, siteOrigin());
+  const sitemapHash = createHash("sha256").update(sitemap).digest("hex");
+  const sitemapChanged = sitemapNeedsUpdate(
+    plan.mode,
+    state?.sitemapHash,
+    sitemapHash,
   );
-  await putObject(
-    STATE_KEY,
-    JSON.stringify(nextState(manifest, currentNavHash, failed)),
-    "application/json",
-  );
+  if (sitemapChanged) {
+    await putObject("sitemap.xml", sitemap, "application/xml");
+  }
+
+  // The 15-minute sweep mostly changes nothing; a clean diff sweep skips
+  // the state write too (it would be identical) so it costs zero S3
+  // writes and zero CloudFront invalidations. Write order matters: the
+  // sitemap lands before the state that records its hash, so a crash
+  // between the two rewrites the sitemap next sweep instead of
+  // stranding a stale one.
+  const noop =
+    plan.mode === "diff" &&
+    plan.toRender.length === 0 &&
+    plan.toUnrender.length === 0 &&
+    !sitemapChanged;
+  if (!noop) {
+    await putObject(
+      STATE_KEY,
+      JSON.stringify(nextState(manifest, currentNavHash, sitemapHash, failed)),
+      "application/json",
+    );
+  }
 
   // Earlier flushes already invalidated their batches; only the final
-  // batch, unrendered urls and the sitemap remain.
+  // batch, unrendered urls and the sitemap (when it changed) remain.
   const invalidationPaths =
     plan.mode === "diff"
       ? [
           ...finalBatch.map(snapshotInvalidationPath),
           ...plan.toUnrender.map(snapshotInvalidationPath),
-          "/sitemap.xml",
+          ...(sitemapChanged ? ["/sitemap.xml"] : []),
         ]
       : ["/_prerender/*", "/sitemap.xml"];
   await invalidate(invalidationPaths);
