@@ -575,6 +575,8 @@ module "monitoring" {
 # ---------------------------------------------------------------------------
 # Tailscale Subnet Router - admin DB access
 # Advertises the VPC CIDR to the tailnet. See docs/adrs/ for bootstrap steps.
+# On-demand since issue #720: stopped by default, started with
+# `pnpm run db:tunnel`, self-stops 30 minutes after boot.
 # ---------------------------------------------------------------------------
 
 module "tailscale_router" {
@@ -583,7 +585,9 @@ module "tailscale_router" {
   vpc_id           = module.vpc.vpc_id
   public_subnet_id = module.vpc.public_subnet_ids[0]
   advertise_cidr   = "10.0.0.0/16"
-  enable_alarms    = true
+  # Off: the router is stopped by default; StatusCheck alarms treat missing
+  # data as breaching and would page constantly on a stopped instance.
+  enable_alarms = false
 }
 
 # Allow admins on the tailnet (via the router) to reach RDS

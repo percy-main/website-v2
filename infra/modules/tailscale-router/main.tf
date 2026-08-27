@@ -11,6 +11,11 @@
 #     arrives via NAT-traversed UDP.
 #   - No SSH. If debugging is ever needed, `aws ssm start-session` via the
 #     SSM agent installed by user_data.
+#   - On-demand (issue #720): a systemd oneshot schedules `shutdown -h +30`
+#     on every boot, so the instance stops itself ~30 minutes after being
+#     started. The instance is EBS-backed with the default stop-on-shutdown
+#     behaviour, so `shutdown -h` stops rather than terminates it. Start it
+#     with `pnpm run db:tunnel` (scripts/db-tunnel.sh).
 #   - OAuth client secret (a `tskey-client-...` reusable auth key) lives in
 #     Secrets Manager at the ARN exposed by `auth_secret_arn`. The module
 #     owns the container; the environment is expected to own the value
@@ -213,8 +218,12 @@ locals {
       echo "Tailscale auth secret is empty — populate it manually." >&2
       exit 1
     fi
+    # OAuth client secrets used as auth keys register EPHEMERAL nodes by
+    # default; ephemeral nodes are removed by Tailscale while the instance
+    # is stopped, which breaks the on-demand stop/start pattern. Force a
+    # persistent, preauthorized registration instead.
     tailscale up \
-      --authkey="$AUTH_KEY" \
+      --authkey="$${AUTH_KEY}?ephemeral=false&preauthorized=true" \
       --advertise-routes="${var.advertise_cidr}" \
       --accept-dns=false \
       --hostname="${local.name_prefix}-router" \
@@ -241,6 +250,25 @@ locals {
     UNIT
     systemctl daemon-reload
     systemctl enable --now tailscale-authenticate.service
+
+    # On-demand auto-stop: schedule a halt 30 minutes after EVERY boot.
+    # Delivered as an enabled systemd unit (not a bare user-data command)
+    # because cloud-init user data only runs once per instance, while this
+    # must re-arm each time the instance is started.
+    cat > /etc/systemd/system/auto-stop.service <<'AUTOSTOP'
+    [Unit]
+    Description=Stop this on-demand instance 30 minutes after boot
+
+    [Service]
+    Type=oneshot
+    ExecStart=/usr/sbin/shutdown -h +30 "Auto-stop: on-demand Tailscale router halts 30 minutes after boot"
+    RemainAfterExit=yes
+
+    [Install]
+    WantedBy=multi-user.target
+    AUTOSTOP
+    systemctl daemon-reload
+    systemctl enable --now auto-stop.service
   EOT
 }
 
@@ -307,9 +335,10 @@ output "auth_secret_name" {
 
 # -----------------------------------------------------------------------------
 # CloudWatch alarms — StatusCheck (instance + system) and sustained high CPU.
-# The router gates admin DB access; if it goes down the only recovery path
-# is a Terraform redeploy, so failures need to page rather than be discovered
-# next time someone tries to reach RDS.
+# Only sensible for an ALWAYS-ON router. With the on-demand pattern (stopped
+# by default, issue #720) these must stay disabled: the StatusCheck alarms
+# treat missing data as breaching, so a deliberately stopped instance would
+# page constantly. The flag is kept for any future always-on deployment.
 #
 # A dedicated SNS topic (not the monitoring module's alarms topic) avoids
 # the encrypted-topic problem: the monitoring module's topic uses
