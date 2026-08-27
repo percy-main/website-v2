@@ -573,6 +573,27 @@ module "monitoring" {
 }
 
 # ---------------------------------------------------------------------------
+# API Gateway HTTP API (#722) - stood up ALONGSIDE the ALB, zero traffic
+# moved. api.v2.percymain.org still points at the ALB (records above); the
+# gateway serves only the test hostname until verification on it passes.
+# The DNS flip and the ALB removal are separate follow-up PRs (see ADR 061
+# for the staged plan and the route-duration audit that gates the flip).
+# ---------------------------------------------------------------------------
+
+module "api_gateway" {
+  source                        = "../../modules/api-gateway"
+  environment                   = "production"
+  vpc_id                        = module.vpc.vpc_id
+  subnet_ids                    = module.vpc.public_subnet_ids
+  ecs_security_group_id         = module.vpc.ecs_security_group_id
+  service_discovery_service_arn = module.ecs.service_discovery_service_arn
+  zone_id                       = local.shared.zone_id
+  api_domain_name               = "api.v2.percymain.org"
+  test_domain_name              = "api-gw-test.percymain.org"
+  alarms_sns_topic_arn          = module.monitoring.sns_topic_arn
+}
+
+# ---------------------------------------------------------------------------
 # Tailscale Subnet Router - admin DB access
 # Advertises the VPC CIDR to the tailnet. See docs/adrs/ for bootstrap steps.
 # ---------------------------------------------------------------------------
