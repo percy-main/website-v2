@@ -43,6 +43,12 @@ export interface PrerenderState {
   v: 1;
   navHash: string;
   items: Record<string, StateEntry>;
+  /**
+   * sha256 of the sitemap.xml the last sync left in the bucket, so a
+   * sweep that changes nothing can skip the rewrite and its CloudFront
+   * invalidation. Absent in pre-rollout state files.
+   */
+  sitemapHash?: string;
 }
 
 export interface ReconcilePlan {
@@ -112,10 +118,27 @@ export function planReconcile(options: {
   return { mode: "diff", toRender, toUnrender };
 }
 
+/**
+ * Whether this sync must rewrite sitemap.xml and invalidate its CDN
+ * path. Full-render modes always refresh it; a diff sweep skips it when
+ * the content hash matches the stored one. A state file without a
+ * stored hash (pre-rollout) reads as changed, which writes the hash in
+ * on the first sweep.
+ */
+export function sitemapNeedsUpdate(
+  mode: ReconcilePlan["mode"],
+  storedHash: string | undefined,
+  currentHash: string,
+): boolean {
+  return mode !== "diff" || storedHash !== currentHash;
+}
+
 /** The state file a completed sync should persist. */
 export function nextState(
   manifest: ManifestItem[],
   currentNavHash: string,
+  /** Hash of the sitemap the bucket holds; undefined only pre-rollout. */
+  sitemapHash: string | undefined,
   /** URLs that failed to render this sync - left out so the next reconcile retries them. */
   failedUrls: ReadonlySet<string> = new Set(),
 ): PrerenderState {
@@ -128,5 +151,10 @@ export function nextState(
       ...(item.hash !== undefined ? { hash: item.hash } : {}),
     };
   }
-  return { v: 1, navHash: currentNavHash, items };
+  return {
+    v: 1,
+    navHash: currentNavHash,
+    items,
+    ...(sitemapHash !== undefined ? { sitemapHash } : {}),
+  };
 }

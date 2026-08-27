@@ -3,6 +3,7 @@ import {
   navHash,
   nextState,
   planReconcile,
+  sitemapNeedsUpdate,
   type ManifestItem,
   type PrerenderState,
 } from "./reconcile.js";
@@ -167,7 +168,12 @@ describe("nextState", () => {
   it("records the manifest minus failures so retries happen next sync", () => {
     const ok = item("/club");
     const failed = item("/club/history");
-    const result = nextState([ok, failed], "abc", new Set(["/club/history"]));
+    const result = nextState(
+      [ok, failed],
+      "abc",
+      "map1",
+      new Set(["/club/history"]),
+    );
     expect(Object.keys(result.items)).toEqual(["/club"]);
     expect(result.navHash).toBe("abc");
     expect(result.v).toBe(1);
@@ -176,9 +182,36 @@ describe("nextState", () => {
   it("persists the content hash when an item carries one", () => {
     const game = item("/calendar/game/123", { kind: "game", hash: "abc123" });
     const page = item("/club");
-    const result = nextState([game, page], "nav");
+    const result = nextState([game, page], "nav", "map1");
     expect(result.items["/calendar/game/123"].hash).toBe("abc123");
     expect("hash" in result.items["/club"]).toBe(false);
+  });
+
+  it("persists the sitemap hash, omitting the key when there is none", () => {
+    expect(nextState([], "nav", "map1").sitemapHash).toBe("map1");
+    // A mid-sync flush before the rollout state exists carries undefined;
+    // the key is left out entirely rather than written as null.
+    expect("sitemapHash" in nextState([], "nav", undefined)).toBe(false);
+  });
+});
+
+describe("sitemapNeedsUpdate", () => {
+  it("skips a diff sweep whose sitemap is unchanged", () => {
+    expect(sitemapNeedsUpdate("diff", "map1", "map1")).toBe(false);
+  });
+
+  it("updates on a diff sweep when the sitemap content changed", () => {
+    expect(sitemapNeedsUpdate("diff", "map1", "map2")).toBe(true);
+  });
+
+  it("updates when the state file predates sitemap hashing", () => {
+    expect(sitemapNeedsUpdate("diff", undefined, "map1")).toBe(true);
+  });
+
+  it("always updates in full-render modes, even on a hash match", () => {
+    for (const mode of ["initial", "nav-changed", "forced"] as const) {
+      expect(sitemapNeedsUpdate(mode, "map1", "map1")).toBe(true);
+    }
   });
 });
 
