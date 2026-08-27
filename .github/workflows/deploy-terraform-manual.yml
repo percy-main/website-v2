@@ -40,6 +40,11 @@ defaults:
 env:
   AWS_REGION: eu-west-2
   TF_VERSION: "1.7"
+  # Transitional (#719): remove in the follow-up cleanup PR once the NR forget has applied.
+  # NR provider — newrelic_cloud_aws_link_account in shared (#201).
+  # Workflow-level so both shared + production jobs inherit.
+  NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+  TF_VAR_newrelic_account_id: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
 
 jobs:
   terraform-shared:

@@ -93,6 +93,14 @@ jobs:
     environment: production
     env:
       TF_VERSION: "1.7"
+      # Transitional (#719): remove in the follow-up cleanup PR once the NR forget has applied.
+      # NR provider - newrelic_cloud_aws_link_account in shared (#201).
+      # Both values are REQUIRED for plan/apply against shared to
+      # succeed: the var is required (no default) and the provider
+      # validates auth at config time. Already populated in repo
+      # secrets/vars from the wave-1 NR change-marker work.
+      NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+      TF_VAR_newrelic_account_id: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

@@ -7,8 +7,9 @@ terraform {
     }
     # Transitional (#719): the NR provider is still required because state
     # holds the two newrelic_* resources until the removed blocks below
-    # apply (forget). Delete this entry + the .terraform.lock.hcl entry in
-    # the follow-up cleanup PR once that apply has run.
+    # apply (forget). The follow-up cleanup PR deletes this entry, the
+    # .terraform.lock.hcl entry, the provider block + variables below,
+    # and the NR credentials in the workflows once that apply has run.
     newrelic = {
       source  = "newrelic/newrelic"
       version = "~> 3.49"
@@ -34,15 +35,19 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Transitional (#719): the NR provider schema requires explicit configuration
-# while the two newrelic_* resources remain in state, even though the removed
-# blocks only forget them (no NR API calls are made, so the values are inert
-# placeholders). Delete this block in the follow-up cleanup PR alongside the
-# required_providers entry above.
+# New Relic provider - auth via NEW_RELIC_API_KEY env var (set on the
+# CI runner from secrets.NEW_RELIC_API_KEY). Account ID + region come
+# from variables so they're declarative rather than env-dependent.
+#
+# Transitional (#719): CI pins Terraform 1.7, which REFRESHES resources
+# targeted by removed/forget blocks, so plan/apply make real NR API
+# calls while the two newrelic_* resources remain in state - placeholder
+# credentials 401. This block, its variables, and the workflow
+# credentials all go in the follow-up cleanup PR once the forget has
+# applied.
 provider "newrelic" {
-  account_id = 1
-  api_key    = "NRAK-0000000000000000000000000000000000000"
-  region     = "EU"
+  account_id = var.newrelic_account_id
+  region     = var.newrelic_region
 }
 
 # -----------------------------------------------------------------------------
@@ -1048,11 +1053,10 @@ resource "aws_cloudwatch_event_target" "db_break_glass_assume_to_sns_us_east_1" 
 # CloudWatch + SNS covers our alerting, so New Relic is removed entirely.
 #
 # The two NR-provider-managed resources are forgotten (dropped from
-# state) rather than destroyed: once NR credentials are gone from CI an
-# apply could never destroy them anyway, and the NR account is being
-# closed out of band, which deletes the NR-side link objects regardless.
-# Delete these removed blocks in the follow-up cleanup PR once this has
-# applied.
+# state) rather than destroyed: the NR account is being closed out of
+# band, which deletes the NR-side link objects regardless, so destroying
+# them from Terraform buys nothing. Delete these removed blocks in the
+# follow-up cleanup PR once this has applied.
 
 removed {
   from = newrelic_cloud_aws_link_account.main
