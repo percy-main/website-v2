@@ -27,6 +27,7 @@
     "db:migration": "pnpm --filter @percy-main/db db:migration",
     "db:reset": "pnpm --filter @percy-main/db db:reset",
     "db:lift": "pnpm --filter @percy-main/db db:lift",
+    "db:tunnel": "bash scripts/db-tunnel.sh",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "openapi:generate": "turbo run openapi --filter=api"

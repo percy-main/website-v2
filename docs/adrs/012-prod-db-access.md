@@ -1,7 +1,7 @@
 # Decision 012: Production DB Access via Tailscale
 
 **Date:** 2026-04-20
-**Status:** Accepted
+**Status:** Accepted (amended 2026-08-27 - on-demand router, see below)
 
 ## Decision
 
@@ -186,6 +186,29 @@ Label TablePlus connections distinctly — e.g. green for `admin_ro`, red for
   `var.tailscale_db_admins` in `infra/environments/production/variables.tf`
   and apply. They sign in to Tailscale with that account; nothing else to
   configure. DB passwords are in Secrets Manager (separate IAM).
+
+## Amendment (2026-08-27): on-demand router (issue #720)
+
+The router is no longer always-on. It is stopped by default and started per
+access window with `pnpm run db:tunnel` (looks the instance up by its Name
+tag, starts it, waits for running). A systemd oneshot enabled at
+multi-user.target runs `shutdown -h +30` on every boot, so the instance
+stops itself ~30 minutes after being started; the auto-assigned public IPv4
+is released (and unbilled) while stopped. For a longer session, wait for the
+stop and start again. Saves ~$12.50/mo (compute + public IPv4 + alarms).
+
+Consequences:
+
+- `enable_alarms` is now `false` in production - the StatusCheck alarms
+  treat missing data as breaching and cannot coexist with a deliberately
+  stopped instance. `scripts/bastion-sql.sh` remains the break-glass if the
+  router is broken.
+- The OAuth client secret is now used as
+  `--authkey="$AUTH_KEY?ephemeral=false&preauthorized=true"`. OAuth-secret
+  registrations are EPHEMERAL by default, and Tailscale garbage-collects
+  ephemeral nodes while they are offline - which would have made the node
+  vanish between access windows. Persistent registration keeps the node
+  entry (shown offline) across stops.
 
 ## Follow-ups
 

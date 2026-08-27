@@ -71,7 +71,15 @@ All AWS CLI commands must use the `percy-main` profile:
 aws --profile percy-main ...
 ```
 
-Infrastructure is in [`infra/`](infra/). Production DB access for operators is via Tailscale — see [ADR 012](docs/adrs/012-prod-db-access.md).
+Infrastructure is in [`infra/`](infra/). Production DB access for operators is via Tailscale - see [ADR 012](docs/adrs/012-prod-db-access.md).
+
+The Tailscale subnet router is on-demand (stopped by default) to save cost. Open an access window with:
+
+```sh
+pnpm run db:tunnel
+```
+
+This starts the router (reachable in ~1-2 minutes) and it stops itself 30 minutes after boot. For a longer session, wait for the stop and run it again.
 
 ## Contributing
 
