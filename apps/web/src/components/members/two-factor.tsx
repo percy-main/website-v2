@@ -68,7 +68,7 @@ export function TwoFactor({ user }: Props) {
               data: { data: P.not(P.nullish), error: P.nullish },
             },
             enable2FA: {
-              data: { data: P.not(P.nullish) },
+              data: { data: { method: "totp" } },
             },
           },
           ({
@@ -92,7 +92,7 @@ export function TwoFactor({ user }: Props) {
           {
             isEnabling: true,
             enable2FA: {
-              data: { data: P.not(P.nullish) },
+              data: { data: { method: "totp" } },
             },
           },
           ({

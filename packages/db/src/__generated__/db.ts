@@ -76,6 +76,7 @@ export interface Account {
   createdAt: Timestamp;
   id: string;
   idToken: string | null;
+  issuer: string;
   password: string | null;
   providerId: string;
   refreshToken: string | null;
@@ -750,6 +751,7 @@ export interface NotificationPreferences {
 }
 
 export interface Passkey {
+  aaguid: string | null;
   backedUp: boolean;
   counter: number;
   createdAt: Timestamp | null;
@@ -1000,9 +1002,12 @@ export interface TeamOfficial {
 
 export interface TwoFactor {
   backupCodes: string;
+  failedVerificationCount: Generated<number>;
   id: string;
+  lockedUntil: Timestamp | null;
   secret: string;
   userId: string;
+  verified: Generated<boolean>;
 }
 
 export interface User {
