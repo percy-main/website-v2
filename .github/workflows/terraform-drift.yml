@@ -28,6 +28,7 @@ defaults:
 env:
   AWS_REGION: eu-west-2
   TF_VERSION: "1.7"
+  # Transitional (#719): remove in the follow-up cleanup PR once the NR forget has applied.
   # NR provider (#201) — needed so drift detection can plan against
   # the newrelic_cloud_aws_link_account resource in shared.
   NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}

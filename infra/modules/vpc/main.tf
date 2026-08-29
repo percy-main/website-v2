@@ -341,7 +341,7 @@ resource "aws_flow_log" "main" {
   # forensics without paying CloudWatch Logs ingest on every successful
   # request flow. Sufficient for "who tried to talk to a port we
   # weren't listening on" investigations; insufficient for traffic
-  # accounting (use VPC Lattice or NR network monitoring if needed).
+  # accounting (use VPC Lattice or a network monitoring tool if needed).
   # See ADR 036.
   traffic_type         = "REJECT"
   log_destination      = aws_cloudwatch_log_group.flow_logs.arn

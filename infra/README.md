@@ -12,7 +12,7 @@ Terraform-managed AWS infrastructure for Percy Main. Reusable `modules/` compose
 
 - State lives in an S3 backend (eu-west-2) with DynamoDB locking; each environment is an independent state file.
 - Two AWS regions: eu-west-2 (everything) and a us-east-1 alias (CloudFront certs + Route 53 metrics).
-- Tailscale (production only) and New Relic (shared only) providers are also configured.
+- The Tailscale provider (production only) is also configured.
 
 ## Apply
 

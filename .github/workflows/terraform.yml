@@ -81,6 +81,7 @@ jobs:
     permissions:
       contents: read
     env:
+      # Transitional (#719): remove in the follow-up cleanup PR once the NR forget has applied.
       # Placeholder, NOT the real secret: the newrelic provider block in
       # shared marks api_key required, and validate checks provider
       # config schemas. Validate never configures providers or calls
@@ -123,6 +124,7 @@ jobs:
       contents: read
       pull-requests: write
     env:
+      # Transitional (#719): remove in the follow-up cleanup PR once the NR forget has applied.
       # NR provider - newrelic_cloud_aws_link_account in shared (#201).
       # Job-scoped rather than workflow-level so the uncredentialed
       # jobs above never see the secret.

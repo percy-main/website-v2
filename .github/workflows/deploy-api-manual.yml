@@ -49,8 +49,7 @@ jobs:
         id: ref
         # workflow_dispatch sets github.sha to the workflow file's branch
         # SHA, NOT the checked-out inputs.ref. Capture the actual SHA
-        # so image tag, NR markers, and the summary all reference what
-        # we deployed.
+        # so the image tag and the summary reference what we deployed.
         run: |
           DEPLOYED_SHA=$(git rev-parse HEAD)
           echo "sha=${DEPLOYED_SHA}" >> "$GITHUB_OUTPUT"
@@ -110,10 +109,10 @@ jobs:
           RELEASE_SHA: ${{ steps.ref.outputs.sha }}
           MIGRATION_TASK_DEF_FAMILY: production-api-migrate
         run: |
-          # Patch image + add RELEASE_SHA / NEW_RELIC_LABELS env vars so
-          # NR APM and OTel can filter logs/traces by release. Applied
-          # to both the API task def and the migration task def
-          # (#130 - separate task def for principle of least privilege).
+          # Patch image + add a RELEASE_SHA env var so logs/traces can
+          # be filtered by release. Applied to both the API task def
+          # and the migration task def (#130 - separate task def for
+          # principle of least privilege).
           patch_task_def() {
             local family="$1"
             local def
@@ -127,9 +126,8 @@ jobs:
               --arg SHA "$RELEASE_SHA" \
               '.containerDefinitions[0].image = $IMAGE
                | .containerDefinitions[0].environment = (
-                   ((.containerDefinitions[0].environment // []) | map(select(.name != "RELEASE_SHA" and .name != "NEW_RELIC_LABELS"))) +
-                   [{name: "RELEASE_SHA", value: $SHA},
-                    {name: "NEW_RELIC_LABELS", value: ("release:" + $SHA)}]
+                   ((.containerDefinitions[0].environment // []) | map(select(.name != "RELEASE_SHA"))) +
+                   [{name: "RELEASE_SHA", value: $SHA}]
                  )
                | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)'
           }
@@ -317,47 +315,6 @@ jobs:
           echo "Smoke test failed"
           exit 1
 
-      - name: Record deployment in New Relic
-        id: nr-deploy
-        if: success()
-        env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-          NEW_RELIC_ENTITY_GUID: ${{ vars.NEW_RELIC_ENTITY_GUID }}
-          ACTOR: ${{ github.actor }}
-          REF_INPUT: ${{ inputs.ref }}
-          DEPLOYED_SHA: ${{ steps.ref.outputs.sha }}
-        run: |
-          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_ENTITY_GUID:-}" ]; then
-            echo "New Relic API key or entity GUID not configured, skipping"
-            exit 0
-          fi
-          TIMESTAMP=$(date -u +%s)000
-          DESCRIPTION="Manual API deploy: actor=${ACTOR} ref=${REF_INPUT}"
-          # jq -n --arg constructs the GraphQL payload with proper JSON
-          # escaping; hand-built JSON with bash interpolation is unsafe
-          # for descriptions / refs containing quotes, backticks, $().
-          PAYLOAD=$(jq -n \
-            --arg version "$DEPLOYED_SHA" \
-            --arg entity "$NEW_RELIC_ENTITY_GUID" \
-            --arg desc "$DESCRIPTION" \
-            --argjson ts "$TIMESTAMP" \
-            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: ROLLING, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
-          # NR tracking is non-blocking: bound wait time and tolerate
-          # transport failures without failing the deploy.
-          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
-            -H "Content-Type: application/json" \
-            -H "API-Key: $NEW_RELIC_API_KEY" \
-            -d "$PAYLOAD" || printf '\n000')
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
-            echo "::warning::New Relic deployment tracking failed (HTTP $HTTP_CODE): $BODY"
-          else
-            DEPLOY_ID=$(echo "$BODY" | jq -r '.data.changeTrackingCreateDeployment.deploymentId // empty')
-            echo "deployment_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
-            echo "Deployment recorded in New Relic: ${DEPLOY_ID}"
-          fi
-
       - name: Deploy summary
         if: always()
         env:
@@ -372,7 +329,6 @@ jobs:
             echo "- Image: \`${{ steps.build.outputs.image || 'n/a' }}\`"
             echo "- Task def: \`${{ steps.task-def.outputs.task-definition-arn || 'n/a' }}\`"
             echo "- Smoke: \`${{ steps.smoke.outcome || 'skipped' }}\`"
-            echo "- NR deploy: \`${{ steps.nr-deploy.outputs.deployment_id || 'skipped' }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Notify on failure

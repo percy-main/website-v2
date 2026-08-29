@@ -93,6 +93,7 @@ jobs:
     environment: production
     env:
       TF_VERSION: "1.7"
+      # Transitional (#719): remove in the follow-up cleanup PR once the NR forget has applied.
       # NR provider - newrelic_cloud_aws_link_account in shared (#201).
       # Both values are REQUIRED for plan/apply against shared to
       # succeed: the var is required (no default) and the provider
@@ -202,39 +203,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Record TF apply in New Relic
-        if: success()
-        env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-          NEW_RELIC_INFRA_ENTITY_GUID: ${{ vars.NEW_RELIC_INFRA_ENTITY_GUID }}
-          ACTOR: ${{ github.actor }}
-          REF_NAME: ${{ github.ref_name }}
-          DEPLOYED_SHA: ${{ github.sha }}
-        run: |
-          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_INFRA_ENTITY_GUID:-}" ]; then
-            echo "New Relic API key or infrastructure entity GUID not configured, skipping"
-            exit 0
-          fi
-          TIMESTAMP=$(date -u +%s)000
-          DESCRIPTION="Infrastructure apply (shared): actor=${ACTOR} ref=${REF_NAME}"
-          PAYLOAD=$(jq -n \
-            --arg version "$DEPLOYED_SHA" \
-            --arg entity "$NEW_RELIC_INFRA_ENTITY_GUID" \
-            --arg desc "$DESCRIPTION" \
-            --argjson ts "$TIMESTAMP" \
-            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
-          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
-            -H "Content-Type: application/json" \
-            -H "API-Key: $NEW_RELIC_API_KEY" \
-            -d "$PAYLOAD" || printf '\n000')
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
-            echo "::warning::New Relic infrastructure deployment tracking failed (HTTP $HTTP_CODE): $BODY"
-          else
-            echo "Infrastructure (shared) recorded in New Relic"
-          fi
-
       - name: Notify on failure
         if: failure()
         uses: ./.github/actions/notify-deploy-failure
@@ -324,39 +292,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Record TF apply in New Relic
-        if: success()
-        env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-          NEW_RELIC_INFRA_ENTITY_GUID: ${{ vars.NEW_RELIC_INFRA_ENTITY_GUID }}
-          ACTOR: ${{ github.actor }}
-          REF_NAME: ${{ github.ref_name }}
-          DEPLOYED_SHA: ${{ github.sha }}
-        run: |
-          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_INFRA_ENTITY_GUID:-}" ]; then
-            echo "New Relic API key or infrastructure entity GUID not configured, skipping"
-            exit 0
-          fi
-          TIMESTAMP=$(date -u +%s)000
-          DESCRIPTION="Infrastructure apply (production): actor=${ACTOR} ref=${REF_NAME}"
-          PAYLOAD=$(jq -n \
-            --arg version "$DEPLOYED_SHA" \
-            --arg entity "$NEW_RELIC_INFRA_ENTITY_GUID" \
-            --arg desc "$DESCRIPTION" \
-            --argjson ts "$TIMESTAMP" \
-            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
-          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
-            -H "Content-Type: application/json" \
-            -H "API-Key: $NEW_RELIC_API_KEY" \
-            -d "$PAYLOAD" || printf '\n000')
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
-            echo "::warning::New Relic infrastructure deployment tracking failed (HTTP $HTTP_CODE): $BODY"
-          else
-            echo "Infrastructure (production) recorded in New Relic"
-          fi
-
       - name: Notify on failure
         if: failure()
         uses: ./.github/actions/notify-deploy-failure
@@ -442,11 +377,10 @@ jobs:
           RELEASE_SHA: ${{ github.sha }}
           MIGRATION_TASK_DEF_FAMILY: production-api-migrate
         run: |
-          # Helper: describe → patch image + RELEASE_SHA / NEW_RELIC_LABELS
-          # env vars → register a new revision. NR APM and OTel can then
-          # filter logs/traces by release. jq's group_by keeps the last
-          # occurrence after our additions are appended, so an existing
-          # RELEASE_SHA entry gets replaced rather than duplicated.
+          # Helper: describe → patch image + RELEASE_SHA env var →
+          # register a new revision, so logs/traces can be filtered by
+          # release. An existing RELEASE_SHA entry gets replaced rather
+          # than duplicated.
           patch_task_def() {
             local family="$1"
             local def
@@ -460,9 +394,8 @@ jobs:
               --arg SHA "$RELEASE_SHA" \
               '.containerDefinitions[0].image = $IMAGE
                | .containerDefinitions[0].environment = (
-                   ((.containerDefinitions[0].environment // []) | map(select(.name != "RELEASE_SHA" and .name != "NEW_RELIC_LABELS"))) +
-                   [{name: "RELEASE_SHA", value: $SHA},
-                    {name: "NEW_RELIC_LABELS", value: ("release:" + $SHA)}]
+                   ((.containerDefinitions[0].environment // []) | map(select(.name != "RELEASE_SHA"))) +
+                   [{name: "RELEASE_SHA", value: $SHA}]
                  )
                | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)'
           }
@@ -669,38 +602,6 @@ jobs:
           echo "Smoke test failed"
           exit 1
 
-      - name: Record deployment in New Relic
-        id: nr-deploy
-        if: success()
-        env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-          NEW_RELIC_ENTITY_GUID: ${{ vars.NEW_RELIC_ENTITY_GUID }}
-          DEPLOYED_SHA: ${{ github.sha }}
-        run: |
-          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_ENTITY_GUID:-}" ]; then
-            echo "New Relic API key or entity GUID not configured, skipping"
-            exit 0
-          fi
-          TIMESTAMP=$(date -u +%s)000
-          PAYLOAD=$(jq -n \
-            --arg version "$DEPLOYED_SHA" \
-            --arg entity "$NEW_RELIC_ENTITY_GUID" \
-            --argjson ts "$TIMESTAMP" \
-            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: \"Deployed from GitHub Actions\", commit: \"" + $version + "\", deploymentType: ROLLING, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
-          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
-            -H "Content-Type: application/json" \
-            -H "API-Key: $NEW_RELIC_API_KEY" \
-            -d "$PAYLOAD" || printf '\n000')
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
-            echo "::warning::New Relic deployment tracking failed (HTTP $HTTP_CODE): $BODY"
-          else
-            DEPLOY_ID=$(echo "$BODY" | jq -r '.data.changeTrackingCreateDeployment.deploymentId // empty')
-            echo "deployment_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
-            echo "Deployment recorded in New Relic: ${DEPLOY_ID}"
-          fi
-
       - name: Deploy summary
         if: always()
         run: |
@@ -712,7 +613,6 @@ jobs:
             echo "- Image: \`${{ steps.build.outputs.image || 'n/a' }}\`"
             echo "- Task def: \`${{ steps.task-def.outputs.task-definition-arn || 'n/a' }}\`"
             echo "- Smoke: \`${{ steps.smoke.outcome || 'skipped' }}\`"
-            echo "- NR deploy: \`${{ steps.nr-deploy.outputs.deployment_id || 'skipped' }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Notify on failure
@@ -772,9 +672,6 @@ jobs:
           VITE_STRIPE_PUBLIC_KEY: ${{ vars.STRIPE_PUBLIC_KEY }}
           VITE_MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
           VITE_MAPS_MAP_ID: ${{ vars.MAPS_MAP_ID }}
-          VITE_NEW_RELIC_LICENSE_KEY: ${{ vars.NEW_RELIC_BROWSER_LICENSE_KEY }}
-          VITE_NEW_RELIC_APP_ID: ${{ vars.NEW_RELIC_BROWSER_APP_ID }}
-          VITE_NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
           # Marketing - gtag block is omitted from index.html when these are unset
           # (see apps/web/vite.config.ts gtagHtmlPlugin). Set both repo variables
           # in GitHub → Settings → Variables before the next deploy:
@@ -884,42 +781,6 @@ jobs:
             --exclude "robots.txt" \
             --exclude "_prerender/*" \
             --exclude "sitemap.xml"
-
-      - name: Record web deployment in New Relic
-        id: nr-deploy-web
-        if: success()
-        env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-          NEW_RELIC_BROWSER_ENTITY_GUID: ${{ vars.NEW_RELIC_BROWSER_ENTITY_GUID }}
-          ACTOR: ${{ github.actor }}
-          REF_NAME: ${{ github.ref_name }}
-          DEPLOYED_SHA: ${{ github.sha }}
-        run: |
-          if [ -z "${NEW_RELIC_API_KEY:-}" ] || [ -z "${NEW_RELIC_BROWSER_ENTITY_GUID:-}" ]; then
-            echo "New Relic API key or Browser entity GUID not configured, skipping"
-            exit 0
-          fi
-          TIMESTAMP=$(date -u +%s)000
-          DESCRIPTION="Web deploy: actor=${ACTOR} ref=${REF_NAME}"
-          PAYLOAD=$(jq -n \
-            --arg version "$DEPLOYED_SHA" \
-            --arg entity "$NEW_RELIC_BROWSER_ENTITY_GUID" \
-            --arg desc "$DESCRIPTION" \
-            --argjson ts "$TIMESTAMP" \
-            '{query: ("mutation { changeTrackingCreateDeployment(deployment: { version: \"" + $version + "\", entityGuid: \"" + $entity + "\", description: " + ($desc | tojson) + ", commit: \"" + $version + "\", deploymentType: BASIC, timestamp: " + ($ts | tostring) + " }) { deploymentId } }")}')
-          RESPONSE=$(curl -s --max-time 15 --connect-timeout 5 -w "\n%{http_code}" -X POST "https://api.eu.newrelic.com/graphql" \
-            -H "Content-Type: application/json" \
-            -H "API-Key: $NEW_RELIC_API_KEY" \
-            -d "$PAYLOAD" || printf '\n000')
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" -ge 400 ] || echo "$BODY" | grep -q '"errors"'; then
-            echo "::warning::New Relic web deployment tracking failed (HTTP $HTTP_CODE): $BODY"
-          else
-            DEPLOY_ID=$(echo "$BODY" | jq -r '.data.changeTrackingCreateDeployment.deploymentId // empty')
-            echo "deployment_id=${DEPLOY_ID}" >> "$GITHUB_OUTPUT"
-            echo "Web deployment recorded in New Relic: ${DEPLOY_ID}"
-          fi
 
       - name: Smoke test web
         id: smoke-web
