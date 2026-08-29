@@ -1,5 +1,7 @@
 terraform {
-  required_version = ">= 1.5"
+  # >= 1.7: the removed (forget) blocks below need config-driven state
+  # removal, introduced in Terraform 1.7.
+  required_version = ">= 1.7"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
