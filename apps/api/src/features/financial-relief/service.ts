@@ -392,7 +392,7 @@ export function listReliefRequestsForAdmin(db: Kysely<DB>) {
       );
     }
 
-    const [{ total }, rows, grants] = await Promise.all([
+    const [{ total }, rows] = await Promise.all([
       baseQuery
         .select((eb) => eb.fn.countAll<string>().as("total"))
         .executeTakeFirstOrThrow(),
@@ -442,8 +442,6 @@ export function listReliefRequestsForAdmin(db: Kysely<DB>) {
       // a second N+1.
       Promise.resolve([] as never[]),
     ]);
-    void grants;
-
     return {
       items: rows.map((r) => ({
         id: r.id,

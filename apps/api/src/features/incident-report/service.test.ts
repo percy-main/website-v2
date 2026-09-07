@@ -112,7 +112,6 @@ describe("incidentReportSubmissionSchema", () => {
 
   it("rejects submissions without declarationConfirmed", () => {
     const { declarationConfirmed: _unused, ...rest } = validSubmission();
-    void _unused;
     const result = incidentReportSubmissionSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });

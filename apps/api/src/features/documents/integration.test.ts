@@ -31,11 +31,9 @@ function createMockS3(): S3DocumentStore & { keys: string[] } {
         pendingKey,
       });
     },
-    copyToPermanent(pendingKey, documentId, version) {
+    copyToPermanent(_pendingKey, documentId, version) {
       const permanentKey = `documents/${documentId}/v${version}.pdf`;
       keys.push(permanentKey);
-      // pendingKey consumed — simulates the copy
-      void pendingKey;
       return Promise.resolve(permanentKey);
     },
     getSignedDocumentUrl(s3Key: string) {
