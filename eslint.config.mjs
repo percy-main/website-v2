@@ -195,6 +195,13 @@ export default tseslint.config(
       // mismatch. The one flagged site (consent-banner) branches on the
       // browser global deliberately.
       "react-doctor/no-hydration-branch-on-browser-global": "off",
+
+      // 0.9.13 adds architectural complexity and renderer-loop preferences
+      // that flag existing production code. Addressing them needs dedicated
+      // component and game-loop reviews, so keep this dependency update
+      // narrowly scoped.
+      "react-doctor/no-high-complexity-react-function": "off",
+      "react-doctor/three-prefer-set-animation-loop": "off",
     },
   },
   // no-locale-format-in-render (new in the 0.5.8 -> 0.8.1 bump, #646) guards
