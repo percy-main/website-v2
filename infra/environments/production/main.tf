@@ -452,52 +452,6 @@ resource "aws_cloudwatch_metric_alarm" "cdn_5xx_rate" {
   ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
 }
 
-resource "aws_cloudwatch_metric_alarm" "cdn_origin_latency" {
-  provider = aws.us_east_1
-
-  alarm_name          = "percy-main-production-cdn-origin-latency"
-  alarm_description   = "CloudFront OriginLatency p99 >2s - slow origin (ALB → API) responses, may indicate API saturation"
-  namespace           = "AWS/CloudFront"
-  metric_name         = "OriginLatency"
-  extended_statistic  = "p99"
-  period              = 300
-  evaluation_periods  = 3
-  threshold           = 2000
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    DistributionId = module.cdn.distribution_id
-    Region         = "Global"
-  }
-
-  alarm_actions = compact([local.reliability_alarms_topic_arn_us_east_1])
-  ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
-}
-
-resource "aws_cloudwatch_metric_alarm" "cdn_cache_hit_rate" {
-  provider = aws.us_east_1
-
-  alarm_name          = "percy-main-production-cdn-cache-hit-rate"
-  alarm_description   = "CloudFront cache hit rate <80% - regression in cache config or sudden uncached traffic pattern. CacheHitRate requires additional metrics to be enabled on the distribution."
-  namespace           = "AWS/CloudFront"
-  metric_name         = "CacheHitRate"
-  statistic           = "Average"
-  period              = 3600
-  evaluation_periods  = 2
-  threshold           = 80
-  comparison_operator = "LessThanThreshold"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    DistributionId = module.cdn.distribution_id
-    Region         = "Global"
-  }
-
-  alarm_actions = compact([local.reliability_alarms_topic_arn_us_east_1])
-  ok_actions    = compact([local.reliability_alarms_topic_arn_us_east_1])
-}
-
 # ── matchday distribution alarms ──
 
 resource "aws_cloudwatch_metric_alarm" "cdn_matchday_5xx_rate" {

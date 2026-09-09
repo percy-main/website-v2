@@ -134,57 +134,6 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
   tags = local.default_tags
 }
 
-# Running below desired — pages on task crash-loop / cold-stop / 0
-# tasks running. Uses metric math so it works for any desired count.
-resource "aws_cloudwatch_metric_alarm" "ecs_running_below_desired" {
-  alarm_name          = "${local.prefix}-ecs-running-below-desired"
-  alarm_description   = "ECS service has fewer running tasks than desired — crash loop, capacity exhaustion, or stuck deployment"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 2
-  threshold           = 0
-  treat_missing_data  = "notBreaching"
-
-  metric_query {
-    id          = "missing"
-    expression  = "desired - running"
-    label       = "Desired - Running"
-    return_data = true
-  }
-
-  metric_query {
-    id = "desired"
-    metric {
-      metric_name = "DesiredTaskCount"
-      namespace   = "ECS/ContainerInsights"
-      period      = 60
-      stat        = "Average"
-      dimensions = {
-        ClusterName = var.cluster_name
-        ServiceName = var.service_name
-      }
-    }
-  }
-
-  metric_query {
-    id = "running"
-    metric {
-      metric_name = "RunningTaskCount"
-      namespace   = "ECS/ContainerInsights"
-      period      = 60
-      stat        = "Average"
-      dimensions = {
-        ClusterName = var.cluster_name
-        ServiceName = var.service_name
-      }
-    }
-  }
-
-  alarm_actions = [aws_sns_topic.alarms.arn]
-  ok_actions    = [aws_sns_topic.alarms.arn]
-
-  tags = local.default_tags
-}
-
 # Deployment failed (circuit-breaker rollback or other deployment-state
 # failure) — routed to SNS via EventBridge.
 resource "aws_cloudwatch_event_rule" "ecs_deployment_failed" {
