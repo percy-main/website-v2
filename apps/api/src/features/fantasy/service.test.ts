@@ -386,6 +386,7 @@ describe("fantasy service", () => {
           oldPlayCricketId: "6324643",
           playerName: "Mashal Ahmed",
           eligible: true,
+          departureConfirmed: false,
           pickCount: 2,
           candidates: [
             { playCricketId: "7161990", playerName: "Mashal Ahmed" },
@@ -537,6 +538,7 @@ describe("formatPlayerIdChangeAlert", () => {
     oldPlayCricketId: "6324643",
     playerName: "Mashal Ahmed",
     eligible: true,
+    departureConfirmed: false,
     pickCount: 2,
     candidates: [{ playCricketId: "7161990", playerName: "Mashal Ahmed" }],
   };

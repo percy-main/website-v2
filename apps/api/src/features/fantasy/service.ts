@@ -662,6 +662,8 @@ export interface SuspectedPlayerIdChange {
   oldPlayCricketId: string;
   playerName: string;
   eligible: boolean;
+  /** An administrator has confirmed that this vanished ID represents a departure. */
+  departureConfirmed: boolean;
   /** fantasy_team_player rows still pointing at the vanished ID. */
   pickCount: number;
   /**
@@ -706,7 +708,12 @@ export function detectPlayerIdChanges(db: Kysely<DB>) {
 
     const knownPlayers = await db
       .selectFrom("fantasy_player")
-      .select(["play_cricket_id", "player_name", "eligible"])
+      .select([
+        "play_cricket_id",
+        "player_name",
+        "eligible",
+        "departure_confirmed",
+      ])
       .execute();
 
     const vanished = knownPlayers.filter((p) => !apiIds.has(p.play_cricket_id));
@@ -741,6 +748,11 @@ export function detectPlayerIdChanges(db: Kysely<DB>) {
     const changes: SuspectedPlayerIdChange[] = [];
     for (const player of vanished) {
       const pickCount = pickCounts.get(player.play_cricket_id) ?? 0;
+      // Confirmed departures are deliberately suppressed only while the row
+      // remains ineligible. Re-enabling a row makes a later vanished ID
+      // actionable again if the classification was wrong.
+      const departureConfirmed = Boolean(player.departure_confirmed);
+      if (departureConfirmed && !player.eligible) continue;
       // Only players who can still cost somebody points are worth an alert.
       // Everyone else is ordinary churn: opposition players, retired members,
       // and the long tail the populate step inserts but nobody ever picks.
@@ -750,6 +762,7 @@ export function detectPlayerIdChanges(db: Kysely<DB>) {
         oldPlayCricketId: player.play_cricket_id,
         playerName: player.player_name,
         eligible: player.eligible,
+        departureConfirmed,
         pickCount,
         candidates: newIdsByName.get(normaliseName(player.player_name)) ?? [],
       });

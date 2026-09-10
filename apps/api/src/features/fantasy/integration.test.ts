@@ -833,6 +833,53 @@ describe("fantasy service (integration)", () => {
       expect(changes.map((c) => c.oldPlayCricketId)).not.toContain(goneId);
     });
 
+    it("suppresses an acknowledged departure while preserving historical picks", async () => {
+      const goneId = `departed-${crypto.randomUUID()}`;
+      await seedFantasyPlayer({
+        playCricketId: goneId,
+        playerName: "Nasir Amin",
+        eligible: false,
+      });
+      await ctx.db
+        .updateTable("fantasy_player")
+        .set({ departure_confirmed: true })
+        .where("play_cricket_id", "=", goneId)
+        .execute();
+      await seedPick(goneId);
+
+      const changes = await detectPlayerIdChanges(ctx.db)(
+        await currentMembers([goneId]),
+      );
+
+      expect(changes.map((c) => c.oldPlayCricketId)).not.toContain(goneId);
+      await expect(
+        ctx.db
+          .selectFrom("fantasy_team_player")
+          .where("play_cricket_id", "=", goneId)
+          .select("play_cricket_id")
+          .execute(),
+      ).resolves.toHaveLength(1);
+    });
+
+    it("alerts again when an acknowledged departure is made eligible", async () => {
+      const goneId = `reinstated-${crypto.randomUUID()}`;
+      await seedFantasyPlayer({
+        playCricketId: goneId,
+        playerName: "Reinstated Player",
+        eligible: true,
+      });
+      await ctx.db
+        .updateTable("fantasy_player")
+        .set({ departure_confirmed: true })
+        .where("play_cricket_id", "=", goneId)
+        .execute();
+
+      const changes = await detectPlayerIdChanges(ctx.db)(
+        await currentMembers([goneId]),
+      );
+      expect(changes.map((c) => c.oldPlayCricketId)).toContain(goneId);
+    });
+
     it("flags a retired ID with no name match and no candidates", async () => {
       const goneId = `nomatch-${crypto.randomUUID()}`;
       await seedFantasyPlayer({
