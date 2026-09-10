@@ -166,7 +166,9 @@ export const rejectExpenseSchema = z.object({
 });
 
 export const listPendingExpensesSchema = z.object({
-  status: z.enum(["submitted", "approved"]).optional(),
+  status: z
+    .enum(["submitted", "approved", "rejected", "reimbursed"])
+    .optional(),
   teamId: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),

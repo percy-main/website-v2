@@ -1634,7 +1634,7 @@ describe("matchday service (integration)", () => {
       ).rejects.toThrow("Only approved expenses can be reimbursed");
     });
 
-    it("listPendingExpenses returns submitted and approved expenses", async () => {
+    it("listPendingExpenses returns every non-draft expense status", async () => {
       const { userId: officialId } = await seedTestUser(ctx.db, {
         email: `off-pending-${crypto.randomUUID()}@test.com`,
         role: "official",
@@ -1651,40 +1651,83 @@ describe("matchday service (integration)", () => {
         status: "confirmed",
       });
 
-      // Submit two expenses
-      const { expenseId: exp1 } = await submitExpenseClaim(ctx.db, s3)(
+      const { expenseId: approvedId } = await submitExpenseClaim(ctx.db, s3)(
         officialId,
         "official",
         { matchId, type: "umpire_fee", amountPence: 5000 },
       );
-      await submitExpenseClaim(ctx.db, s3)(officialId, "official", {
-        matchId,
-        type: "teas",
-        amountPence: 3000,
+      const { expenseId: submittedId } = await submitExpenseClaim(ctx.db, s3)(
+        officialId,
+        "official",
+        {
+          matchId,
+          type: "teas",
+          amountPence: 3000,
+        },
+      );
+      const { expenseId: reimbursedId } = await submitExpenseClaim(ctx.db, s3)(
+        officialId,
+        "official",
+        { matchId, type: "scorer_fee", amountPence: 2500 },
+      );
+      const { expenseId: rejectedId } = await submitExpenseClaim(ctx.db, s3)(
+        officialId,
+        "official",
+        { matchId, type: "miscellaneous", amountPence: 1500 },
+      );
+
+      await approveExpense(ctx.db)(adminId, "admin", approvedId);
+      await approveExpense(ctx.db)(adminId, "admin", reimbursedId);
+      await markExpenseReimbursed(ctx.db)(adminId, reimbursedId);
+      await rejectExpense(ctx.db)(adminId, "admin", rejectedId, {
+        reason: "Missing details",
       });
 
-      // Approve the first one
-      await approveExpense(ctx.db)(adminId, "admin", exp1);
-
-      // List all pending (submitted + approved)
       const result = await listPendingExpenses(ctx.db)(adminId, "admin", {
         limit: 50,
         offset: 0,
       });
 
-      const expenseIds = result.items.map((e) => e.id);
-      expect(expenseIds).toContain(exp1);
-      expect(result.items.length).toBeGreaterThanOrEqual(2);
+      expect(result.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: submittedId, status: "submitted" }),
+          expect.objectContaining({ id: approvedId, status: "approved" }),
+          expect.objectContaining({ id: reimbursedId, status: "reimbursed" }),
+          expect.objectContaining({
+            id: rejectedId,
+            status: "rejected",
+            rejected_reason: "Missing details",
+          }),
+        ]),
+      );
 
-      // Filter by submitted only
-      const submitted = await listPendingExpenses(ctx.db)(adminId, "admin", {
-        status: "submitted",
+      const reimbursed = await listPendingExpenses(ctx.db)(adminId, "admin", {
+        status: "reimbursed",
         limit: 50,
         offset: 0,
       });
-      for (const item of submitted.items) {
-        expect(item.status).toBe("submitted");
-      }
+      expect(reimbursed.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: reimbursedId, status: "reimbursed" }),
+        ]),
+      );
+      expect(
+        reimbursed.items.every((item) => item.status === "reimbursed"),
+      ).toBe(true);
+
+      const rejected = await listPendingExpenses(ctx.db)(adminId, "admin", {
+        status: "rejected",
+        limit: 50,
+        offset: 0,
+      });
+      expect(rejected.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: rejectedId, status: "rejected" }),
+        ]),
+      );
+      expect(rejected.items.every((item) => item.status === "rejected")).toBe(
+        true,
+      );
     });
   });
 

@@ -4814,7 +4814,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    status?: "submitted" | "approved";
+                    status?: "submitted" | "approved" | "rejected" | "reimbursed";
                     teamId?: string;
                     limit?: number;
                     offset?: number;

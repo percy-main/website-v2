@@ -10,7 +10,7 @@ type PendingExpense =
 /**
  * /expenses/mine — list of matchday expenses the current official has
  * recorded, grouped by status. Re-uses GET /api/matchday/expenses/pending
- * for submitted+approved+reimbursed (treasurer view filtered server-side
+ * for submitted+approved+reimbursed+rejected (filtered server-side
  * by caller). For a thorough "draft only" view we'd add a separate
  * endpoint; for v1 this is the most useful surface the captain has.
  */

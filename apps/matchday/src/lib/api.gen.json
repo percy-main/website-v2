@@ -8601,7 +8601,9 @@
               "type": "string",
               "enum": [
                 "submitted",
-                "approved"
+                "approved",
+                "rejected",
+                "reimbursed"
               ]
             },
             "in": "query",
