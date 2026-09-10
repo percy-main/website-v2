@@ -9,5 +9,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
-  await sql`ALTER TABLE fantasy_player DROP COLUMN departure_confirmed`.execute(db);
+  await sql`ALTER TABLE fantasy_player DROP COLUMN departure_confirmed`.execute(
+    db,
+  );
 }
