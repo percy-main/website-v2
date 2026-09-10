@@ -542,10 +542,12 @@ module "monitoring" {
 # ---------------------------------------------------------------------------
 
 module "api_gateway" {
-  source                  = "../../modules/api-gateway"
-  environment             = "production"
-  vpc_id                  = module.vpc.vpc_id
-  subnet_ids              = module.vpc.public_subnet_ids
+  source      = "../../modules/api-gateway"
+  environment = "production"
+  vpc_id      = module.vpc.vpc_id
+  # VPC Link ENIs must use private subnets. Public-subnet ENIs can produce
+  # HTTP API 503s before reaching the ALB (tracked in #752).
+  subnet_ids              = module.vpc.private_subnet_ids
   alb_security_group_id   = module.vpc.alb_security_group_id
   alb_https_listener_arn  = module.ecs.alb_https_listener_arn
   backend_tls_server_name = "api.v2.percymain.org"
