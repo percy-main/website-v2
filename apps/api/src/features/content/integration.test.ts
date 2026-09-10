@@ -457,7 +457,7 @@ describe("content service (integration)", () => {
       expect(result.authorCount).toBe(2);
     });
 
-    it("lists published events in start order", async () => {
+    it("lists and serves published events across supported timestamp precisions", async () => {
       const seedEvent = async (
         slug: string,
         when: string,
@@ -482,19 +482,35 @@ describe("content service (integration)", () => {
         });
         if (publish) await publishContent(ctx.db)({ contentId: id, userId });
       };
-      // Mixed offsets: 18:00+01:00 is 17:00Z, so the bbq starts before the
-      // quiz even though its 'when' string sorts after it lexically.
-      await seedEvent("event-bbq", "2026-08-01T18:00:00+01:00", true);
-      await seedEvent("event-quiz", "2026-08-01T17:30:00Z", true);
+      // Mixed offsets and precisions: 18:00+01:00 is 17:00Z, so the bbq
+      // starts before the quiz even though its 'when' string sorts after it
+      // lexically. Minute precision is used by the migrated production event
+      // rows; seconds and fractional seconds remain part of the API contract.
+      await seedEvent("event-bbq", "2026-08-01T18:00+01:00", true);
+      await seedEvent("event-quiz", "2026-08-01T17:30:45Z", true);
+      await seedEvent("event-awards", "2026-08-01T19:00:00.123+01:00", true);
       await seedEvent("event-draft", "2026-07-01T10:00:00Z", false);
 
       const { items } = await listPublishedEvents(ctx.db)();
-      expect(items.map((i) => i.slug)).toEqual(["event-bbq", "event-quiz"]);
+      expect(items.map((i) => i.slug)).toEqual([
+        "event-bbq",
+        "event-quiz",
+        "event-awards",
+      ]);
       expect(items[0]?.metadata).toMatchObject({
-        when: "2026-08-01T18:00:00+01:00",
+        when: "2026-08-01T18:00+01:00",
         location: { postcode: "NE29 6HS" },
       });
       expect(items[0]).not.toHaveProperty("body");
+
+      const detail = await getPublishedContent(ctx.db)({
+        kind: "event",
+        slug: "event-bbq",
+      });
+      expect(detail.metadata).toMatchObject({
+        when: "2026-08-01T18:00+01:00",
+        location: { postcode: "NE29 6HS" },
+      });
     });
   });
 

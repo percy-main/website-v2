@@ -193,6 +193,22 @@ describe("viewedOccurrence", () => {
 });
 
 describe("eventMetadataSchema - recurrence validation", () => {
+  it.each([
+    "2024-01-02T18:00+00:00",
+    "2024-01-02T18:00:00+00:00",
+    "2024-01-02T18:00:00.123+00:00",
+  ])("accepts supported ISO timestamp precision: %s", (when) => {
+    expect(eventMetadataSchema.safeParse({ when }).success).toBe(true);
+  });
+
+  it.each([
+    "2024-02-30T18:00+00:00",
+    "2024-01-02T25:00:00+00:00",
+    "2024-01-02T18:00",
+  ])("rejects invalid or offset-free timestamp: %s", (when) => {
+    expect(eventMetadataSchema.safeParse({ when }).success).toBe(false);
+  });
+
   it("accepts a valid recurrence", () => {
     const result = eventMetadataSchema.safeParse({
       when: "2024-01-02T18:00:00+00:00",
