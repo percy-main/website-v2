@@ -1,9 +1,9 @@
 import {
   useQueryClient,
-  type FetchQueryOptions,
+  type QueryExecuteOptions,
   type QueryKey,
 } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Link, type LinkProps } from "react-router";
 
 /**
@@ -24,7 +24,7 @@ export function PrefetchLink<
   onFocus,
   ...props
 }: LinkProps & {
-  query: FetchQueryOptions<TQueryFnData, TError, TData, TQueryKey>;
+  query: QueryExecuteOptions<TQueryFnData, TError, TData, TData, TQueryKey>;
 }) {
   const queryClient = useQueryClient();
   const ref = useRef<HTMLAnchorElement>(null);
@@ -37,18 +37,21 @@ export function PrefetchLink<
     queryRef.current = query;
   });
 
-  const prefetch = useCallback(() => {
+  const prefetch = () => {
     if (prefetched.current) return;
     prefetched.current = true;
-    void queryClient.prefetchQuery(queryRef.current);
-  }, [queryClient]);
+    void queryClient.query(queryRef.current).catch(() => undefined);
+  };
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) {
-        prefetch();
+        if (!prefetched.current) {
+          prefetched.current = true;
+          void queryClient.query(queryRef.current).catch(() => undefined);
+        }
         observer.disconnect();
       }
     });
@@ -56,7 +59,7 @@ export function PrefetchLink<
     return () => {
       observer.disconnect();
     };
-  }, [prefetch]);
+  }, [queryClient]);
 
   return (
     <Link

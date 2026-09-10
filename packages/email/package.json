@@ -12,12 +12,12 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@aws-sdk/client-sesv2": "^3.1116.0",
+    "@aws-sdk/client-sesv2": "^3.1126.0",
     "date-fns": "^4.4.0",
     "html-to-text": "^10.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-email": "^6.9.2"
+    "react-email": "^6.9.3"
   },
   "devDependencies": {
     "@react-email/ui": "6.9.2",

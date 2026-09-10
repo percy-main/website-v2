@@ -15,7 +15,7 @@ describe("createAppQueryClient", () => {
     const client = createAppQueryClient();
 
     await client
-      .fetchQuery({
+      .query({
         queryKey: authedQueryKey("user-a", ["fantasy", "my-team"]),
         queryFn: () => Promise.reject(new Error("boom")),
         retry: false,
@@ -74,7 +74,7 @@ describe("resetAuthCaches", () => {
     });
     // Started under user A and still unresolved when the account changes.
     const fetching = client
-      .fetchQuery({ queryKey: key, queryFn: () => inFlight })
+      .query({ queryKey: key, queryFn: () => inFlight })
       .catch(() => undefined);
 
     await resetAuthCaches(client);
