@@ -312,6 +312,7 @@ export interface FantasyChipUsage {
 
 export interface FantasyPlayer {
   created_at: Generated<string>;
+  departure_confirmed: Generated<boolean>;
   eligible: Generated<boolean>;
   play_cricket_id: string;
   player_name: string;
