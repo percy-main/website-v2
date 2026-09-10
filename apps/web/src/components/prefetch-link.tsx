@@ -1,7 +1,7 @@
 import {
   useQueryClient,
-  type FetchQueryOptions,
   type QueryKey,
+  type QueryExecuteOptions,
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import { Link, type LinkProps } from "react-router";
@@ -24,7 +24,7 @@ export function PrefetchLink<
   onFocus,
   ...props
 }: LinkProps & {
-  query: FetchQueryOptions<TQueryFnData, TError, TData, TQueryKey>;
+  query: QueryExecuteOptions<TQueryFnData, TError, TData, TData, TQueryKey>;
 }) {
   const queryClient = useQueryClient();
   const ref = useRef<HTMLAnchorElement>(null);
@@ -40,7 +40,7 @@ export function PrefetchLink<
   const prefetch = useCallback(() => {
     if (prefetched.current) return;
     prefetched.current = true;
-    void queryClient.prefetchQuery(queryRef.current);
+    void queryClient.query(queryRef.current).catch(() => undefined);
   }, [queryClient]);
 
   useEffect(() => {
