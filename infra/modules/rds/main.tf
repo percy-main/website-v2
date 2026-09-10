@@ -182,10 +182,11 @@ resource "aws_db_instance" "main" {
 
   allocated_storage     = var.allocated_storage
   max_allocated_storage = var.max_allocated_storage > 0 ? var.max_allocated_storage : null
-  # gp3 is cheaper per GB than the gp2 default and has a 3000 IOPS
-  # baseline regardless of size. gp2 -> gp3 is an online storage
-  # modification (no downtime), but RDS enforces a ~6h cooldown before
-  # the next storage modification.
+  # gp3 is cheaper per GB than the gp2 default. Its baseline is 3,000 IOPS /
+  # 125 MiB/s at 20-399 GiB, rising to 12,000 IOPS / 500 MiB/s at 400 GiB.
+  # gp2 -> gp3 is an online storage modification (no downtime). RDS allows
+  # up to four storage modifications in a rolling 24-hour period; storage
+  # optimization must finish before the next one.
   storage_type      = "gp3"
   storage_encrypted = true
 

@@ -128,6 +128,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "frontend" {
     noncurrent_version_expiration {
       noncurrent_days = 30
     }
+
+    # A deploy interrupted during multipart upload leaves parts billable.
+    # The frontend deploy completes in minutes, so one day is ample recovery.
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+
+    # `sync --delete` can leave a delete marker after the final noncurrent
+    # version expires. Remove that marker once it is the only version left.
+    expiration {
+      expired_object_delete_marker = true
+    }
   }
 }
 
