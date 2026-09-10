@@ -60,6 +60,7 @@ export function Passkeys() {
               variant="ghost"
               size="icon"
               className="mr-4"
+              aria-label={`Delete passkey ${passkey.name}`}
               onClick={() => {
                 deletePasskey.mutate(passkey.id);
               }}
