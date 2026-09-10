@@ -581,16 +581,17 @@ module "monitoring" {
 # ---------------------------------------------------------------------------
 
 module "api_gateway" {
-  source                        = "../../modules/api-gateway"
-  environment                   = "production"
-  vpc_id                        = module.vpc.vpc_id
-  subnet_ids                    = module.vpc.public_subnet_ids
-  ecs_security_group_id         = module.vpc.ecs_security_group_id
-  service_discovery_service_arn = module.ecs.service_discovery_service_arn
-  zone_id                       = local.shared.zone_id
-  api_domain_name               = "api.v2.percymain.org"
-  test_domain_name              = "api-gw-test.percymain.org"
-  alarms_sns_topic_arn          = module.monitoring.sns_topic_arn
+  source                  = "../../modules/api-gateway"
+  environment             = "production"
+  vpc_id                  = module.vpc.vpc_id
+  subnet_ids              = module.vpc.public_subnet_ids
+  alb_security_group_id   = module.vpc.alb_security_group_id
+  alb_https_listener_arn  = module.ecs.alb_https_listener_arn
+  backend_tls_server_name = "api.v2.percymain.org"
+  zone_id                 = local.shared.zone_id
+  api_domain_name         = "api.v2.percymain.org"
+  test_domain_name        = "api-gw-test.percymain.org"
+  alarms_sns_topic_arn    = module.monitoring.sns_topic_arn
 }
 
 # ---------------------------------------------------------------------------

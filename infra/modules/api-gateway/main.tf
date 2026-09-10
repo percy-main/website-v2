@@ -25,14 +25,19 @@ variable "subnet_ids" {
   description = "Subnets for the VPC Link ENIs (same subnets the api tasks run in)"
 }
 
-variable "ecs_security_group_id" {
+variable "alb_security_group_id" {
   type        = string
-  description = "Security group of the ECS api tasks (given ingress from the VPC Link)"
+  description = "Security group of the retained ALB (given ingress from the VPC Link)"
 }
 
-variable "service_discovery_service_arn" {
+variable "alb_https_listener_arn" {
   type        = string
-  description = "Cloud Map service ARN the integration discovers api tasks through"
+  description = "HTTPS listener ARN used as the encrypted private-integration backend during stand-up"
+}
+
+variable "backend_tls_server_name" {
+  type        = string
+  description = "DNS name in the ALB certificate API Gateway verifies for the backend TLS connection"
 }
 
 variable "zone_id" {
@@ -78,12 +83,10 @@ locals {
 
 # ------------------------------------------------------------------------------
 # VPC Link networking
-# Mirrors the ALB -> task path: the link ENIs only ever open connections
-# TO the tasks on the application port, so the link SG is egress-only and
-# the task SG gets a matching ingress rule (the counterpart of
-# ecs_ingress_from_alb in the vpc module - attached from here so the vpc
-# module doesn't need to know about API Gateway, same pattern as
-# rds_ingress_from_tailscale in environments/production).
+# During stand-up, the retained ALB is the VPC Link's TLS-terminating
+# backend. This keeps the API Gateway hop encrypted and certificate-verified
+# without changing the established ALB -> HTTP task path. The later direct
+# Cloud Map cutover must first add a task-side TLS endpoint.
 # ------------------------------------------------------------------------------
 
 resource "aws_security_group" "vpc_link" {
@@ -94,24 +97,24 @@ resource "aws_security_group" "vpc_link" {
   tags = local.tags
 }
 
-resource "aws_security_group_rule" "vpc_link_egress_to_ecs" {
+resource "aws_security_group_rule" "vpc_link_egress_to_alb" {
   type                     = "egress"
-  from_port                = 3000
-  to_port                  = 3000
+  from_port                = 443
+  to_port                  = 443
   protocol                 = "tcp"
-  source_security_group_id = var.ecs_security_group_id
+  source_security_group_id = var.alb_security_group_id
   security_group_id        = aws_security_group.vpc_link.id
-  description              = "To ECS tasks on the application port"
+  description              = "To the retained ALB HTTPS listener"
 }
 
-resource "aws_security_group_rule" "ecs_ingress_from_vpc_link" {
+resource "aws_security_group_rule" "alb_ingress_from_vpc_link" {
   type                     = "ingress"
-  from_port                = 3000
-  to_port                  = 3000
+  from_port                = 443
+  to_port                  = 443
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.vpc_link.id
-  security_group_id        = var.ecs_security_group_id
-  description              = "Inbound from API Gateway VPC Link on application port"
+  security_group_id        = var.alb_security_group_id
+  description              = "HTTPS from API Gateway VPC Link"
 }
 
 resource "aws_apigatewayv2_vpc_link" "main" {
@@ -142,20 +145,25 @@ resource "aws_apigatewayv2_api" "main" {
   tags = local.tags
 }
 
-# HTTP_PROXY via the VPC Link straight to the Cloud Map service: the
-# gateway resolves healthy task IP:port pairs with DiscoverInstances at
-# request time. payload_format_version 1.0 is the only valid value for
-# HTTP_PROXY - plain proxying, no Lambda-style event shaping. The
-# integration timeout is the HTTP API hard maximum (30s) by default;
-# deliberately not set lower.
+# HTTP_PROXY through the VPC Link to the retained ALB HTTPS listener. The
+# ALB presents its existing ACM certificate and API Gateway verifies its DNS
+# name before proxying. This is deliberately a stand-up-only transport path:
+# the current tasks speak HTTP, so direct Cloud Map routing cannot be made TLS
+# without first adding task-side TLS. payload_format_version 1.0 is the only
+# valid value for HTTP_PROXY. The integration timeout is the HTTP API hard
+# maximum (30s) by default; deliberately not set lower.
 resource "aws_apigatewayv2_integration" "api" {
   api_id                 = aws_apigatewayv2_api.main.id
   integration_type       = "HTTP_PROXY"
   integration_method     = "ANY"
-  integration_uri        = var.service_discovery_service_arn
+  integration_uri        = var.alb_https_listener_arn
   connection_type        = "VPC_LINK"
   connection_id          = aws_apigatewayv2_vpc_link.main.id
   payload_format_version = "1.0"
+
+  tls_config {
+    server_name_to_verify = var.backend_tls_server_name
+  }
 }
 
 resource "aws_apigatewayv2_route" "default" {

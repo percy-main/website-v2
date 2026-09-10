@@ -6,14 +6,19 @@
 ## Decision
 
 The public entry point for the API moves from the Application Load Balancer
-to an API Gateway HTTP API: custom domain -> VPC Link -> Cloud Map service
-discovery, with the ECS api tasks registered via `service_registries` (SRV
-records, so ECS publishes the port attribute `DiscoverInstances` needs).
+to an API Gateway HTTP API. The final intended path is custom domain -> VPC
+Link -> Cloud Map service discovery, with the ECS api tasks registered via
+`service_registries` (SRV records, so ECS publishes the port attribute
+`DiscoverInstances` needs). The stand-up path instead uses the retained ALB's
+HTTPS listener: API Gateway verifies the ALB certificate name before sending
+traffic, while the established ALB -> HTTP task path remains unchanged.
+Direct Cloud Map routing is deferred until the tasks have a TLS endpoint.
+
 The change is staged across separate PRs: (1) stand the gateway up alongside
 the ALB serving only a test hostname (`api-gw-test.percymain.org`), with the
 regional ACM cert already covering `api.v2.percymain.org` as well; (2) after
-verification on the test hostname and after the route remediations below,
-flip the `api.v2` alias records to the gateway; (3) after a rollback window,
+verification on the test hostname, task-side TLS, and the route remediations
+below, flip `api.v2` to the direct gateway path; (3) after a rollback window,
 remove the ALB, its listeners, target group, access-logs bucket and the two
 public IPv4s. Issue #722 tracks the sequence and stays open until step 3.
 
@@ -69,14 +74,20 @@ moves no traffic, verification happens on a test hostname against the real
 backend, the flip is a two-record DNS change with a tested one-commit
 rollback, and the ALB is only removed after a clean window.
 
-Cloud Map (rather than pointing the VPC Link at an ALB/NLB listener) is
-what removes the load balancer entirely: the gateway discovers task
-ENI IP:port pairs directly via `DiscoverInstances`. The Cloud Map service
-uses SRV records because ECS only registers the port attribute for SRV
-(A-record registration would leave the gateway with IPs and no port). The
-Cloud Map namespace and service live in the `ecs-service` module (they
-describe how the api tasks are discovered, and the registration is a block
-on the ECS service itself); everything gateway-side lives in a new
+Cloud Map is what eventually removes the load balancer entirely: the gateway
+will discover task ENI IP:port pairs directly via `DiscoverInstances`. The
+current Fastify task only exposes HTTP, so a direct integration would either
+send cleartext traffic or fail TLS verification. For the stand-up, the VPC
+Link therefore targets the existing ALB HTTPS listener and verifies the
+existing `api.v2.percymain.org` certificate. This tests API Gateway safely
+without changing the live ALB-to-task path. A direct Cloud Map integration is
+not permitted until task-side TLS is provisioned and validated.
+
+The Cloud Map service uses SRV records because ECS only registers the port
+attribute for SRV (A-record registration would leave the gateway with IPs and
+no port). The Cloud Map namespace and service live in the `ecs-service` module
+(they describe how the api tasks are discovered, and the registration is a
+block on the ECS service itself); everything gateway-side lives in a new
 `api-gateway` module. The gateway module owns its 5xx alarm
 (`alarms_sns_topic_arn` input, like `prerender` and `scheduling`), keeping
 the module graph acyclic: `monitoring` consumes `ecs-service` outputs, so
@@ -144,15 +155,17 @@ The full runbook (verification commands, flip PR contents, rollback drill,
 removal PR contents) is in the stand-up PR body, linked from #722. In
 brief:
 
-1. **Stand-up (this ADR's PR):** gateway + VPC Link + Cloud Map + cert +
-   test hostname + access logs + 5xx alarm. `api.v2` DNS, the ALB and the
-   Route 53 health check untouched; zero traffic moves.
+1. **Stand-up (this ADR's PR):** gateway + VPC Link to the retained ALB HTTPS
+   listener (with certificate-name verification) + Cloud Map registration +
+   cert + test hostname + access logs + 5xx alarm. `api.v2` DNS, the ALB and
+   the Route 53 health check are untouched; zero traffic moves.
 2. **Verify on `api-gw-test.percymain.org`:** health endpoints, login + 2FA
    cookie flow, a Stripe webhook replay signed with the production signing
    secret (proves the gateway does not alter raw bytes), matchday PWA
    calls, client-IP passthrough, access logs and alarm.
-3. **Remediate** the blocker and needs-async routes; land the hardening
-   fixes.
+3. **Remediate** the blocker and needs-async routes; land the hardening fixes;
+   provision and verify task-side TLS before changing the integration from the
+   ALB listener to Cloud Map.
 4. **Flip PR:** add the `api.v2` custom domain + mapping (cert already
    covers it) and repoint the two alias records from the ALB to the
    gateway. Everything else - webhook URL, auth baseURL, SPA config, the

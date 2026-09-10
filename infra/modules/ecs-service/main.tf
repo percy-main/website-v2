@@ -1082,6 +1082,11 @@ output "alb_arn" {
   value       = aws_lb.main.arn
 }
 
+output "alb_https_listener_arn" {
+  description = "ARN of the ALB HTTPS listener for API Gateway's encrypted stand-up path"
+  value       = aws_lb_listener.https.arn
+}
+
 output "alb_arn_suffix" {
   description = "ARN suffix of the ALB (for CloudWatch metrics)"
   value       = aws_lb.main.arn_suffix
