@@ -860,7 +860,9 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await listReports(request.query);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await listReports(user.id, role, request.query);
     },
   );
 
@@ -874,7 +876,9 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      return await getReport(request.params.matchdayId);
+      const { user } = getAuthSession(request);
+      const role = (user as { role?: string | null }).role ?? "user";
+      return await getReport(user.id, role, request.params.matchdayId);
     },
   );
 };
