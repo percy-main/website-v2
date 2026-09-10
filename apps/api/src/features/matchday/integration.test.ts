@@ -2355,14 +2355,15 @@ describe("matchday service (integration)", () => {
         // check, then parks on FOR UPDATE at the claim.
         await cancel.locked;
         const withdrawPromise = withdrawAsTest(email, playerId);
+        const withdrawRejection = expect(withdrawPromise).rejects.toThrow(
+          "no longer open for changes",
+        );
         await waitForLockWaiter();
         // Commit the cancel, freeing the lock so the dropout re-reads the
         // now-cancelled status under it.
         cancel.release();
         await cancel.txn;
-        await expect(withdrawPromise).rejects.toThrow(
-          "no longer open for changes",
-        );
+        await withdrawRejection;
       } finally {
         cancel.release();
         await cancel.txn.catch(() => undefined);
@@ -2404,12 +2405,13 @@ describe("matchday service (integration)", () => {
         const finishPromise = finishAsTest(matchdayId, adminId, {
           resultType: "W",
         });
+        const finishRejection = expect(finishPromise).rejects.toThrow(
+          "Cannot finish a cancelled matchday",
+        );
         await waitForLockWaiter();
         cancel.release();
         await cancel.txn;
-        await expect(finishPromise).rejects.toThrow(
-          "Cannot finish a cancelled matchday",
-        );
+        await finishRejection;
       } finally {
         cancel.release();
         await cancel.txn.catch(() => undefined);
