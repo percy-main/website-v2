@@ -53,9 +53,10 @@ export interface AdsClient {
 }
 
 class NoopAdsClient implements AdsClient {
-  uploadClickConversions(conversions: ClickConversionPayload[]): Promise<void> {
+  uploadClickConversions(
+    _conversions: ClickConversionPayload[],
+  ): Promise<void> {
     // Inert when env vars are absent — keeps local dev clean.
-    void conversions;
     return Promise.resolve();
   }
 }

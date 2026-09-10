@@ -80,7 +80,7 @@ export function changePasswordFormReducer(
  * error message suitable for displaying to the user.
  */
 export function validatePasswordChange(
-  current: string,
+  _current: string,
   next: string,
   confirm: string,
 ): string | null {
@@ -94,7 +94,6 @@ export function validatePasswordChange(
   // required+minLength on it so we don't duplicate that check here.
   // Returning null means "the form is valid; let the API decide if the
   // current password is right".
-  void current;
   return null;
 }
 

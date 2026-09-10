@@ -26,13 +26,13 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@libsql/client": "^0.17.4",
-    "@types/node": "^26.2.0",
+    "@libsql/client": "^0.18.0",
+    "@types/node": "^26.4.1",
     "@types/pg": "^8.23.1",
     "@typescript/native": "npm:typescript@^7.0.2",
     "dotenv": "^17.4.2",
     "kysely-codegen": "^0.20.0",
-    "tsx": "^4.23.11",
+    "tsx": "^4.23.13",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.11"
   }
