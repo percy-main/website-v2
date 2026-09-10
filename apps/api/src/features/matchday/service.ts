@@ -2749,6 +2749,8 @@ export function listPendingExpenses(db: Kysely<DB>) {
       query = query.where("matchday_expense.status", "in", [
         "submitted",
         "approved",
+        "rejected",
+        "reimbursed",
       ]);
     }
 
