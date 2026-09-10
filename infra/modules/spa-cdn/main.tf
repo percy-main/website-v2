@@ -114,6 +114,35 @@ resource "aws_s3_bucket_versioning" "frontend" {
   }
 }
 
+# Every deploy's `sync --delete` turns the previous build into noncurrent
+# versions, which accumulate forever without an expiry. 30 days is ample
+# rollback window and mirrors the uploads bucket's rule (cdn module).
+resource "aws_s3_bucket_lifecycle_configuration" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+
+    # A deploy interrupted during multipart upload leaves parts billable.
+    # The frontend deploy completes in minutes, so one day is ample recovery.
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+
+    # `sync --delete` can leave a delete marker after the final noncurrent
+    # version expires. Remove that marker once it is the only version left.
+    expiration {
+      expired_object_delete_marker = true
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 

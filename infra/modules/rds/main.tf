@@ -182,7 +182,13 @@ resource "aws_db_instance" "main" {
 
   allocated_storage     = var.allocated_storage
   max_allocated_storage = var.max_allocated_storage > 0 ? var.max_allocated_storage : null
-  storage_encrypted     = true
+  # gp3 is cheaper per GB than the gp2 default. Its baseline is 3,000 IOPS /
+  # 125 MiB/s at 20-399 GiB, rising to 12,000 IOPS / 500 MiB/s at 400 GiB.
+  # gp2 -> gp3 is an online storage modification (no downtime). RDS allows
+  # up to four storage modifications in a rolling 24-hour period; storage
+  # optimization must finish before the next one.
+  storage_type      = "gp3"
+  storage_encrypted = true
 
   db_name  = "percy_main"
   username = "percy"
@@ -217,11 +223,10 @@ resource "aws_db_instance" "main" {
   # instance.
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
-  # Enhanced monitoring - 60s OS-level metrics (load avg, IOPS by
-  # process, network). Performance Insights covers query-level; this
-  # covers the host. Valid intervals: 1/5/10/15/30/60.
-  monitoring_interval = 60
-  monitoring_role_arn = aws_iam_role.rds_enhanced_monitoring.arn
+  # Enhanced monitoring disabled (#723) - the 60s OS-level metrics cost
+  # ~$1/mo in CloudWatch logs and were never looked at. Performance
+  # Insights (free tier) still covers query-level visibility.
+  monitoring_interval = 0
 
   skip_final_snapshot       = var.environment != "production"
   final_snapshot_identifier = var.environment == "production" ? "${local.name_prefix}-db-final" : null
@@ -229,32 +234,6 @@ resource "aws_db_instance" "main" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-db"
   })
-}
-
-# -----------------------------------------------------------------------------
-# Enhanced Monitoring IAM role
-# -----------------------------------------------------------------------------
-
-data "aws_iam_policy_document" "rds_em_assume" {
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["monitoring.rds.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role" "rds_enhanced_monitoring" {
-  name               = "${local.name_prefix}-rds-enhanced-monitoring"
-  assume_role_policy = data.aws_iam_policy_document.rds_em_assume.json
-  tags               = local.common_tags
-}
-
-resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
-  role       = aws_iam_role.rds_enhanced_monitoring.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
 # -----------------------------------------------------------------------------
