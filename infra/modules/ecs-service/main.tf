@@ -874,8 +874,9 @@ resource "aws_service_discovery_service" "api" {
   }
 
   # ECS manages registration/deregistration through the task lifecycle;
-  # no Route 53 health check is involved.
-  health_check_custom_config {}
+  # no Route 53 health check is involved. Do not declare an empty custom
+  # health-check block: Cloud Map omits it from the remote service and a
+  # subsequent refresh would otherwise force service replacement.
 
   tags = local.tags
 }
