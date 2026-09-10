@@ -10,6 +10,11 @@ output "alb_dns_name" {
   value = module.ecs.alb_dns_name
 }
 
+output "api_gateway_test_url" {
+  value       = module.api_gateway.test_url
+  description = "Pre-cutover API Gateway verification hostname (#722)"
+}
+
 output "cloudfront_distribution_id" {
   value = module.cdn.distribution_id
 }

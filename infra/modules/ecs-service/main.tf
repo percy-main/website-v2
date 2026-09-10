@@ -838,6 +838,49 @@ resource "aws_lb_listener" "https" {
 }
 
 # ------------------------------------------------------------------------------
+# Cloud Map Service Discovery (#722)
+# Gives API Gateway's VPC Link a stable target for the api tasks: the
+# gateway resolves task ENI IPs via DiscoverInstances at request time.
+# Runs alongside the ALB registration - the two are independent data
+# paths, so this is safe to stand up with zero traffic on it.
+# ------------------------------------------------------------------------------
+
+resource "aws_service_discovery_private_dns_namespace" "main" {
+  name        = "${var.environment}.percymain.internal"
+  description = "Service discovery namespace for the ${var.environment} ECS services"
+  vpc         = var.vpc_id
+
+  tags = local.tags
+}
+
+resource "aws_service_discovery_service" "api" {
+  name = "api"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    # SRV, not A: API Gateway private integrations discover targets via
+    # DiscoverInstances and need both an IP and a port attribute on each
+    # instance. ECS only registers AWS_INSTANCE_PORT when the service
+    # discovery config uses SRV records (see the ECS note in the API GW
+    # private-integration docs). Task IPs churn on every deployment, so
+    # keep the TTL low.
+    dns_records {
+      type = "SRV"
+      ttl  = 10
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  # ECS manages registration/deregistration through the task lifecycle;
+  # no Route 53 health check is involved.
+  health_check_custom_config {}
+
+  tags = local.tags
+}
+
+# ------------------------------------------------------------------------------
 # ECS Service
 # ------------------------------------------------------------------------------
 
@@ -865,6 +908,16 @@ resource "aws_ecs_service" "api" {
     target_group_arn = aws_lb_target_group.api.arn
     container_name   = "api"
     container_port   = 3000
+  }
+
+  # Cloud Map registration for the API Gateway path (#722). `port` (not
+  # container_name/container_port) is the correct field for awsvpc tasks
+  # with SRV records. The aws provider applies service_registries changes
+  # via UpdateService - an in-place update that rolls the tasks, not a
+  # service replacement.
+  service_registries {
+    registry_arn = aws_service_discovery_service.api.arn
+    port         = 3000
   }
 
   lifecycle {
@@ -912,6 +965,11 @@ output "alb_dns_name" {
   value       = aws_lb.main.dns_name
 }
 
+output "service_discovery_service_arn" {
+  description = "Cloud Map service ARN for the api tasks (API Gateway private-integration target)"
+  value       = aws_service_discovery_service.api.arn
+}
+
 output "cluster_name" {
   description = "Name of the ECS cluster"
   value       = aws_ecs_cluster.main.name
@@ -945,6 +1003,11 @@ output "task_role_arn" {
 output "alb_arn" {
   description = "ARN of the Application Load Balancer"
   value       = aws_lb.main.arn
+}
+
+output "alb_https_listener_arn" {
+  description = "ARN of the ALB HTTPS listener for API Gateway's encrypted stand-up path"
+  value       = aws_lb_listener.https.arn
 }
 
 output "alb_arn_suffix" {
