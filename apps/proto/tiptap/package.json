@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tiptap/core": "^3.31.2",
+    "@tiptap/core": "^3.31.3",
     "@tiptap/extension-image": "^3.31.2",
     "@tiptap/markdown": "^3.31.2",
     "@tiptap/pm": "^3.31.2",
