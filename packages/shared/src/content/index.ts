@@ -211,9 +211,18 @@ export const newsMetadataSchema = z.object({
 });
 export type NewsMetadata = z.infer<typeof newsMetadataSchema>;
 
+// Event timestamps historically allow ISO 8601 minute precision as well as
+// seconds and fractional seconds. Keep the two forms explicit: Zod 4.5.4
+// stopped accepting minute precision through the default datetime schema,
+// even though it remains part of the documented default contract.
+const eventDateTimeSchema = z.union([
+  z.iso.datetime({ offset: true, precision: -1 }),
+  z.iso.datetime({ offset: true }),
+]);
+
 export const eventMetadataSchema = z.object({
-  when: z.iso.datetime({ offset: true }),
-  finish: z.iso.datetime({ offset: true }).optional(),
+  when: eventDateTimeSchema,
+  finish: eventDateTimeSchema.optional(),
   // Optional iCal recurrence. `when` is the series DTSTART; each occurrence
   // keeps the same finish-minus-when duration. Expansion (DST-correct, in
   // Europe/London) lives in ./recurrence.ts and is shared by every consumer.
