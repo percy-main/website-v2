@@ -31,6 +31,9 @@ const configSchema = z.object({
   // Server
   PORT: z.coerce.number().int().default(3000),
   HOST: z.string().default("0.0.0.0"),
+  TLS_PORT: z.coerce.number().int().default(3443),
+  TLS_CERTIFICATE_ARN: z.string().optional(),
+  TLS_KEY_PASSPHRASE: z.string().optional(),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),
