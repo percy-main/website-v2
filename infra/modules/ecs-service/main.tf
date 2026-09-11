@@ -761,6 +761,9 @@ resource "aws_s3_bucket_policy" "alb_logs" {
 # ------------------------------------------------------------------------------
 
 resource "aws_lb" "main" {
+  # AWS validates the connection-log delivery permission when enabling logs.
+  depends_on = [aws_s3_bucket_policy.alb_logs]
+
   name               = "${local.name_prefix}-alb"
   internal           = false
   load_balancer_type = "application"
