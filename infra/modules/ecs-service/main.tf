@@ -743,6 +743,14 @@ resource "aws_s3_bucket_policy" "alb_logs" {
         }
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.alb_logs.arn}/alb/*"
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "logdelivery.elasticloadbalancing.amazonaws.com"
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/alb-connection/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
       }
     ]
   })
@@ -753,6 +761,9 @@ resource "aws_s3_bucket_policy" "alb_logs" {
 # ------------------------------------------------------------------------------
 
 resource "aws_lb" "main" {
+  # AWS validates the connection-log delivery permission when enabling logs.
+  depends_on = [aws_s3_bucket_policy.alb_logs]
+
   name               = "${local.name_prefix}-alb"
   internal           = false
   load_balancer_type = "application"
@@ -767,6 +778,14 @@ resource "aws_lb" "main" {
   access_logs {
     bucket  = aws_s3_bucket.alb_logs.id
     prefix  = "alb"
+    enabled = true
+  }
+
+  # Records TLS negotiation before HTTP parsing, which access logs cannot
+  # observe. Keep this enabled for VPC Link transport diagnosis (#752).
+  connection_logs {
+    bucket  = aws_s3_bucket.alb_logs.id
+    prefix  = "alb-connection"
     enabled = true
   }
 
