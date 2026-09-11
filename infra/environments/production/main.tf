@@ -154,24 +154,69 @@ module "rds" {
 # Application (ECS Fargate)
 # ---------------------------------------------------------------------------
 
+resource "aws_acm_certificate" "api_backend" {
+  domain_name       = "api-backend.v2.percymain.org"
+  validation_method = "DNS"
+  options { export = "ENABLED" }
+  lifecycle { create_before_destroy = true }
+}
+
+resource "aws_route53_record" "api_backend_cert_validation" {
+  for_each = {
+    for option in aws_acm_certificate.api_backend.domain_validation_options : option.domain_name => {
+      name   = option.resource_record_name
+      record = option.resource_record_value
+      type   = option.resource_record_type
+    }
+  }
+  zone_id = local.shared.zone_id
+  name    = each.value.name
+  type    = each.value.type
+  records = [each.value.record]
+  ttl     = 60
+}
+
+resource "aws_acm_certificate_validation" "api_backend" {
+  certificate_arn         = aws_acm_certificate.api_backend.arn
+  validation_record_fqdns = [for record in aws_route53_record.api_backend_cert_validation : record.fqdn]
+}
+
+resource "random_password" "api_backend_tls" {
+  length  = 32
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "api_backend_tls" {
+  name                    = "percy-main-production/api-backend-tls-passphrase"
+  recovery_window_in_days = 7
+}
+
+resource "aws_secretsmanager_secret_version" "api_backend_tls" {
+  secret_id     = aws_secretsmanager_secret.api_backend_tls.id
+  secret_string = random_password.api_backend_tls.result
+}
+
 module "ecs" {
-  source                = "../../modules/ecs-service"
-  environment           = "production"
-  task_count            = 1
-  max_task_count        = 4
-  cpu                   = 256
-  memory                = 1024
-  ecr_repository_url    = local.shared.ecr_repository_url
-  acm_certificate_arn   = local.shared.acm_alb_certificate_arn
-  vpc_id                = module.vpc.vpc_id
-  private_subnet_ids    = module.vpc.public_subnet_ids
-  public_subnet_ids     = module.vpc.public_subnet_ids
-  ecs_security_group_id = module.vpc.ecs_security_group_id
-  alb_security_group_id = module.vpc.alb_security_group_id
-  health_check_path     = "/health/ready"
-  log_retention_days    = 30
-  assign_public_ip      = true
-  ses_identity_arn      = local.shared.ses_identity_arn
+  source                 = "../../modules/ecs-service"
+  environment            = "production"
+  task_count             = 1
+  max_task_count         = 4
+  cpu                    = 256
+  memory                 = 1024
+  ecr_repository_url     = local.shared.ecr_repository_url
+  acm_certificate_arn    = local.shared.acm_alb_certificate_arn
+  vpc_id                 = module.vpc.vpc_id
+  private_subnet_ids     = module.vpc.public_subnet_ids
+  public_subnet_ids      = module.vpc.public_subnet_ids
+  ecs_security_group_id  = module.vpc.ecs_security_group_id
+  alb_security_group_id  = module.vpc.alb_security_group_id
+  tls_enabled            = true
+  tls_certificate_arn    = aws_acm_certificate_validation.api_backend.certificate_arn
+  service_discovery_port = 3443
+  health_check_path      = "/health/ready"
+  log_retention_days     = 30
+  assign_public_ip       = true
+  ses_identity_arn       = local.shared.ses_identity_arn
 
   documents_bucket_arn                = module.documents_bucket.bucket_arn
   document_uploads_bucket_arn         = module.document_uploads.bucket_arn
@@ -222,6 +267,8 @@ module "ecs" {
     PHOENIX_COLLECTOR_ENDPOINT = "https://app.phoenix.arize.com/s/alex-young"
     PHOENIX_PROJECT_NAME       = "percy-main-scout-production"
     AWS_REGION                 = "eu-west-2"
+    TLS_PORT                   = "3443"
+    TLS_CERTIFICATE_ARN        = aws_acm_certificate_validation.api_backend.certificate_arn
     # Cannot reference module.ecs.* outputs that depend on the task definition
     # here - that would cycle through the env-vars input. The cluster and
     # service names are deterministic from the environment, so inline them.
@@ -251,6 +298,7 @@ module "ecs" {
   }
 
   secrets = {
+    TLS_KEY_PASSPHRASE = aws_secretsmanager_secret.api_backend_tls.arn
     # Secrets Manager (actual secrets)
     # DATABASE_URL points at app_rw once the role split is active
     # (#130). Until then it stays on the manual app_secrets blob.
@@ -547,14 +595,15 @@ module "api_gateway" {
   vpc_id      = module.vpc.vpc_id
   # VPC Link ENIs must use private subnets. Public-subnet ENIs can produce
   # HTTP API 503s before reaching the ALB (tracked in #752).
-  subnet_ids              = module.vpc.private_subnet_ids
-  alb_security_group_id   = module.vpc.alb_security_group_id
-  alb_https_listener_arn  = module.ecs.alb_https_listener_arn
-  backend_tls_server_name = "api.v2.percymain.org"
-  zone_id                 = local.shared.zone_id
-  api_domain_name         = "api.v2.percymain.org"
-  test_domain_name        = "api-gw-test.percymain.org"
-  alarms_sns_topic_arn    = module.monitoring.sns_topic_arn
+  subnet_ids                    = module.vpc.private_subnet_ids
+  ecs_security_group_id         = module.vpc.ecs_security_group_id
+  service_discovery_service_arn = module.ecs.service_discovery_service_arn
+  backend_tls_port              = 3443
+  backend_tls_server_name       = "api-backend.v2.percymain.org"
+  zone_id                       = local.shared.zone_id
+  api_domain_name               = "api.v2.percymain.org"
+  test_domain_name              = "api-gw-test.percymain.org"
+  alarms_sns_topic_arn          = module.monitoring.sns_topic_arn
 }
 
 # ---------------------------------------------------------------------------

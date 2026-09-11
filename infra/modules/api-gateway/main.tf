@@ -25,19 +25,17 @@ variable "subnet_ids" {
   description = "Subnets for the VPC Link ENIs (same subnets the api tasks run in)"
 }
 
-variable "alb_security_group_id" {
+variable "service_discovery_service_arn" {
   type        = string
-  description = "Security group of the retained ALB (given ingress from the VPC Link)"
+  description = "Cloud Map service ARN used for direct task discovery"
 }
 
-variable "alb_https_listener_arn" {
-  type        = string
-  description = "HTTPS listener ARN used as the encrypted private-integration backend during stand-up"
-}
+variable "ecs_security_group_id" { type = string }
+variable "backend_tls_port" { type = number }
 
 variable "backend_tls_server_name" {
   type        = string
-  description = "DNS name in the ALB certificate API Gateway verifies for the backend TLS connection"
+  description = "DNS name in the task certificate API Gateway verifies for the backend TLS connection"
 }
 
 variable "zone_id" {
@@ -83,10 +81,7 @@ locals {
 
 # ------------------------------------------------------------------------------
 # VPC Link networking
-# During stand-up, the retained ALB is the VPC Link's TLS-terminating
-# backend. This keeps the API Gateway hop encrypted and certificate-verified
-# without changing the established ALB -> HTTP task path. The later direct
-# Cloud Map cutover must first add a task-side TLS endpoint.
+# The VPC Link reaches the task TLS port discovered through Cloud Map.
 # ------------------------------------------------------------------------------
 
 resource "aws_security_group" "vpc_link" {
@@ -97,23 +92,23 @@ resource "aws_security_group" "vpc_link" {
   tags = local.tags
 }
 
-resource "aws_security_group_rule" "vpc_link_egress_to_alb" {
+resource "aws_security_group_rule" "vpc_link_egress_to_api" {
   type                     = "egress"
-  from_port                = 443
-  to_port                  = 443
+  from_port                = var.backend_tls_port
+  to_port                  = var.backend_tls_port
   protocol                 = "tcp"
-  source_security_group_id = var.alb_security_group_id
+  source_security_group_id = var.ecs_security_group_id
   security_group_id        = aws_security_group.vpc_link.id
-  description              = "To the retained ALB HTTPS listener"
+  description              = "To the API task TLS listener"
 }
 
-resource "aws_security_group_rule" "alb_ingress_from_vpc_link" {
+resource "aws_security_group_rule" "api_ingress_from_vpc_link" {
   type                     = "ingress"
-  from_port                = 443
-  to_port                  = 443
+  from_port                = var.backend_tls_port
+  to_port                  = var.backend_tls_port
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.vpc_link.id
-  security_group_id        = var.alb_security_group_id
+  security_group_id        = var.ecs_security_group_id
   description              = "HTTPS from API Gateway VPC Link"
 }
 
@@ -145,18 +140,15 @@ resource "aws_apigatewayv2_api" "main" {
   tags = local.tags
 }
 
-# HTTP_PROXY through the VPC Link to the retained ALB HTTPS listener. The
-# ALB presents its existing ACM certificate and API Gateway verifies its DNS
-# name before proxying. This is deliberately a stand-up-only transport path:
-# the current tasks speak HTTP, so direct Cloud Map routing cannot be made TLS
-# without first adding task-side TLS. payload_format_version 1.0 is the only
-# valid value for HTTP_PROXY. The integration timeout is the HTTP API hard
-# maximum (30s) by default; deliberately not set lower.
+# HTTP_PROXY discovers healthy task addresses and their TLS port through
+# Cloud Map. API Gateway verifies the dedicated backend certificate before
+# proxying. payload_format_version 1.0 is the only valid value for HTTP_PROXY.
+# The integration timeout is the HTTP API hard maximum (30s) by default.
 resource "aws_apigatewayv2_integration" "api" {
   api_id                 = aws_apigatewayv2_api.main.id
   integration_type       = "HTTP_PROXY"
   integration_method     = "ANY"
-  integration_uri        = var.alb_https_listener_arn
+  integration_uri        = var.service_discovery_service_arn
   connection_type        = "VPC_LINK"
   connection_id          = aws_apigatewayv2_vpc_link.main.id
   payload_format_version = "1.0"
