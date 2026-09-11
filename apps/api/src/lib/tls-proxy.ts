@@ -14,7 +14,11 @@ export interface TlsProxyOptions {
   upstreamPort: number;
   logger: Logger;
   refreshIntervalMs?: number;
-  exportCertificate?: () => Promise<{ certificate: string; chain: string; privateKey: string }>;
+  exportCertificate?: () => Promise<{
+    certificate: string;
+    chain: string;
+    privateKey: string;
+  }>;
 }
 
 async function exportFromAcm(certificateArn: string, passphrase: string) {
@@ -24,7 +28,11 @@ async function exportFromAcm(certificateArn: string, passphrase: string) {
       Passphrase: Buffer.from(passphrase),
     }),
   );
-  if (!response.Certificate || !response.CertificateChain || !response.PrivateKey) {
+  if (
+    !response.Certificate ||
+    !response.CertificateChain ||
+    !response.PrivateKey
+  ) {
     throw new Error("ACM returned an incomplete TLS certificate bundle");
   }
   return {
@@ -59,22 +67,28 @@ export async function startTlsProxy(options: TlsProxyOptions): Promise<Server> {
     });
   });
 
-  const timer = setInterval(() => {
-    void (async () => {
-      try {
-        const renewed = await load();
-        server.setSecureContext({
-          cert: `${renewed.certificate}\n${renewed.chain}`,
-          key: renewed.privateKey,
-          passphrase: options.passphrase,
-        });
-        options.logger.info({ port: options.port }, "tls_certificate_refreshed");
-      } catch (err) {
-        // Keep serving with the last valid context. Never log certificate material.
-        options.logger.error({ err }, "tls_certificate_refresh_failed");
-      }
-    })();
-  }, options.refreshIntervalMs ?? 24 * 60 * 60 * 1000);
+  const timer = setInterval(
+    () => {
+      void (async () => {
+        try {
+          const renewed = await load();
+          server.setSecureContext({
+            cert: `${renewed.certificate}\n${renewed.chain}`,
+            key: renewed.privateKey,
+            passphrase: options.passphrase,
+          });
+          options.logger.info(
+            { port: options.port },
+            "tls_certificate_refreshed",
+          );
+        } catch (err) {
+          // Keep serving with the last valid context. Never log certificate material.
+          options.logger.error({ err }, "tls_certificate_refresh_failed");
+        }
+      })();
+    },
+    options.refreshIntervalMs ?? 24 * 60 * 60 * 1000,
+  );
   timer.unref();
   server.once("close", () => clearInterval(timer));
   options.logger.info({ port: options.port }, "tls_proxy_listening");

@@ -43,7 +43,9 @@ try {
   await app.listen({ port: config.PORT, host: config.HOST });
   if (config.TLS_CERTIFICATE_ARN) {
     if (!config.TLS_KEY_PASSPHRASE) {
-      throw new Error("TLS_KEY_PASSPHRASE is required with TLS_CERTIFICATE_ARN");
+      throw new Error(
+        "TLS_KEY_PASSPHRASE is required with TLS_CERTIFICATE_ARN",
+      );
     }
     const tlsProxy = await startTlsProxy({
       certificateArn: config.TLS_CERTIFICATE_ARN,
@@ -52,7 +54,8 @@ try {
       upstreamPort: config.PORT,
       logger: app.log,
     });
-    closeTlsProxy = () => new Promise<void>((resolve) => tlsProxy.close(() => resolve()));
+    closeTlsProxy = () =>
+      new Promise<void>((resolve) => tlsProxy.close(() => resolve()));
   }
 } catch (err) {
   app.log.error(err);
