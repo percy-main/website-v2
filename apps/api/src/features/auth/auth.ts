@@ -86,8 +86,14 @@ export function createAuth(
       // outside that list can never be granted, which would make
       // requireMcpAuth's requiredScopes: ["mcp:use"] permanently fail.
       mcp({
-        loginPage: "/auth/login",
-        consentPage: "/auth/consent",
+        // Absolute URLs, not relative paths: /auth/login and /auth/consent
+        // are React Router routes served by apps/web (baseURL), a
+        // completely different origin from this API (apiBaseURL). A
+        // relative path here gets resolved by better-auth against its own
+        // origin, redirecting real MCP clients to a 404 on the API domain
+        // instead of the actual login/consent pages.
+        loginPage: `${baseURL}/auth/login`,
+        consentPage: `${baseURL}/auth/consent`,
         resource: mcpResource,
         scopes: ["openid", "profile", "email", "offline_access", "mcp:use"],
         allowDynamicClientRegistration: true,
