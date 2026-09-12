@@ -3,6 +3,7 @@ import rateLimit from "@fastify/rate-limit";
 import { NodeStreamableHTTPServerTransport } from "@modelcontextprotocol/node";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { getMcpResource } from "../auth/auth.ts";
 import { requireAuth } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
@@ -49,9 +50,19 @@ export const mcpRoutes: FastifyPluginAsync = async (app) => {
   // client usage.
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
-  const resource = `${app.config.API_BASE_URL}/mcp`;
+  const resource = getMcpResource(app.config);
 
   const handle = async (request: FastifyRequest, reply: FastifyReply) => {
+    // MCP_BASE_URL isn't configured yet — matches auth.ts skipping the
+    // mcp() plugin registration entirely in this case (ADR 063), so there
+    // is no requireMcpAuth challenge to construct. Fail loudly with a
+    // clear 503 rather than crashing the whole API on the deploy that
+    // first introduces the (Terraform-seeded, placeholder-valued) config.
+    if (!resource) {
+      reply.status(503);
+      return reply.send({ error: "MCP server is not configured." });
+    }
+
     const fetchReq = toFetchRequest(request);
 
     const wrapped = requireMcpAuth(

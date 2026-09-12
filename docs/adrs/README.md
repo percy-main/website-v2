@@ -40,3 +40,4 @@ To add a new ADR, use the [`add-adr` skill](../../.claude/skills/add-adr/SKILL.m
 | [060](060-fantasy-player-id-change-alerting.md)           | Alert on Play Cricket player ID changes, reconcile by hand         | 2026-08-21 | Accepted |
 | [061](061-alb-to-api-gateway-http-api.md)                 | Replace the ALB with an API Gateway HTTP API, staged cutover       | 2026-08-27 | Accepted |
 | [062](062-scout-mcp-server-exposure.md)                   | Expose a subset of Scout as an MCP server                          | 2026-09-11 | Accepted |
+| [063](063-mcp-custom-domain.md)                           | Dedicated custom domain for the MCP server (mcp.percymain.org)     | 2026-09-12 | Accepted |

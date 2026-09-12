@@ -320,6 +320,7 @@ module "ecs" {
     # SSM Parameter Store (non-secret config)
     BASE_URL             = aws_ssm_parameter.base_url.arn
     API_BASE_URL         = aws_ssm_parameter.api_base_url.arn
+    MCP_BASE_URL         = aws_ssm_parameter.mcp_base_url.arn
     BETTER_AUTH_RP_ID    = aws_ssm_parameter.better_auth_rp_id.arn
     BETTER_AUTH_RP_NAME  = aws_ssm_parameter.better_auth_rp_name.arn
     PLAY_CRICKET_SITE_ID = aws_ssm_parameter.play_cricket_site_id.arn
@@ -496,7 +497,7 @@ resource "aws_cloudwatch_metric_alarm" "cdn_matchday_5xx_rate" {
 }
 
 # ---------------------------------------------------------------------------
-# DNS (Route 53) - only api.v2 record needed; percymain.org DNS is at Netlify
+# DNS (Route 53) - api.v2 and mcp records; percymain.org DNS is at Netlify
 # ---------------------------------------------------------------------------
 
 resource "aws_route53_record" "api_v2_a" {
@@ -521,6 +522,82 @@ resource "aws_route53_record" "api_v2_aaaa" {
     zone_id                = module.ecs.alb_zone_id
     evaluate_target_health = true
   }
+}
+
+resource "aws_route53_record" "mcp_a" {
+  zone_id = local.shared.zone_id
+  name    = "mcp.percymain.org"
+  type    = "A"
+
+  alias {
+    name                   = module.ecs.alb_dns_name
+    zone_id                = module.ecs.alb_zone_id
+    evaluate_target_health = true
+  }
+}
+
+resource "aws_route53_record" "mcp_aaaa" {
+  zone_id = local.shared.zone_id
+  name    = "mcp.percymain.org"
+  type    = "AAAA"
+
+  alias {
+    name                   = module.ecs.alb_dns_name
+    zone_id                = module.ecs.alb_zone_id
+    evaluate_target_health = true
+  }
+}
+
+# ---------------------------------------------------------------------------
+# MCP server custom domain (ADR 063) - mcp.percymain.org, ALB SNI cert
+#
+# A dedicated cert, not a SAN on the shared ALB cert
+# (infra/environments/shared/main.tf's aws_acm_certificate.alb): that cert
+# is also the ALB listener's default cert for staging and the domain name
+# API Gateway's VPC Link verifies (backend_tls_server_name, ADR 061).
+# Adding this as an *additional* SNI cert on the same HTTPS listener - via
+# aws_lb_listener_certificate, not the listener's default certificate_arn -
+# leaves both of those completely untouched. The ALB has no host-based
+# listener rules, so once this cert exists, mcp.percymain.org already
+# forwards to the same target group / Fastify app that api.v2 does.
+# ---------------------------------------------------------------------------
+
+resource "aws_acm_certificate" "mcp" {
+  domain_name               = "mcp.percymain.org"
+  subject_alternative_names = []
+  validation_method         = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_route53_record" "mcp_cert_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.mcp.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      type   = dvo.resource_record_type
+      record = dvo.resource_record_value
+    }
+  }
+
+  zone_id = local.shared.zone_id
+  name    = each.value.name
+  type    = each.value.type
+  ttl     = 60
+  records = [each.value.record]
+
+  allow_overwrite = true
+}
+
+resource "aws_acm_certificate_validation" "mcp" {
+  certificate_arn         = aws_acm_certificate.mcp.arn
+  validation_record_fqdns = [for record in aws_route53_record.mcp_cert_validation : record.fqdn]
+}
+
+resource "aws_lb_listener_certificate" "mcp" {
+  listener_arn    = module.ecs.alb_https_listener_arn
+  certificate_arn = aws_acm_certificate_validation.mcp.certificate_arn
 }
 
 # ---------------------------------------------------------------------------
