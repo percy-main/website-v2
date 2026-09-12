@@ -14,7 +14,8 @@ const adminUrl =
   process.env.DATABASE_URL ??
   "postgres://percy:percy@localhost:5433/percy_main";
 
-if (!/localhost|127\.0\.0\.1/.test(adminUrl)) {
+const adminHostname = new URL(adminUrl).hostname;
+if (adminHostname !== "localhost" && adminHostname !== "127.0.0.1") {
   console.error(
     `Refusing to run: DATABASE_URL (${adminUrl}) does not look local. ` +
       `This script is for local dev only.`,

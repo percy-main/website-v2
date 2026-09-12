@@ -75,7 +75,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   // This catch-all covers sign-in, sign-up, password reset, and the OAuth
   // 2.1 authorize/token/register endpoints (ADR 062) — all
   // credential/token-checking, so all brute-force targets.
-  await app.register(rateLimit, { max: 30, timeWindow: "1 minute" });
+  //
+  // /oauth2/register (DCR) gets a stricter limit than the rest: unlike a
+  // failed sign-in attempt, a successful call persists a new oauthClient
+  // row, so the abuse case isn't just credential-guessing but unbounded
+  // table growth. ADR 062 deliberately allows unauthenticated DCR
+  // (allowUnauthenticatedClientRegistration in auth.ts) rather than
+  // requiring CIMD, so the defence here is a tighter per-IP budget on
+  // registration specifically, not disabling DCR.
+  await app.register(rateLimit, {
+    max: (request) => (request.url.includes("/oauth2/register") ? 5 : 30),
+    timeWindow: "1 minute",
+  });
   app.all("/*", (request, reply) => bridgeToAuthHandler(app, request, reply));
 };
 
@@ -91,7 +102,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
  */
 export const wellKnownRoutes: FastifyPluginAsync = async (app) => {
   await app.register(rateLimit, { max: 60, timeWindow: "1 minute" });
-  app.all("/.well-known/*", (request, reply) =>
-    bridgeToAuthHandler(app, request, reply),
+  app.all(
+    "/.well-known/*",
+    // hide: true — OAuth discovery documents proxied through auth.handler,
+    // not a REST endpoint the typed frontend client should ever call.
+    { schema: { hide: true } },
+    (request, reply) => bridgeToAuthHandler(app, request, reply),
   );
 };

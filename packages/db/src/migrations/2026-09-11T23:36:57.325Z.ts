@@ -21,19 +21,30 @@ import { type Kysely, sql } from "kysely";
 // A field with no `required` key in the source schema defaults to
 // required (the generator's own rule is `required !== false`).
 //
-// FK targets — confirmed empirically against a real DCR registration
-// (POST /oauth2/register), not just the type declarations: every
-// `clientId` column here references `oauthClient(clientId)` (the OAuth
-// spec's public client_id), not `oauthClient(id)` — the first version of
-// this migration used `.id` and DCR registration failed with a foreign
-// key violation, since better-auth writes the business identifier into
-// child tables, not the internal row id. Same reasoning for
-// `oauthClientResource.resourceId` -> `oauthResource(identifier)` and
-// `oauthAccessToken.refreshId` -> `oauthRefreshToken(token)` — every
-// oauth-provider model with a distinct business-identifier column (the
-// value that actually appears in OAuth protocol messages) is joined on
-// that column, not `id`. `sessionId`/`userId` still reference `.id`
-// because `session`/`user` have no such distinct business identifier.
+// FK targets — confirmed against the literal `references` values in the
+// installed package's own compiled schema (grep
+// node_modules/@better-auth/oauth-provider/dist/authorize-*.mjs for
+// "references:"), not just its .d.mts type declarations, which widen
+// every `field` to the generic `string` type and can't be trusted for
+// the literal value. A real DCR registration (POST /oauth2/register)
+// also confirmed this empirically for `clientId`/`resourceId` — the
+// first version of this migration referenced `oauthClient(id)` and
+// registration failed with a foreign key violation, since better-auth
+// writes the client's public `client_id` into child tables, not the
+// internal row id:
+//   oauthClientResource.clientId  -> oauthClient(clientId)
+//   oauthClientResource.resourceId -> oauthResource(identifier)
+//   oauthRefreshToken.clientId    -> oauthClient(clientId)
+//   oauthAccessToken.clientId     -> oauthClient(clientId)
+//   oauthAccessToken.refreshId    -> oauthRefreshToken(id)  <- NOT .token;
+//     unlike every other business-identifier FK above, this one really
+//     does reference the internal row id (confirmed in the compiled
+//     source directly — this wasn't exercised by the empirical DCR test,
+//     which never requested offline_access, so no refresh token was ever
+//     issued to check against).
+//   oauthConsent.clientId         -> oauthClient(clientId)
+// `sessionId`/`userId` reference `.id` throughout because `session`/
+// `user` have no distinct business identifier of their own.
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   // ── jwks: JWT plugin's signing-key store ──
@@ -187,7 +198,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
       "authorizationCodeId" TEXT,
       resources JSONB,
       "requestedUserInfoClaims" JSONB,
-      "refreshId" TEXT REFERENCES "oauthRefreshToken"(token) ON DELETE CASCADE,
+      "refreshId" TEXT REFERENCES "oauthRefreshToken"(id) ON DELETE CASCADE,
       "expiresAt" TIMESTAMP NOT NULL,
       "createdAt" TIMESTAMP NOT NULL,
       revoked TIMESTAMP,

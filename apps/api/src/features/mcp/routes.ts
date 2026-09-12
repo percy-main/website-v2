@@ -89,6 +89,21 @@ export const mcpRoutes: FastifyPluginAsync = async (app) => {
           });
           await server.connect(transport);
 
+          // A fresh McpServer + transport is created per request (stateless
+          // design), so both must be closed when the response ends or the
+          // client disconnects — the SDK's own Fastify integration docs
+          // call this out explicitly for exactly this stateless-per-request
+          // shape; without it, resources tied to this transport/server pair
+          // stay alive indefinitely.
+          reply.raw.on("close", () => {
+            transport.close().catch((err: unknown) => {
+              request.log.error({ err }, "mcp transport close failed");
+            });
+            server.close().catch((err: unknown) => {
+              request.log.error({ err }, "mcp server close failed");
+            });
+          });
+
           // CORS (and any other) headers set by Fastify hooks live on the
           // reply object and are flushed to reply.raw only when
           // reply.send() runs. handleRequest writes directly to reply.raw,
@@ -132,9 +147,14 @@ export const mcpRoutes: FastifyPluginAsync = async (app) => {
     return reply.send(await authResult.text());
   };
 
-  app.post("/mcp", handle);
-  app.get("/mcp", handle);
-  app.delete("/mcp", handle);
+  // hide: true — this is a raw MCP JSON-RPC/SSE transport, not a REST
+  // endpoint; without it, the generated OpenAPI spec (and so the typed
+  // frontend client) declares a nonsensical bodyless POST /mcp that no
+  // caller should ever actually use.
+  const opts = { schema: { hide: true } };
+  app.post("/mcp", opts, handle);
+  app.get("/mcp", opts, handle);
+  app.delete("/mcp", opts, handle);
 };
 
 /** Small authenticated support endpoint for the /auth/consent page: looks

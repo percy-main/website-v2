@@ -31,10 +31,17 @@ describe("listUsers", () => {
       // function — an unconditional fallback also shadows `.then`, which
       // makes `await mockDb...` hang forever (a real Promise checks
       // `typeof thenable.then === "function"` and awaits its non-existent
-      // callback).
+      // callback). `then` itself must return `undefined` explicitly, not
+      // fall through to the same fallback — `"then" in t` is also false,
+      // so without this case `await chain` directly (not `await
+      // chain.execute()`) hangs the same way.
       const chain: any = new Proxy(target, {
         get: (t, prop) =>
-          prop in t ? t[prop as string] : (...args: unknown[]) => chain,
+          prop === "then"
+            ? undefined
+            : prop in t
+              ? t[prop as string]
+              : (...args: unknown[]) => chain,
       });
       chain.execute = vi.fn().mockResolvedValue([{ id: "u1" }]);
       return chain;
