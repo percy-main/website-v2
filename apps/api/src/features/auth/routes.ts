@@ -1,3 +1,4 @@
+import rateLimit from "@fastify/rate-limit";
 import type {
   FastifyInstance,
   FastifyPluginAsync,
@@ -70,8 +71,11 @@ async function bridgeToAuthHandler(
  * under this prefix through to the better-auth handler, which manages
  * sign-up, sign-in, sessions, OAuth callbacks, passkeys, 2FA, etc.
  */
-// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const authRoutes: FastifyPluginAsync = async (app) => {
+  // This catch-all covers sign-in, sign-up, password reset, and the OAuth
+  // 2.1 authorize/token/register endpoints (ADR 062) — all
+  // credential/token-checking, so all brute-force targets.
+  await app.register(rateLimit, { max: 30, timeWindow: "1 minute" });
   app.all("/*", (request, reply) => bridgeToAuthHandler(app, request, reply));
 };
 
@@ -85,8 +89,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
  * requests to the same `auth.handler`, unprefixed. Registered without a
  * prefix in app.ts, alongside (not instead of) authRoutes above.
  */
-// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const wellKnownRoutes: FastifyPluginAsync = async (app) => {
+  await app.register(rateLimit, { max: 60, timeWindow: "1 minute" });
   app.all("/.well-known/*", (request, reply) =>
     bridgeToAuthHandler(app, request, reply),
   );

@@ -1,4 +1,5 @@
 import { requireMcpAuth } from "@better-auth/mcp";
+import rateLimit from "@fastify/rate-limit";
 import { NodeStreamableHTTPServerTransport } from "@modelcontextprotocol/node";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
@@ -41,8 +42,13 @@ function toFetchRequest(request: FastifyRequest): Request {
  * in features/auth/auth.ts. Not schema-declared like other routes — like
  * features/auth/routes.ts, this is a raw protocol passthrough, not a typed
  * JSON endpoint. */
-// eslint-disable-next-line @typescript-eslint/require-await -- FastifyPluginAsync requires async
 export const mcpRoutes: FastifyPluginAsync = async (app) => {
+  // Every call here runs requireMcpAuth (token verification) before doing
+  // any real work, so this needs the same brute-force protection as the
+  // auth routes — bound generously above legitimate multi-tool-call MCP
+  // client usage.
+  await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
+
   const resource = `${app.config.API_BASE_URL}/mcp`;
 
   const handle = async (request: FastifyRequest, reply: FastifyReply) => {
