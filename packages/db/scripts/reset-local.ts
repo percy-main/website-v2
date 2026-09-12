@@ -58,7 +58,7 @@ try {
   // Migrations create persistent roles (scout_readonly, app_rw,
   // app_ddl). Without dropping them here, the next migration run
   // fails with `role "x" already exists`.
-  for (const role of ["scout_readonly", "app_rw", "app_ddl"]) {
+  for (const role of ["scout_readonly", "mcp_readonly", "app_rw", "app_ddl"]) {
     await client.query(`DROP OWNED BY "${role}" CASCADE`).catch(() => {});
     await client.query(`DROP ROLE IF EXISTS "${role}"`);
   }

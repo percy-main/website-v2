@@ -1,10 +1,11 @@
 import { dash } from "@better-auth/infra";
+import { mcp } from "@better-auth/mcp";
 import { passkey } from "@better-auth/passkey";
 import type { DB } from "@percy-main/db";
 import { ResetPassword, VerifyEmail, type Email } from "@percy-main/email";
 import { ac, roles } from "@percy-main/shared/auth/permissions";
 import { betterAuth } from "better-auth";
-import { admin, twoFactor } from "better-auth/plugins";
+import { admin, jwt, twoFactor } from "better-auth/plugins";
 import type { FastifyBaseLogger } from "fastify";
 import { type Kysely, type PostgresDialect } from "kysely";
 import { createElement } from "react";
@@ -20,6 +21,10 @@ export function createAuth(
 ) {
   const baseURL = config.BASE_URL;
   const apiBaseURL = config.API_BASE_URL;
+  // The MCP server's protected-resource identifier (ADR 062) — the same
+  // value the mcp() plugin's `resource` uses, and where features/mcp/routes.ts
+  // registers the actual /mcp route.
+  const mcpResource = `${apiBaseURL}/mcp`;
   const isProduction = config.NODE_ENV === "production";
 
   return betterAuth({
@@ -70,6 +75,34 @@ export function createAuth(
         ac,
         roles,
         adminRoles: ["admin", "superadmin"],
+      }),
+      // Signing keys for the MCP OAuth provider's access tokens (ADR 062).
+      jwt(),
+      // OAuth 2.1 authorization server for MCP clients (ADR 062). Classic
+      // Dynamic Client Registration is enabled deliberately — CIMD isn't
+      // adopted yet (see the ADR). `mcp:use` must be added to `scopes`
+      // explicitly: the plugin's default scope list is
+      // ["openid", "profile", "email", "offline_access"], and a scope
+      // outside that list can never be granted, which would make
+      // requireMcpAuth's requiredScopes: ["mcp:use"] permanently fail.
+      mcp({
+        loginPage: "/auth/login",
+        consentPage: "/auth/consent",
+        resource: mcpResource,
+        scopes: ["openid", "profile", "email", "offline_access", "mcp:use"],
+        allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
+        // Seeds the oauthResource row for `resource` at boot (RFC 8707
+        // resource-indicator support is otherwise a fully opt-in, empty
+        // feature — without this, DCR registration 400s with
+        // invalid_target the first time a client requests this resource
+        // on a fresh DB, since nothing else creates the row). There is
+        // only ever one resource (this MCP server), so per-client resource
+        // scoping is a non-feature here — enforcePerClientResources: false
+        // skips the oauthClientResource linking step entirely rather than
+        // auto-linking every client to the one resource that exists.
+        resources: [mcpResource],
+        enforcePerClientResources: false,
       }),
       ...(config.BETTER_AUTH_API_KEY ? [dash()] : []),
     ],

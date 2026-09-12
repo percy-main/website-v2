@@ -1,5 +1,6 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
+import formbody from "@fastify/formbody";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import type { Tracer } from "@opentelemetry/api";
@@ -41,7 +42,7 @@ import { createS3Uploader, type S3Uploader } from "./lib/s3-upload.ts";
 
 // Feature routes
 import { adminRoutes } from "./features/admin/routes.ts";
-import { authRoutes } from "./features/auth/routes.ts";
+import { authRoutes, wellKnownRoutes } from "./features/auth/routes.ts";
 import { availabilityRoutes } from "./features/availability/routes.ts";
 import { chargeRoutes } from "./features/charges/routes.ts";
 import { contactRoutes } from "./features/contact/routes.ts";
@@ -62,6 +63,7 @@ import { createAdsClient } from "./features/marketing/ads-client.ts";
 import { startForwarder } from "./features/marketing/forwarder.ts";
 import { marketingRoutes } from "./features/marketing/routes.ts";
 import { matchdayRoutes } from "./features/matchday/routes.ts";
+import { mcpConsentSupportRoutes, mcpRoutes } from "./features/mcp/routes.ts";
 import { memberRoutes } from "./features/members/routes.ts";
 import { membershipRoutes } from "./features/membership/routes.ts";
 import { notifPrefsRoutes } from "./features/notification-preferences/routes.ts";
@@ -81,6 +83,7 @@ declare module "fastify" {
   interface FastifyInstance {
     db: Kysely<DB>;
     dbReadonly: Kysely<DB> | null;
+    mcpReadonly: Kysely<DB>;
     config: Config;
     auth: Auth;
     send: (email: Email) => Promise<void>;
@@ -180,6 +183,17 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
       await dbReadonly.destroy();
     });
   }
+
+  // Read-only Kysely client for the MCP feature (ADR 062). Built from the
+  // required MCP_DB_URL (the `mcp_readonly` Postgres role created by
+  // migration 2026-09-11T23:37:37.944Z) — required, unlike SCOUT_DB_URL
+  // above, since MCP is meant for any signed-up member, not an opt-in
+  // feature flag.
+  const mcpReadonly = createDbClient(config.MCP_DB_URL).client;
+  app.decorate("mcpReadonly", mcpReadonly);
+  app.addHook("onClose", async () => {
+    await mcpReadonly.destroy();
+  });
 
   // Create and decorate the email sender
   const send = createSend({
@@ -282,6 +296,11 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
     ],
   });
   await app.register(cookie);
+  // OAuth2's token endpoint (/api/auth/oauth2/token, ADR 062) is
+  // conventionally called with application/x-www-form-urlencoded per
+  // spec — Fastify's built-in parser only understands JSON, so real MCP
+  // clients' token exchanges 415 without this.
+  await app.register(formbody);
 
   // Custom error handler - see lib/error-handler.ts for the rationale
   // (4xx vs 5xx log levels, NR alarm hygiene, { error } body shape).
@@ -290,6 +309,13 @@ export async function buildApp({ db, dialect, config }: AppDeps) {
   // Register all feature routes
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: "/api/auth" });
+  // RFC 8414/9728 well-known discovery documents must be reachable from
+  // the site root — see the export's own doc comment.
+  await app.register(wellKnownRoutes);
+  // Bare path — must match the mcp() plugin's `resource` identifier
+  // (features/auth/auth.ts), which is not under /api.
+  await app.register(mcpRoutes);
+  await app.register(mcpConsentSupportRoutes, { prefix: "/api" });
   await app.register(memberRoutes, { prefix: "/api" });
   await app.register(chargeRoutes, { prefix: "/api" });
   await app.register(juniorRoutes, { prefix: "/api" });

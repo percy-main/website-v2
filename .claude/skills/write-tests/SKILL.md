@@ -25,15 +25,17 @@ import { listUsers } from "./service.ts";
 describe("listUsers", () => {
   it("paginates results", async () => {
     const mockDb = vi.hoisted(() => {
-      const chain: any = new Proxy(
-        {},
-        {
-          get:
-            () =>
-            (...args: unknown[]) =>
-              chain,
-        },
-      );
+      const target: Record<string, unknown> = {};
+      // The `get` trap must check the target for an explicitly-set property
+      // (like `execute` below) before falling back to the chain-returning
+      // function — an unconditional fallback also shadows `.then`, which
+      // makes `await mockDb...` hang forever (a real Promise checks
+      // `typeof thenable.then === "function"` and awaits its non-existent
+      // callback).
+      const chain: any = new Proxy(target, {
+        get: (t, prop) =>
+          prop in t ? t[prop as string] : (...args: unknown[]) => chain,
+      });
       chain.execute = vi.fn().mockResolvedValue([{ id: "u1" }]);
       return chain;
     });

@@ -1,3 +1,4 @@
+import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import { passkeyClient } from "@better-auth/passkey/client";
 import { ac, roles } from "@percy-main/shared/auth/permissions";
 import { adminClient, twoFactorClient } from "better-auth/client/plugins";
@@ -10,7 +11,12 @@ const baseURL = apiUrl.replace(/\/api$/, "");
 
 export const authClient = createAuthClient({
   baseURL,
-  plugins: [passkeyClient(), twoFactorClient(), adminClient({ ac, roles })],
+  plugins: [
+    passkeyClient(),
+    twoFactorClient(),
+    adminClient({ ac, roles }),
+    oauthProviderClient(),
+  ],
 });
 
 export const { useSession } = authClient;

@@ -3,6 +3,7 @@ import { parseConfig } from "./config.ts";
 
 const baseEnv = {
   DATABASE_URL: "postgres://localhost/x",
+  MCP_DB_URL: "postgres://localhost/x",
   COOKIE_SECRET: "x".repeat(32),
   API_BASE_URL: "http://localhost:3001",
   STRIPE_SECRET_KEY: "sk_test_x",

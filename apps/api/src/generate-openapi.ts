@@ -11,6 +11,7 @@ import { parseConfig } from "./config.ts";
 
 const config = parseConfig({
   DATABASE_URL: "postgres://percy:percy@localhost:5433/percy_main",
+  MCP_DB_URL: "postgres://percy:percy@localhost:5433/percy_main",
   API_BASE_URL: "http://localhost:3000",
   // Trivy's stripe-secret-token rule matches any `sk_test_*` literal —
   // even an obvious placeholder — and fails the deploy. The OpenAPI

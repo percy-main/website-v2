@@ -9,7 +9,11 @@
       "@/*": ["./src/*"]
     },
     "noEmit": true,
-    "types": ["node", "google.maps"]
+    "types": ["node", "google.maps"],
+    // See tsconfig.json — same TS2883 fix, needed here too since this
+    // config also type-checks src/**/* (including auth-client.ts).
+    "declaration": false,
+    "declarationMap": false
   },
   "include": ["server/**/*", "src/**/*"]
 }

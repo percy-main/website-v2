@@ -31,7 +31,7 @@ in scope.
 - **Tool scope:** club-data reads (DB query tools, Play Cricket lookups,
   weather) plus two personalized tools, `open_availability_requests` and
   `confirm_availability`, that call existing `features/availability/
-  service.ts` functions rather than raw SQL. No knowledge-base/facts tools,
+service.ts` functions rather than raw SQL. No knowledge-base/facts tools,
   no report generation, no face recognition, no other writes.
 
 ## Problem
@@ -114,7 +114,7 @@ discovery; `jwt()` plugin provides the JWKS signing keys), so every MCP
 session traces back to a real login plus an explicit consent screen, and
 tokens are short-lived and scoped rather than a static secret sitting in a
 client config file. This also turned out to be necessary, not just nicer:
-the two personalized tools (below) need to know *which specific member* is
+the two personalized tools (below) need to know _which specific member_ is
 calling, which a shared static token can't express but a per-user OAuth
 grant does for free.
 
@@ -165,7 +165,7 @@ live agent today — should never reach a self-serve-signup audience).
 
 - **Wrapping Scout's full agent loop behind MCP**, so an MCP client could
   have a whole Scout conversation. Rejected — MCP tools are called by the
-  *client's* model; making our own model an intermediary adds cost, latency,
+  _client's_ model; making our own model an intermediary adds cost, latency,
   and the exact multi-minute streaming shape ADR 061 is trying to get away
   from, for no benefit over exposing the underlying tools directly.
 - **`mcp-framework` / `fastmcp`** — see Rationale; both own their HTTP

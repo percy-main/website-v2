@@ -242,6 +242,11 @@ const configSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   DEEPSEEK_API_KEY: z.string().optional(),
   SCOUT_DB_URL: z.url().optional(),
+  // Read-only Kysely connection for the MCP feature, using the
+  // `mcp_readonly` Postgres role created by migration
+  // 2026-09-11T23:37:37.944Z. Required (unlike SCOUT_DB_URL, an alex-only
+  // feature) — MCP is meant for any signed-up member.
+  MCP_DB_URL: z.url(),
   // Provider + model id for each Scout LLM surface. All required and
   // explicit (no in-code defaults) so prod / staging / local config
   // stays the single source of truth and a wrong-by-default deployment

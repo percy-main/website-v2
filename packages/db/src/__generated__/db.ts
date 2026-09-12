@@ -461,6 +461,16 @@ export interface JuniorTeamManager {
   user_id: string;
 }
 
+export interface Jwks {
+  alg: string | null;
+  createdAt: Timestamp;
+  crv: string | null;
+  expiresAt: Timestamp | null;
+  id: string;
+  privateKey: string;
+  publicKey: string;
+}
+
 export interface Lead {
   attribution: Json | null;
   consent_ad_storage: Generated<string>;
@@ -735,6 +745,11 @@ export interface MemberParentLink {
   parent_member_id: string;
 }
 
+export interface MemberPublic {
+  id: string | null;
+  name: string | null;
+}
+
 export interface Membership {
   created_at: Generated<string>;
   dependent_id: string | null;
@@ -749,6 +764,127 @@ export interface NotificationPreferences {
   matchday_channel: Generated<string>;
   updated_at: Generated<Timestamp>;
   user_id: string;
+}
+
+export interface OauthAccessToken {
+  authorizationCodeId: string | null;
+  clientId: string;
+  confirmation: Json | null;
+  createdAt: Timestamp;
+  expiresAt: Timestamp;
+  id: string;
+  referenceId: string | null;
+  refreshId: string | null;
+  requestedUserInfoClaims: Json | null;
+  resources: Json | null;
+  revoked: Timestamp | null;
+  scopes: Json;
+  sessionId: string | null;
+  token: string;
+  userId: string | null;
+}
+
+export interface OauthClient {
+  applicationType: string | null;
+  backchannelLogoutSessionRequired: boolean | null;
+  backchannelLogoutUri: string | null;
+  clientCredentialsScopes: Json | null;
+  clientDiscoveryId: string | null;
+  clientId: string;
+  clientSecret: string | null;
+  contacts: Json | null;
+  createdAt: Timestamp | null;
+  disabled: boolean | null;
+  dpopBoundAccessTokens: boolean | null;
+  enableEndSession: boolean | null;
+  grantTypes: Json | null;
+  icon: string | null;
+  id: string;
+  jwks: string | null;
+  jwksUri: string | null;
+  metadata: Json | null;
+  name: string | null;
+  policy: string | null;
+  postLogoutRedirectUris: Json | null;
+  redirectUris: Json;
+  referenceId: string | null;
+  requirePKCE: boolean | null;
+  responseTypes: Json | null;
+  scopes: Json | null;
+  skipConsent: boolean | null;
+  softwareId: string | null;
+  softwareStatement: string | null;
+  softwareVersion: string | null;
+  subjectType: string | null;
+  tokenEndpointAuthMethod: string | null;
+  tos: string | null;
+  updatedAt: Timestamp | null;
+  uri: string | null;
+  userId: string | null;
+}
+
+export interface OauthClientAssertion {
+  expiresAt: Timestamp;
+  id: string;
+}
+
+export interface OauthClientResource {
+  clientId: string;
+  createdAt: Timestamp | null;
+  id: string;
+  metadata: Json | null;
+  resourceId: string;
+}
+
+export interface OauthConsent {
+  clientId: string;
+  createdAt: Timestamp;
+  id: string;
+  referenceId: string | null;
+  requestedUserInfoClaims: Json | null;
+  resources: Json | null;
+  scopes: Json;
+  updatedAt: Timestamp;
+  userId: string | null;
+}
+
+export interface OauthRefreshToken {
+  authorizationCodeId: string | null;
+  authTime: Timestamp | null;
+  clientId: string;
+  confirmation: Json | null;
+  createdAt: Timestamp;
+  expiresAt: Timestamp;
+  id: string;
+  referenceId: string | null;
+  requestedUserInfoClaims: Json | null;
+  resources: Json | null;
+  revoked: Timestamp | null;
+  rotatedAt: Timestamp | null;
+  rotationReplayExpiresAt: Timestamp | null;
+  rotationReplayResponse: string | null;
+  scopes: Json;
+  sessionId: string | null;
+  token: string;
+  userId: string;
+}
+
+export interface OauthResource {
+  accessTokenTtl: number | null;
+  allowedScopes: Json | null;
+  createdAt: Timestamp | null;
+  customClaims: Json | null;
+  disabled: boolean | null;
+  dpopBoundAccessTokensRequired: boolean | null;
+  id: string;
+  identifier: string;
+  metadata: Json | null;
+  name: string;
+  policyVersion: number | null;
+  refreshTokenTtl: number | null;
+  signingAlgorithm: string | null;
+  signingKeyId: string | null;
+  updatedAt: Timestamp | null;
 }
 
 export interface Passkey {
@@ -1083,6 +1219,7 @@ export interface DB {
   game_sponsorship: GameSponsorship;
   junior_team: JuniorTeam;
   junior_team_manager: JuniorTeamManager;
+  jwks: Jwks;
   lead: Lead;
   marketing_event: MarketingEvent;
   marketing_outbox: MarketingOutbox;
@@ -1098,8 +1235,16 @@ export interface DB {
   matchday_player: MatchdayPlayer;
   member: Member;
   member_parent_link: MemberParentLink;
+  member_public: MemberPublic;
   membership: Membership;
   notification_preferences: NotificationPreferences;
+  oauthAccessToken: OauthAccessToken;
+  oauthClient: OauthClient;
+  oauthClientAssertion: OauthClientAssertion;
+  oauthClientResource: OauthClientResource;
+  oauthConsent: OauthConsent;
+  oauthRefreshToken: OauthRefreshToken;
+  oauthResource: OauthResource;
   passkey: Passkey;
   play_cricket_match_cache: PlayCricketMatchCache;
   play_cricket_sync_log: PlayCricketSyncLog;
