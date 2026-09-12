@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { describe, expect, it } from "vitest";
+import { getMcpResource } from "./auth.ts";
 import { requireClubWidePermission, toWebHeaders } from "./middleware.ts";
 
 /** Minimal Fastify request/reply doubles that drive the auth preHandlers. */
@@ -45,6 +46,24 @@ describe("requireClubWidePermission", () => {
     const { request, reply } = makeReqReply("admin");
     await requireClubWidePermission("matchday", "view")(request, reply);
     expect(reply.sent).toBe(false);
+  });
+});
+
+describe("getMcpResource", () => {
+  it("appends /mcp to the configured origin", () => {
+    expect(getMcpResource({ MCP_BASE_URL: "https://mcp.percymain.org" })).toBe(
+      "https://mcp.percymain.org/mcp",
+    );
+  });
+
+  it("trims a trailing slash before appending /mcp", () => {
+    expect(getMcpResource({ MCP_BASE_URL: "https://mcp.percymain.org/" })).toBe(
+      "https://mcp.percymain.org/mcp",
+    );
+  });
+
+  it("returns undefined when MCP_BASE_URL is unset", () => {
+    expect(getMcpResource({ MCP_BASE_URL: undefined })).toBeUndefined();
   });
 });
 

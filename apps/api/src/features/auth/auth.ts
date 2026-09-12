@@ -17,8 +17,15 @@ import type { Config } from "../../config.ts";
 // features/mcp/routes.ts must pass to requireMcpAuth for its audience
 // check to agree with the token's minted `aud` claim. Exported as a
 // function (not computed twice) so the two never drift apart.
+//
+// Returns undefined when MCP_BASE_URL isn't set (config.ts treats its
+// backing SSM parameter's Terraform-seeded "placeholder" value as unset,
+// same as MATCHDAY_URL/WWW_URL) — see the mcp() registration below for why.
+// Trims a trailing slash so a MCP_BASE_URL set with one (still valid per
+// z.url()) can't produce a double slash before /mcp.
 export function getMcpResource(config: Pick<Config, "MCP_BASE_URL">) {
-  return `${config.MCP_BASE_URL}/mcp`;
+  if (!config.MCP_BASE_URL) return undefined;
+  return `${config.MCP_BASE_URL.replace(/\/+$/, "")}/mcp`;
 }
 
 export function createAuth(
@@ -91,31 +98,55 @@ export function createAuth(
       // ["openid", "profile", "email", "offline_access"], and a scope
       // outside that list can never be granted, which would make
       // requireMcpAuth's requiredScopes: ["mcp:use"] permanently fail.
-      mcp({
-        // Absolute URLs, not relative paths: /auth/login and /auth/consent
-        // are React Router routes served by apps/web (baseURL), a
-        // completely different origin from this API (apiBaseURL). A
-        // relative path here gets resolved by better-auth against its own
-        // origin, redirecting real MCP clients to a 404 on the API domain
-        // instead of the actual login/consent pages.
-        loginPage: `${baseURL}/auth/login`,
-        consentPage: `${baseURL}/auth/consent`,
-        resource: mcpResource,
-        scopes: ["openid", "profile", "email", "offline_access", "mcp:use"],
-        allowDynamicClientRegistration: true,
-        allowUnauthenticatedClientRegistration: true,
-        // Seeds the oauthResource row for `resource` at boot (RFC 8707
-        // resource-indicator support is otherwise a fully opt-in, empty
-        // feature — without this, DCR registration 400s with
-        // invalid_target the first time a client requests this resource
-        // on a fresh DB, since nothing else creates the row). There is
-        // only ever one resource (this MCP server), so per-client resource
-        // scoping is a non-feature here — enforcePerClientResources: false
-        // skips the oauthClientResource linking step entirely rather than
-        // auto-linking every client to the one resource that exists.
-        resources: [mcpResource],
-        enforcePerClientResources: false,
-      }),
+      //
+      // Only registered once mcpResource resolves (ADR 063): Terraform
+      // seeds MCP_BASE_URL's backing SSM parameter with a literal
+      // "placeholder" value, and terraform-production + deploy-api run
+      // back-to-back in the same CI pipeline with no gate for an operator
+      // to set the real value in between. mcp() requires an absolute
+      // HTTPS resource URL and would otherwise seed a bogus oauthResource
+      // row (or throw) on exactly that first deploy — conditionally
+      // omitting it here means that deploy just boots without MCP instead
+      // of crash-looping the whole API. features/mcp/routes.ts mirrors
+      // this by 503'ing instead of calling requireMcpAuth.
+      ...(mcpResource
+        ? [
+            mcp({
+              // Absolute URLs, not relative paths: /auth/login and
+              // /auth/consent are React Router routes served by apps/web
+              // (baseURL), a completely different origin from this API
+              // (apiBaseURL). A relative path here gets resolved by
+              // better-auth against its own origin, redirecting real MCP
+              // clients to a 404 on the API domain instead of the actual
+              // login/consent pages.
+              loginPage: `${baseURL}/auth/login`,
+              consentPage: `${baseURL}/auth/consent`,
+              resource: mcpResource,
+              scopes: [
+                "openid",
+                "profile",
+                "email",
+                "offline_access",
+                "mcp:use",
+              ],
+              allowDynamicClientRegistration: true,
+              allowUnauthenticatedClientRegistration: true,
+              // Seeds the oauthResource row for `resource` at boot (RFC
+              // 8707 resource-indicator support is otherwise a fully
+              // opt-in, empty feature — without this, DCR registration
+              // 400s with invalid_target the first time a client requests
+              // this resource on a fresh DB, since nothing else creates
+              // the row). There is only ever one resource (this MCP
+              // server), so per-client resource scoping is a non-feature
+              // here — enforcePerClientResources: false skips the
+              // oauthClientResource linking step entirely rather than
+              // auto-linking every client to the one resource that
+              // exists.
+              resources: [mcpResource],
+              enforcePerClientResources: false,
+            }),
+          ]
+        : []),
       ...(config.BETTER_AUTH_API_KEY ? [dash()] : []),
     ],
     emailAndPassword: {

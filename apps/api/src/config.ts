@@ -55,11 +55,18 @@ const configSchema = z.object({
   // API in single-origin mode.
   COOKIE_DOMAIN: optionalPlaceholderString,
   API_BASE_URL: z.url(),
-  // Protected-resource identifier for the MCP server (ADR 062/063) — kept
-  // separate from API_BASE_URL because the MCP endpoint lives on its own
-  // hostname (mcp.percymain.org in production), not under the shared API
-  // domain. Required like API_BASE_URL: no in-code default.
-  MCP_BASE_URL: z.url(),
+  // Origin for the MCP server's protected-resource identifier (ADR
+  // 062/063) — kept separate from API_BASE_URL because the MCP endpoint
+  // lives on its own hostname (mcp.percymain.org in production), not
+  // under the shared API domain. Uses the placeholder-tolerant transform
+  // (like MATCHDAY_URL/WWW_URL below), not a hard z.url() like
+  // API_BASE_URL: Terraform seeds its SSM parameter with a literal
+  // "placeholder" on the deploy that first introduces it, and
+  // terraform-production + deploy-api run back-to-back in CI with no gate
+  // for an operator to set the real value first. features/auth/auth.ts
+  // and features/mcp/routes.ts both treat "unset" as "MCP not available
+  // yet" rather than crashing the whole API.
+  MCP_BASE_URL: optionalPlaceholderUrl,
   DEPLOY_PRIME_URL: z.url().optional(),
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),

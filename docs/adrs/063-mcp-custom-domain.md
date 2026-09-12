@@ -9,9 +9,11 @@ The MCP server (ADR 062) moves from `https://api.v2.percymain.org/mcp` to
 `https://mcp.percymain.org/mcp` in production. The `/mcp` path is kept
 (the resource is not the bare domain root). It attaches to the existing
 ALB as an additional SNI certificate, not to API Gateway. The protected-
-resource identifier is decoupled from `API_BASE_URL` into its own required
-config value, `MCP_BASE_URL`. Staging keeps MCP on its current hostname
-unchanged.
+resource identifier is decoupled from `API_BASE_URL` into its own config
+value, `MCP_BASE_URL` — placeholder-tolerant like `MATCHDAY_URL`/`WWW_URL`,
+not hard-required like `API_BASE_URL`, with the MCP feature disabling
+itself gracefully (a 503, not a crash) whenever it's unset. Staging keeps
+MCP on its current hostname unchanged.
 
 ## Problem
 
@@ -23,7 +25,7 @@ ChatGPT connectors) than a domain that signals what it's for. This is a
 cosmetic/DX change on top of a working feature — none of ADR 062's
 decisions are revisited here.
 
-Two things made this less mechanical than "add a CNAME":
+Three things made this less mechanical than "add a CNAME":
 
 1. ADR 061 (ALB → API Gateway) is mid-migration and had not flipped
    `api.v2.percymain.org` off the ALB at the time this was picked up —
@@ -36,6 +38,18 @@ Two things made this less mechanical than "add a CNAME":
    plugin. A domain change touching only the documented location
    (auth.ts) would have left `requireMcpAuth`'s audience check and the
    token's minted `aud` claim disagreeing, breaking every MCP call.
+3. A brand-new required config value backed by a Terraform-managed SSM
+   parameter has a first-deploy race in this repo's pipeline:
+   `terraform-production` and `deploy-api` run back-to-back in the same
+   CI run with no gate for an operator to set the real value in between
+   (`deploy.yml`'s `deploy-api` job only depends on `terraform-production`
+   succeeding). Terraform seeds the new parameter with a literal
+   `"placeholder"` string. A hard `z.url()` schema (the initial version of
+   this change used one, matching `API_BASE_URL`) rejects that string,
+   crashing every task on boot and triggering ECS's deployment circuit
+   breaker — not just failing to deploy MCP, but rolling back the _entire_
+   API deployment over one unrelated config value. Caught by CodeRabbit's
+   review of the PR, not found during initial implementation.
 
 ## Options considered
 
@@ -68,10 +82,27 @@ Two things made this less mechanical than "add a CNAME":
 5. **Keep `mcpResource` derived from `API_BASE_URL`.** Rejected: the
    whole point is a different hostname for MCP than the general API, so
    the two values need to be independently configurable. Introduced
-   `MCP_BASE_URL` as its own required config value instead, and extracted
-   a single `getMcpResource()` helper (exported from `auth.ts`) so
-   `auth.ts` and `mcp/routes.ts` can no longer independently drift on
-   what the resource identifier is.
+   `MCP_BASE_URL` as its own config value instead, and extracted a single
+   `getMcpResource()` helper (exported from `auth.ts`) so `auth.ts` and
+   `mcp/routes.ts` can no longer independently drift on what the resource
+   identifier is.
+6. **A CI/CD deployment gate**, splitting `terraform-production` and
+   `deploy-api` so an operator can set the real `MCP_BASE_URL` value in
+   between (CodeRabbit's suggested fix for problem 3 above). Rejected as
+   disproportionate: it changes a general pipeline invariant that every
+   other secret/parameter in this repo relies on, for one new value, and
+   this repo already has a proven, much smaller-footprint answer to
+   exactly this bootstrap race (below).
+7. **Placeholder-tolerant `MCP_BASE_URL` + graceful feature disable
+   (chosen).** `config.ts`'s existing `optionalPlaceholderUrl` transform
+   (already used by `MATCHDAY_URL`/`WWW_URL`, introduced for the same
+   reason: treats a Terraform-seeded `"placeholder"` value as unset)
+   applied to `MCP_BASE_URL`, with `auth.ts` skipping the `mcp()` plugin
+   registration and `mcp/routes.ts` returning a 503 whenever
+   `getMcpResource()` returns `undefined`. The deploy that first
+   introduces the parameter (or any deploy before an operator sets the
+   real value) boots the whole API fine; only `/mcp` itself is
+   unavailable until the value is set and the service redeploys.
 
 ## Rationale
 
@@ -102,6 +133,19 @@ deliberately — this is a single personal connector under direct control,
 and MCP clients are expected to follow a 401 challenge by re-running
 authorize/consent/token.
 
+`MCP_BASE_URL` mirrors `MATCHDAY_URL`/`WWW_URL`/`COOKIE_DOMAIN` rather than
+`API_BASE_URL`/`BASE_URL` for a structural reason, not inconsistency: the
+latter two are foundational and have had real values since the service's
+very first deploy, so they never faced this race. Every config value
+introduced _after_ the service was already live and continuously deployed
+— MCP_BASE_URL included — hits the same Terraform-placeholder-seeds-first
+race, and this repo's established answer for that specific situation is
+the placeholder-tolerant transform plus graceful degradation at the
+call site, not a hard-required schema. `getMcpResource()` also trims a
+trailing slash before appending `/mcp`, since `z.url()` accepts
+`https://mcp.percymain.org/` but that would otherwise produce a
+double-slash resource URI (also caught by CodeRabbit's review).
+
 The old `oauthResource` row (`https://api.v2.percymain.org/mcp`) is left
 in place rather than migrated or deleted. `resourceSeedMode` is
 `insertOnly`, so a new row for the new identifier is inserted alongside it
@@ -129,3 +173,7 @@ would have to be true for them to become attractive:
 - **Derived `MCP_BASE_URL`**: would become attractive again only if MCP
   were folded back under the general API domain, reversing this decision
   entirely.
+- **CI/CD deployment gate**: revisit if this exact race recurs for a third
+  or fourth new SSM-backed value — at that point a general gate earns its
+  keep across all of them, rather than each one growing its own
+  placeholder-tolerance + graceful-disable code.
