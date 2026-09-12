@@ -3,6 +3,7 @@ import rateLimit from "@fastify/rate-limit";
 import { NodeStreamableHTTPServerTransport } from "@modelcontextprotocol/node";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { getMcpResource } from "../auth/auth.ts";
 import { requireAuth } from "../auth/middleware.ts";
 import { createApiClient } from "../play-cricket/api-client.ts";
 import {
@@ -49,7 +50,7 @@ export const mcpRoutes: FastifyPluginAsync = async (app) => {
   // client usage.
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
-  const resource = `${app.config.API_BASE_URL}/mcp`;
+  const resource = getMcpResource(app.config);
 
   const handle = async (request: FastifyRequest, reply: FastifyReply) => {
     const fetchReq = toFetchRequest(request);

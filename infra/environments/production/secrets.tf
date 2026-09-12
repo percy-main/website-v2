@@ -54,6 +54,26 @@ resource "aws_ssm_parameter" "api_base_url" {
   }
 }
 
+# MCP server protected-resource origin (ADR 063). Set by hand after apply:
+#   aws ssm put-parameter --profile percy-main \
+#     --name "/production/percy-main/MCP_BASE_URL" \
+#     --value "https://mcp.percymain.org" --overwrite
+resource "aws_ssm_parameter" "mcp_base_url" {
+  name  = "/production/percy-main/MCP_BASE_URL"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "production"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 resource "aws_ssm_parameter" "better_auth_rp_id" {
   name  = "/production/percy-main/BETTER_AUTH_RP_ID"
   type  = "String"

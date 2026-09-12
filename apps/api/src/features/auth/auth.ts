@@ -12,6 +12,15 @@ import { createElement } from "react";
 import { render } from "react-email";
 import type { Config } from "../../config.ts";
 
+// The MCP server's protected-resource identifier (ADR 062/063) — the same
+// value the mcp() plugin's `resource` uses below, and what
+// features/mcp/routes.ts must pass to requireMcpAuth for its audience
+// check to agree with the token's minted `aud` claim. Exported as a
+// function (not computed twice) so the two never drift apart.
+export function getMcpResource(config: Pick<Config, "MCP_BASE_URL">) {
+  return `${config.MCP_BASE_URL}/mcp`;
+}
+
 export function createAuth(
   config: Config,
   dialect: PostgresDialect,
@@ -21,10 +30,7 @@ export function createAuth(
 ) {
   const baseURL = config.BASE_URL;
   const apiBaseURL = config.API_BASE_URL;
-  // The MCP server's protected-resource identifier (ADR 062) — the same
-  // value the mcp() plugin's `resource` uses, and where features/mcp/routes.ts
-  // registers the actual /mcp route.
-  const mcpResource = `${apiBaseURL}/mcp`;
+  const mcpResource = getMcpResource(config);
   const isProduction = config.NODE_ENV === "production";
 
   return betterAuth({

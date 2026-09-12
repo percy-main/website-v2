@@ -55,6 +55,11 @@ const configSchema = z.object({
   // API in single-origin mode.
   COOKIE_DOMAIN: optionalPlaceholderString,
   API_BASE_URL: z.url(),
+  // Protected-resource identifier for the MCP server (ADR 062/063) — kept
+  // separate from API_BASE_URL because the MCP endpoint lives on its own
+  // hostname (mcp.percymain.org in production), not under the shared API
+  // domain. Required like API_BASE_URL: no in-code default.
+  MCP_BASE_URL: z.url(),
   DEPLOY_PRIME_URL: z.url().optional(),
   GOOGLE_CLIENT_ID: z.string().default(""),
   GOOGLE_CLIENT_SECRET: z.string().default(""),

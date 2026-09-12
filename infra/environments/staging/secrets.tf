@@ -59,6 +59,27 @@ resource "aws_ssm_parameter" "api_base_url" {
   }
 }
 
+# MCP server protected-resource origin (ADR 063). Staging keeps MCP on its
+# existing hostname (no dedicated custom domain there) - set by hand after
+# apply to the same origin API_BASE_URL already uses:
+#   aws ssm put-parameter --name "/staging/percy-main/MCP_BASE_URL" \
+#     --value "https://api.staging.percymain.org" --overwrite
+resource "aws_ssm_parameter" "mcp_base_url" {
+  name  = "/staging/percy-main/MCP_BASE_URL"
+  type  = "String"
+  value = "placeholder"
+
+  tags = {
+    Environment = "staging"
+    Project     = "percy-main"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+}
+
 resource "aws_ssm_parameter" "better_auth_rp_id" {
   name  = "/staging/percy-main/BETTER_AUTH_RP_ID"
   type  = "String"

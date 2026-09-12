@@ -205,6 +205,7 @@ module "ecs" {
     # SSM Parameter Store (non-secret config)
     BASE_URL             = aws_ssm_parameter.base_url.arn
     API_BASE_URL         = aws_ssm_parameter.api_base_url.arn
+    MCP_BASE_URL         = aws_ssm_parameter.mcp_base_url.arn
     BETTER_AUTH_RP_ID    = aws_ssm_parameter.better_auth_rp_id.arn
     BETTER_AUTH_RP_NAME  = aws_ssm_parameter.better_auth_rp_name.arn
     PLAY_CRICKET_SITE_ID = aws_ssm_parameter.play_cricket_site_id.arn
