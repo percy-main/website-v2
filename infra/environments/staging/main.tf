@@ -188,6 +188,15 @@ module "ecs" {
     # to start.
     TAVILY_API_KEY = "${aws_secretsmanager_secret.app_secrets.arn}:TAVILY_API_KEY::"
     SCOUT_DB_URL   = "${aws_secretsmanager_secret.app_secrets.arn}:SCOUT_DB_URL::"
+    # MCP server (ADR 062) — unlike SCOUT_DB_URL, required by config
+    # (z.url(), no .optional()): MCP is meant for any signed-up member,
+    # not an alex-only feature, so there's no graceful-degradation path.
+    # Must use the mcp_readonly role (created NOLOGIN by migration
+    # 2026-09-11T23:37:37.944Z; password set out-of-band on the RDS
+    # instance, same as scout_readonly). The secret JSON key MUST exist
+    # in app_secrets before this task definition redeploys, or ECS will
+    # fail to start.
+    MCP_DB_URL = "${aws_secretsmanager_secret.app_secrets.arn}:MCP_DB_URL::"
     # Phoenix API key - required by config (z.string().min(1)). The
     # PHOENIX_API_KEY JSON key MUST exist in app_secrets before this
     # task definition redeploys or ECS will fail to start.

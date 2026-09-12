@@ -9,8 +9,30 @@ import { createClient } from "@percy-main/db";
 import { buildApp } from "./app.ts";
 import { parseConfig } from "./config.ts";
 
+// @better-auth/oauth-provider's mcp() plugin seeds its configured
+// `resources` row on the real DB as an un-awaited background operation
+// during betterAuth() construction — not something app.ts's own code
+// calls or can opt out of. Every other DB access in this script is
+// through a lazily-connecting Kysely client that's never actually
+// queried (matching the placeholder config above), but this one fires
+// immediately and rejects with ECONNREFUSED since there's no live DB
+// here, which would otherwise crash the process with an unhandled
+// rejection before the spec ever gets written to stdout.
+process.on("unhandledRejection", (reason) => {
+  if (
+    reason &&
+    typeof reason === "object" &&
+    "code" in reason &&
+    reason.code === "ECONNREFUSED"
+  ) {
+    return;
+  }
+  throw reason;
+});
+
 const config = parseConfig({
   DATABASE_URL: "postgres://percy:percy@localhost:5433/percy_main",
+  MCP_DB_URL: "postgres://percy:percy@localhost:5433/percy_main",
   API_BASE_URL: "http://localhost:3000",
   // Trivy's stripe-secret-token rule matches any `sk_test_*` literal —
   // even an obvious placeholder — and fails the deploy. The OpenAPI

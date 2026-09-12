@@ -2,7 +2,16 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // Deployed as a compiled Node service, never imported as a library by
+    // another workspace package (unlike packages/*, which need declaration
+    // output for cross-package types) — so declaration emit buys nothing
+    // here. Turned off because @better-auth/oauth-provider's plugin return
+    // type (ADR 062's mcp()) pulls in internal types with no import path
+    // TS can name in a .d.ts, which fails `tsc` under declaration:true
+    // (TS2883) even though the code itself is sound.
+    "declaration": false,
+    "declarationMap": false
   },
   "include": ["src/**/*"]
 }

@@ -11,7 +11,15 @@
       "@/*": ["./src/*"]
     },
     "noEmit": true,
-    "types": ["google.maps"]
+    "types": ["google.maps"],
+    // Vite bundles directly from TS source and never consumes .d.ts output,
+    // so declaration emit buys nothing here (same reasoning as apps/api's
+    // tsconfig). Needed because @better-auth/oauth-provider's client plugin
+    // (ADR 062) pulls in internal types with no import path TS can name in
+    // a declaration file, which fails typecheck under declaration:true
+    // (TS2883) even though noEmit is already set.
+    "declaration": false,
+    "declarationMap": false
   },
   "include": ["src/**/*", "content/**/*"]
 }

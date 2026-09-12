@@ -161,6 +161,25 @@ export const routes: RouteObject[] = [
         ],
       },
 
+      // MCP OAuth consent (ADR 062) — needs a signed-in session (RequireAuth
+      // redirects to /auth/login?returnTo=... and back, preserving the
+      // client_id/scope/claims/code query params) but not verified email,
+      // and shares the minimal AuthLayout shell above.
+      {
+        element: <RequireAuth />,
+        children: [
+          {
+            element: <AuthLayout />,
+            children: [
+              {
+                path: "auth/consent",
+                lazy: () => import("./pages/auth/consent.js"),
+              },
+            ],
+          },
+        ],
+      },
+
       // Authenticated + verified email routes
       {
         element: <RequireAuth />,

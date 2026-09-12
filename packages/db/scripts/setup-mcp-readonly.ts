@@ -3,12 +3,12 @@ import { sql } from "kysely";
 import { createClient } from "../src/client.js";
 
 /**
- * Local-dev only. Sets a known password on `scout_readonly` and prints the
- * SCOUT_DB_URL line to copy into apps/api/.env. In production the role's
+ * Local-dev only. Sets a known password on `mcp_readonly` and prints the
+ * MCP_DB_URL line to copy into apps/api/.env. In production the role's
  * password is set by Terraform from Secrets Manager — never run this there.
  */
 
-const DEV_PASSWORD = "scout_readonly_dev";
+const DEV_PASSWORD = "mcp_readonly_dev";
 
 const adminUrl =
   process.env.DATABASE_URL ??
@@ -25,19 +25,19 @@ if (adminHostname !== "localhost" && adminHostname !== "127.0.0.1") {
 
 const { client } = createClient(adminUrl);
 
-await sql`ALTER USER scout_readonly WITH LOGIN PASSWORD ${sql.lit(
+await sql`ALTER USER mcp_readonly WITH LOGIN PASSWORD ${sql.lit(
   DEV_PASSWORD,
 )}`.execute(client);
 
 await client.destroy();
 
-const scoutUrl = adminUrl.replace(
+const mcpUrl = adminUrl.replace(
   /^postgres(ql)?:\/\/[^@]+@/,
-  `postgres://scout_readonly:${DEV_PASSWORD}@`,
+  `postgres://mcp_readonly:${DEV_PASSWORD}@`,
 );
 
-console.log("✓ scout_readonly is now LOGIN with the dev password");
+console.log("✓ mcp_readonly is now LOGIN with the dev password");
 console.log("");
 console.log("Add this to apps/api/.env:");
 console.log("");
-console.log(`SCOUT_DB_URL=${scoutUrl}`);
+console.log(`MCP_DB_URL=${mcpUrl}`);

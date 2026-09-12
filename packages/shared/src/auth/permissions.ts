@@ -22,6 +22,14 @@ export const statements = {
   // content editor). Usage-only: it streams blocks into the client-side
   // draft; persistence still flows through the per-kind content gates on save.
   ai_content: ["use"],
+  // MCP (ADR 062) — documentation/consistency only. Every signed-up
+  // member can use MCP once they complete OAuth consent; access is
+  // gated by having a valid, consented OAuth token (requiredScopes:
+  // ["mcp:use"] in requireMcpAuth), not by checkPermission(), since the
+  // implicit `user` role's grants are invisible to checkPermission()
+  // (parseRoles() strips "user" out before any check runs). There is no
+  // per-account revoke switch yet.
+  mcp: ["use"],
   users: ["view", "manage", "manage_roles"],
   // Live content editing (#479). manage and publish are separate actions
   // deliberately - every role created today gets both (direct publish, no
@@ -50,6 +58,7 @@ const ALL_PERMS = {
   ai_facts: ["view", "manage"],
   ai_knowledge: ["view", "manage"],
   ai_content: ["use"],
+  mcp: ["use"],
   users: ["view", "manage", "manage_roles"],
   content: ["view", "manage", "publish"],
   content_news: ["view", "manage", "publish"],

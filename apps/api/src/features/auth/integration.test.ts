@@ -1,3 +1,4 @@
+import { getDevEmailDir } from "@percy-main/email";
 import type { FastifyInstance } from "fastify";
 import { readdir, readFile, rm } from "fs/promises";
 import { join } from "path";
@@ -11,7 +12,7 @@ import {
 
 let ctx: TestContext;
 let app: FastifyInstance;
-const emailDir = join(process.cwd(), ".emails");
+const emailDir = getDevEmailDir();
 
 beforeAll(async () => {
   ctx = await startTestContainer();

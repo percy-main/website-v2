@@ -1,3 +1,4 @@
+export { getDevEmailDir } from "./devSend.ts";
 export { email } from "./email.ts";
 export { createSend } from "./send.ts";
 export { AvailabilityRequest } from "./templates/AvailabilityRequest.tsx";

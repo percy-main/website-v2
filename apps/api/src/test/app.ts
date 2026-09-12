@@ -10,6 +10,7 @@ import { parseConfig } from "../config.ts";
 export async function buildTestApp(db: Kysely<DB>, dialect: PostgresDialect) {
   const config = parseConfig({
     DATABASE_URL: "test://unused", // DB is injected directly
+    MCP_DB_URL: "test://unused", // mcpReadonly is not exercised by unit tests
     NODE_ENV: "test",
     EMAIL_PROVIDER: "dev",
     BASE_URL: "http://localhost:5173",
