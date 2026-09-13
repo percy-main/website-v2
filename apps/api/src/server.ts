@@ -1,7 +1,9 @@
 import { createClient } from "@percy-main/db";
+import type { TLSSocket } from "node:tls";
 import { buildApp } from "./app.ts";
 import { parseConfig } from "./config.ts";
 import { isAbortError } from "./lib/abort-errors.ts";
+import { startTlsProxy } from "./lib/tls-proxy.ts";
 
 const config = parseConfig(process.env);
 const { client: db, dialect } = createClient(config.DATABASE_URL);
@@ -35,8 +37,35 @@ process.on("uncaughtException", (err: Error) => {
   process.exit(1);
 });
 
+let closeTlsProxy: (() => Promise<void>) | undefined;
+app.addHook("onClose", async () => closeTlsProxy?.());
+
 try {
   await app.listen({ port: config.PORT, host: config.HOST });
+  if (config.TLS_CERTIFICATE_ARN) {
+    if (!config.TLS_KEY_PASSPHRASE) {
+      throw new Error(
+        "TLS_KEY_PASSPHRASE is required with TLS_CERTIFICATE_ARN",
+      );
+    }
+    const tlsProxy = await startTlsProxy({
+      certificateArn: config.TLS_CERTIFICATE_ARN,
+      passphrase: config.TLS_KEY_PASSPHRASE,
+      port: config.TLS_PORT,
+      upstreamPort: config.PORT,
+      logger: app.log,
+    });
+    const tlsSockets = new Set<TLSSocket>();
+    tlsProxy.on("secureConnection", (socket) => {
+      tlsSockets.add(socket);
+      socket.once("close", () => tlsSockets.delete(socket));
+    });
+    closeTlsProxy = () =>
+      new Promise<void>((resolve) => {
+        tlsProxy.close(() => resolve());
+        for (const socket of tlsSockets) socket.destroy();
+      });
+  }
 } catch (err) {
   app.log.error(err);
   process.exit(1);

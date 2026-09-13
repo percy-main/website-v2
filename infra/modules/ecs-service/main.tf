@@ -50,6 +50,21 @@ variable "alb_security_group_id" {
   type = string
 }
 
+variable "tls_certificate_arn" {
+  type    = string
+  default = null
+}
+
+variable "tls_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "service_discovery_port" {
+  type    = number
+  default = 3000
+}
+
 variable "environment_variables" {
   type    = map(string)
   default = {}
@@ -302,6 +317,20 @@ resource "aws_iam_role_policy" "task_ses" {
         Resource = "arn:aws:ses:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:identity/*"
       }
     ]
+  })
+}
+
+resource "aws_iam_role_policy" "task_export_tls_certificate" {
+  count = var.tls_enabled ? 1 : 0
+  name  = "${local.name_prefix}-task-export-tls-certificate"
+  role  = aws_iam_role.task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "acm:ExportCertificate"
+      Resource = var.tls_certificate_arn
+    }]
   })
 }
 
@@ -588,9 +617,9 @@ resource "aws_ecs_task_definition" "api" {
       image     = "${var.ecr_repository_url}:${var.image_tag}"
       essential = true
 
-      portMappings = [
+      portMappings = [for port in distinct([3000, var.service_discovery_port]) :
         {
-          containerPort = 3000
+          containerPort = port
           protocol      = "tcp"
         }
       ]
@@ -937,7 +966,7 @@ resource "aws_ecs_service" "api" {
   # service replacement.
   service_registries {
     registry_arn = aws_service_discovery_service.api.arn
-    port         = 3000
+    port         = var.service_discovery_port
   }
 
   lifecycle {
