@@ -56,6 +56,8 @@ export async function startTlsProxy(options: TlsProxyOptions): Promise<Server> {
     const upstream = connect(options.upstreamPort, "127.0.0.1");
     downstream.on("error", () => upstream.destroy());
     upstream.on("error", () => downstream.destroy());
+    downstream.on("close", () => upstream.destroy());
+    upstream.on("close", () => downstream.destroy());
     downstream.pipe(upstream);
     upstream.pipe(downstream);
   });

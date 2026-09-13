@@ -1,4 +1,5 @@
 import { createClient } from "@percy-main/db";
+import type { TLSSocket } from "node:tls";
 import { buildApp } from "./app.ts";
 import { parseConfig } from "./config.ts";
 import { isAbortError } from "./lib/abort-errors.ts";
@@ -54,8 +55,16 @@ try {
       upstreamPort: config.PORT,
       logger: app.log,
     });
+    const tlsSockets = new Set<TLSSocket>();
+    tlsProxy.on("secureConnection", (socket) => {
+      tlsSockets.add(socket);
+      socket.once("close", () => tlsSockets.delete(socket));
+    });
     closeTlsProxy = () =>
-      new Promise<void>((resolve) => tlsProxy.close(() => resolve()));
+      new Promise<void>((resolve) => {
+        tlsProxy.close(() => resolve());
+        for (const socket of tlsSockets) socket.destroy();
+      });
   }
 } catch (err) {
   app.log.error(err);
