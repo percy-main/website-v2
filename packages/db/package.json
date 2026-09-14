@@ -24,7 +24,7 @@
     "date-fns": "^4.4.0",
     "kysely": "^0.29.5",
     "pg": "^8.23.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@libsql/client": "^0.18.0",
