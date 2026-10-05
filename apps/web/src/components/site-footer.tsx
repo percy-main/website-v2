@@ -71,6 +71,17 @@ export const SiteFooter: FC = () => {
                 </Link>
               </li>
               <li>
+                <a
+                  href="https://oddsworth.net"
+                  title="Oddsworth: cricket previews, predictions and player rankings"
+                  className="text-paper/80 hover:text-paper transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Oddsworth Cricket Previews
+                </a>
+              </li>
+              <li>
                 <Link
                   to="/report-incident"
                   className="text-paper/80 hover:text-paper transition max-lg:inline-flex max-lg:min-h-6 max-lg:items-center max-lg:py-1"
