@@ -417,18 +417,50 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
   tags = local.default_tags
 }
 
-# db.t4g.micro has 1 GiB RAM. <100 MiB freeable is the most common
-# silent failure mode — connection refusal under load.
+# db.t4g.micro has 1 GiB RAM, and ~25% is reserved for shared_buffers.
+# Steady-state freeable memory on an idle instance sits at 85-150 MiB
+# (RDS housekeeping produces a 6-hourly sawtooth), so a 100 MiB
+# threshold flapped dozens of times a day with no real pressure behind
+# it. 64 MiB sustained for 15 minutes is the "genuinely running out"
+# signal; rds_swap_usage_high below catches slower squeezes.
 resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory_low" {
   alarm_name          = "${local.prefix}-rds-freeable-memory-low"
-  alarm_description   = "RDS freeable memory <100 MiB — instance under memory pressure, may refuse connections"
+  alarm_description   = "RDS freeable memory <64 MiB for 15 min - instance under memory pressure, may refuse connections"
   comparison_operator = "LessThanThreshold"
-  evaluation_periods  = 2
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
   metric_name         = "FreeableMemory"
   namespace           = "AWS/RDS"
   period              = 300
   statistic           = "Average"
-  threshold           = 100 * 1024 * 1024
+  threshold           = 64 * 1024 * 1024
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_instance_id
+  }
+
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
+
+  tags = local.default_tags
+}
+
+# Swap is the clearer memory-pressure signal on a small instance: the
+# kernel only pushes pages out when it is actually short. Baseline is a
+# flat ~35 MiB; sustained growth past 200 MiB means the working set no
+# longer fits and the instance class needs revisiting.
+resource "aws_cloudwatch_metric_alarm" "rds_swap_usage_high" {
+  alarm_name          = "${local.prefix}-rds-swap-usage-high"
+  alarm_description   = "RDS swap usage >200 MiB for 15 min - working set no longer fits in RAM"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  datapoints_to_alarm = 3
+  metric_name         = "SwapUsage"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 200 * 1024 * 1024
   treat_missing_data  = "notBreaching"
 
   dimensions = {
