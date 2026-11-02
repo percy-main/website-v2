@@ -109,12 +109,19 @@ export function updateMembership(db: Kysely<DB>) {
     } else {
       console.log("Existing membership for customer, adding duration");
 
+      // Extend from whichever is later: the current expiry (early renewal
+      // stacks on top) or the payment date (a lapsed member rejoining must
+      // not have the new period swallowed by the gap since they lapsed).
+      const currentPaidUntil = member.paid_until
+        ? new Date(member.paid_until)
+        : null;
+      const extendFrom =
+        currentPaidUntil && currentPaidUntil > paidAt
+          ? currentPaidUntil
+          : paidAt;
       const paid_until = explicitPaidUntil
         ? explicitPaidUntil.toISOString()
-        : add(
-            member.paid_until ? new Date(member.paid_until) : paidAt,
-            addedDuration,
-          ).toISOString();
+        : add(extendFrom, addedDuration).toISOString();
 
       const membership = await db
         .updateTable("membership")

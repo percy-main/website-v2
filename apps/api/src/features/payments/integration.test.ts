@@ -575,6 +575,126 @@ describe("handleInvoicePayment", () => {
     expect(charge?.description).toContain("Membership renewal");
   });
 
+  describe("paid_until extension", () => {
+    // 2026-06-10T12:00Z. Kept clear of DST changes because date-fns `add`
+    // works in local time (prod and CI run in UTC; dev machines may not).
+    const RENEWAL_EVENT_CREATED = Math.floor(
+      new Date("2026-06-10T12:00:00Z").getTime() / 1000,
+    );
+
+    async function renewMonthly(email: string) {
+      const subscriptionId = `sub_${randomUUID()}`;
+      const mockStripe = {
+        customers: {
+          retrieve: vi.fn().mockResolvedValue({
+            id: `cus_${randomUUID()}`,
+            email,
+            deleted: false,
+          }),
+        },
+        subscriptions: {
+          retrieve: vi.fn().mockResolvedValue({
+            id: subscriptionId,
+            metadata: {
+              type: "membership",
+              membership: "senior_player",
+              source: "direct",
+            },
+            items: {
+              data: [
+                {
+                  price: {
+                    type: "recurring",
+                    recurring: { interval: "month", interval_count: 1 },
+                  },
+                },
+              ],
+            },
+          }),
+        },
+        invoicePayments: {
+          list: vi.fn().mockResolvedValue({
+            data: [
+              {
+                is_default: true,
+                payment: { payment_intent: `pi_${randomUUID()}` },
+              },
+            ],
+          }),
+        },
+      } as any;
+
+      await handleInvoicePayment({
+        db: ctx.db,
+        stripe: mockStripe,
+        log: mockLog,
+        prerenderTrigger: mockPrerenderTrigger,
+        baseUrl: "http://localhost:5173",
+        send: vi.fn(),
+      })(
+        {
+          id: `in_${randomUUID()}`,
+          customer: `cus_123`,
+          parent: {
+            type: "subscription_details",
+            subscription_details: { subscription: subscriptionId },
+          },
+          billing_reason: "subscription_cycle",
+          amount_paid: 1500,
+        } as any,
+        RENEWAL_EVENT_CREATED,
+      );
+    }
+
+    async function seedMembership(paidUntil: string) {
+      const { email, memberId } = await seedTestUser(ctx.db, {
+        email: `paid-until-${randomUUID()}@test.com`,
+      });
+      const membershipId = randomUUID();
+      await ctx.db
+        .insertInto("membership")
+        .values({
+          id: membershipId,
+          member_id: memberId ?? "",
+          type: "senior_player",
+          paid_until: paidUntil,
+        })
+        .execute();
+      return { email, membershipId };
+    }
+
+    async function paidUntilOf(membershipId: string) {
+      const row = await ctx.db
+        .selectFrom("membership")
+        .where("id", "=", membershipId)
+        .select("paid_until")
+        .executeTakeFirstOrThrow();
+      return new Date(row.paid_until).toISOString();
+    }
+
+    it("extends a lapsed membership from the payment date, not the stale expiry", async () => {
+      // Lapsed well before the payment
+      const { email, membershipId } = await seedMembership(
+        "2026-01-01T00:00:00.000Z",
+      );
+
+      await renewMonthly(email);
+
+      expect(await paidUntilOf(membershipId)).toBe("2026-07-10T12:00:00.000Z");
+    });
+
+    it("stacks an early renewal on top of the current expiry", async () => {
+      // Still active at payment time
+      const { email, membershipId } = await seedMembership(
+        "2026-06-20T00:00:00.000Z",
+      );
+
+      await renewMonthly(email);
+
+      expect(await paidUntilOf(membershipId)).toBe("2026-07-20T00:00:00.000Z");
+    });
+  });
+
   it("reads legacy (pre-Basil) invoice.subscription + payment_intent shape", async () => {
     // Webhook endpoints configured for api_version <= 2025-03-30 deliver
     // invoices with `subscription` and `payment_intent` at the top level,
