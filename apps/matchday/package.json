@@ -19,7 +19,7 @@
     "@stripe/react-stripe-js": "^6.9.0",
     "@stripe/stripe-js": "^9.15.0",
     "@tanstack/react-query": "^5.102.8",
-    "better-auth": "^1.7.2",
+    "better-auth": "^1.7.7",
     "better-call": "1.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
